@@ -1,0 +1,18 @@
+[package]
+name = "ctp-sign"
+description = "Signs Clear to Pay supplier invoices, delivery notes and payout changes, in exactly the format the contract checks."
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+license = "MIT"
+publish = false
+
+[dependencies]
+borsh = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+ed25519-dalek = "2"
+bs58 = "0.5"
+base64 = "0.22"
+getrandom = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

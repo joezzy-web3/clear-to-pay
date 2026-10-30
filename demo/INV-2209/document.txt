@@ -1,0 +1,9 @@
+SAMPLE DOCUMENT - FICTIONAL COMPANY - NOT A REAL INVOICE
+
+Qingmar Steel Co. (fictional), invoice INV-2209
+Order PO-1184, AH36 steel plate 12 mm
+Quantity billed: 12 t at 0.78 USDC per t
+Total: 9.36 USDC
+Pay to: qingmar.cleartopay.testnet (NEAR testnet USDC)
+
+Overbilled: weighbridge says 10 t, invoice says 12 t. Expected: HELD (quantity_exceeds_delivery).

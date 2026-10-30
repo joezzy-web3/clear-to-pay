@@ -1,0 +1,9 @@
+SAMPLE DOCUMENT - FICTIONAL COMPANY - NOT A REAL INVOICE
+
+Qingmar Steel Co. (fictional), invoice INV-2208
+Order PO-1184, AH36 steel plate 12 mm
+Quantity billed: 10 t at 0.78 USDC per t
+Total: 7.80 USDC
+Pay to: qingmar.cleartopay.testnet (NEAR testnet USDC)
+
+Clean invoice: 10 t delivered, 10 t billed, registered address. Expected: CLEARED (once the supplier's 72 hours have passed).
