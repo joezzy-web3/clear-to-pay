@@ -1,0 +1,9 @@
+# Secret scanning: default rules, plus one exception.
+# The allowed value is Circle's public USDC contract on NEAR testnet; it is an
+# address, not a secret. Nothing else is exempt.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public token contract IDs"
+regexes = ['''^3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af$''']

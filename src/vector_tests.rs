@@ -9,7 +9,11 @@ use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::testing_env;
 
 fn sample_route() -> PayoutRoute {
-    PayoutRoute { chain: "near".into(), token: "usdc.testnet".into(), address: "qingmar.testnet".into() }
+    PayoutRoute {
+        chain: "near".into(),
+        token: "usdc.testnet".into(),
+        address: "qingmar.testnet".into(),
+    }
 }
 fn sample_invoice() -> Invoice {
     Invoice {
@@ -17,7 +21,11 @@ fn sample_invoice() -> Invoice {
         invoice_number: "INV-2208".into(),
         order_id: "PO-1184".into(),
         token: "usdc.testnet".into(),
-        lines: vec![InvoiceLine { sku: "AH36-12mm".into(), qty: U64(10), unit_price: U128(780_000) }],
+        lines: vec![InvoiceLine {
+            sku: "AH36-12mm".into(),
+            qty: U64(10),
+            unit_price: U128(780_000),
+        }],
         total: U128(7_800_000),
         payee: sample_route(),
     }
@@ -26,7 +34,10 @@ fn sample_note() -> DeliveryNote {
     DeliveryNote {
         order_id: "PO-1184".into(),
         note_id: "DN-552".into(),
-        lines: vec![DeliveredLine { sku: "AH36-12mm".into(), qty: U64(10) }],
+        lines: vec![DeliveredLine {
+            sku: "AH36-12mm".into(),
+            qty: U64(10),
+        }],
     }
 }
 fn hex(b: &[u8]) -> String {
@@ -45,10 +56,28 @@ fn golden_digests() {
         route: sample_route(),
     }
     .digest();
-    let inv = InvoiceMessage { domain: INVOICE_DOMAIN.into(), contract: contract.clone(), invoice: sample_invoice() }.digest();
-    let note = DeliveryMessage { domain: DELIVERY_DOMAIN.into(), contract, note: sample_note() }.digest();
-    assert_eq!(hex(&change), "452a97d4d4c45de5ce784e89f78fc3845c2cf310551c9397dba7fc66235d9c28");
-    assert_eq!(hex(&inv), "192ea978fe7786d96831c3b917bad24d8df73bb3f639d1576a4ed59e7192b487");
-    assert_eq!(hex(&note), "5eebe4e05ec41c06b6df02cbca5a350cc35ca0c1bb9880e4ca663ae337097c18");
-
+    let inv = InvoiceMessage {
+        domain: INVOICE_DOMAIN.into(),
+        contract: contract.clone(),
+        invoice: sample_invoice(),
+    }
+    .digest();
+    let note = DeliveryMessage {
+        domain: DELIVERY_DOMAIN.into(),
+        contract,
+        note: sample_note(),
+    }
+    .digest();
+    assert_eq!(
+        hex(&change),
+        "452a97d4d4c45de5ce784e89f78fc3845c2cf310551c9397dba7fc66235d9c28"
+    );
+    assert_eq!(
+        hex(&inv),
+        "192ea978fe7786d96831c3b917bad24d8df73bb3f639d1576a4ed59e7192b487"
+    );
+    assert_eq!(
+        hex(&note),
+        "5eebe4e05ec41c06b6df02cbca5a350cc35ca0c1bb9880e4ca663ae337097c18"
+    );
 }

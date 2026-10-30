@@ -1,0 +1,15 @@
+# cargo-audit configuration.
+#
+# Each ignored advisory below was checked on 30 Oct 2026: none of these crates is in the
+# deployed contract. `cargo tree -e normal -i <crate> --target wasm32-unknown-unknown`
+# returns nothing for all four. They arrive only through near-sdk's host-side
+# unit-testing and ABI tooling, and the patched versions are not yet compatible
+# with near-sdk 5.29. Re-check whenever near-sdk is upgraded. Anything not listed
+# here still fails CI.
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0387", # crypto-bigint 0.5.5, timing variability; test-only (p256 via near-sdk unit-testing)
+    "RUSTSEC-2026-0391", # zstd 0.13.3, stream data leak on reused context; host-side ABI tooling only
+    "RUSTSEC-2026-0398", # zstd-safe 7.3.0, Seekable::decompress length bug; host-side ABI tooling only
+    "RUSTSEC-2026-0403", # zstd-safe 7.3.0, legacy streaming decompression; host-side ABI tooling only
+]

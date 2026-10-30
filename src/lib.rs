@@ -422,6 +422,6 @@ mod inspection_tests;
 #[cfg(test)]
 mod payment_tests;
 #[cfg(test)]
-mod vector_tests;
-#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod vector_tests;

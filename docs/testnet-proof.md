@@ -1,0 +1,30 @@
+# Clear to Pay on NEAR testnet: proof log
+
+Contract: cleartopay.testnet (owner: buyer.cleartopay.testnet)
+USDC (Circle, NEAR testnet): 3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af
+Explorer: https://testnet.nearblocks.io/txns/<id>
+
+## 30 Oct 2026, setup
+- Contract deployed and initialised: FbVwuaGqeZ3bXR8dENbFARDkoYsryV5gVyfEJsGNURk
+- USDC allowed: Do4gKQK6CtvMXCuzqHToFXUwGbtTjx87ZVHk5fxZfV21
+- Limits set (10 USDC per invoice, 30 per supplier per 30 days): 629jaUAjnTZyFQ3BxGn3jmQNtKNDRRLfq9dGsuC4W4SJ
+- Storekeeper key added: 9Y6MwfP5P91v7cDaJzByLTQXUz9vbSa1bopHn9m3UvzE
+- Supplier qingmar-steel (fictional) registered; payable from Mon 2 Nov 2026 21:17 Lagos: ZX8bzqSqVNZcaMB58qJB1moTWgqDC2EAoYZrwMXGhVr
+- Order PO-1184 created: 7SF6CGekGn4iBqZJwNP5f5wpCThM6jhQWBPJ4Td8Huk6
+- 15 test USDC deposited: BUpVeQurtsVS4QbDHsrAJdzmy8Jn1y2WMCmWMMG8J7B3
+
+## 30 Oct 2026, the agent key
+- Function-call key ed25519:GVTR1DmhqJaiLpNfhMRq7Y5rrERKCdmjwZHZnkRbDXra added to buyer.cleartopay.testnet: receiver cleartopay.testnet only, methods submit_invoice and execute_payment only, 0.25 NEAR gas allowance: 8HpViCurkLKMHW717hJ93ae1A7hFL27Uit1CWD8d1RkX
+
+## 30 Oct 2026, first verdicts
+- INV-2209, billed 12 t / delivered 10 t: HELD [payee_not_yet_payable, quantity_exceeds_delivery], receipt 0: 4NAEWuuj94LJtSN3kZRWfWNjAmVqryL6Q1QmnkjYUQFg
+- INV-2210, "new bank details" (payee not on file): SEIZED [payee_mismatch], receipt 1: 7WyaoQhmqEZS2dYhxmrgBQ6WBdgiJWEgpKr5WNdx9xAM
+
+## 30 Oct 2026, the agent key is fenced (refused before reaching the chain, so no transaction IDs)
+Signed with the agent's function-call key (`sign-with-access-key-file .../ed25519_GVTR1Dmh....json`):
+- `submit_invoice` with 0 deposit: allowed; INV-2209 HELD again, receipt 2: HgiFFPzQmrjzXNQXvEuDKgQnQtrQqQDmZcBV1LpbcfMg
+- `allow_token` with 1 yoctoNEAR: refused ("Having a deposit with a function call action is not allowed with a function call access key")
+- `submit_invoice` with 1 yoctoNEAR: refused (same rule)
+- USDC `ft_transfer` with 1 yoctoNEAR: refused (same rule)
+- `allow_token` with 0 deposit: refused ("Transaction method name <allow_token> isn't allowed by the access key")
+- USDC `storage_withdraw` with 0 deposit: refused ("Transaction for <3e2210…afcb8af> doesn't match the access key for <cleartopay.testnet>")

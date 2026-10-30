@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Format
+        run: cargo fmt --check
+      - name: Lint (warnings fail the build)
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Contract tests
+        run: cargo test
+      - name: Contract compiles for NEAR (wasm)
+        run: cargo build --lib --target wasm32-unknown-unknown --release
+        env:
+          RUSTFLAGS: "--cfg near"
+      - name: Signing tool tests
+        working-directory: tools/ctp-sign
+        run: cargo test && cargo clippy --all-targets -- -D warnings
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: Known vulnerabilities in dependencies
+        run: cargo audit && (cd tools/ctp-sign && cargo audit)
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan full history for leaked keys and tokens
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks detect --source . --redact --verbose
