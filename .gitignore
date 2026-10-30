@@ -1,0 +1,10 @@
+# secrets: never commit
+.env
+.env.*
+!.env.example
+*.pem
+*keystore*
+.near-credentials/
+# build output
+target/
+node_modules/
