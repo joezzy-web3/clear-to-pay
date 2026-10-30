@@ -110,6 +110,10 @@ pub struct Contract {
     used_delivery_notes: LookupMap<String, u32>,
     limits: inspection::Limits,
     spent: LookupMap<String, inspection::PeriodSpend>,
+    // payment state (see payments.rs)
+    allowed_tokens: Vec<AccountId>,
+    funds: LookupMap<AccountId, payments::Funds>,
+    payments: LookupMap<u32, payments::Payment>,
 }
 
 #[near]
@@ -128,6 +132,9 @@ impl Contract {
             used_delivery_notes: LookupMap::new(b"n"),
             limits: inspection::Limits::default(),
             spent: LookupMap::new(b"p"),
+            allowed_tokens: Vec::new(),
+            funds: LookupMap::new(b"f"),
+            payments: LookupMap::new(b"y"),
         }
     }
 
@@ -393,6 +400,12 @@ pub(crate) fn validate_route(r: &PayoutRoute) {
         clean(&r.address, 128),
         "route address must be 1 to 128 printable ASCII characters"
     );
+    if r.chain == "near" {
+        require!(
+            r.address.parse::<AccountId>().is_ok() && r.token.parse::<AccountId>().is_ok(),
+            "NEAR routes need a valid account and token contract"
+        );
+    }
 }
 
 pub(crate) fn emit(event: &str, data: near_sdk::serde_json::Value) {
@@ -402,8 +415,11 @@ pub(crate) fn emit(event: &str, data: near_sdk::serde_json::Value) {
 }
 
 pub mod inspection;
+pub mod payments;
 
 #[cfg(test)]
 mod inspection_tests;
+#[cfg(test)]
+mod payment_tests;
 #[cfg(test)]
 mod tests;

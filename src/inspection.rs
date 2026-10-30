@@ -157,6 +157,8 @@ pub struct InspectionResult {
     pub receipt_id: u32,
     pub verdict: Verdict,
     pub reasons: Vec<String>,
+    /// Set only for CLEARED invoices: where the payment stands after this call.
+    pub payment: Option<crate::payments::PaymentStatus>,
 }
 
 // ---------------------------------------------------------------------- contract methods
@@ -511,10 +513,12 @@ impl Contract {
             "invoice_inspected",
             json!({ "receipt_id": id, "verdict": verdict, "reasons": reasons, "supplier_id": invoice.supplier_id, "invoice_number": invoice.invoice_number, "amount": U128(amount) }),
         );
+        let payment = (verdict == Verdict::Cleared).then(|| self.authorize_payment(id, &invoice));
         InspectionResult {
             receipt_id: id,
             verdict,
             reasons,
+            payment,
         }
     }
 
