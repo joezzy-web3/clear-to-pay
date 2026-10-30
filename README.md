@@ -8,7 +8,7 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 
 ## For reviewers
 
-**What runs today** (NEAR testnet, contract `cleartopay.testnet`, owned by `buyer.cleartopay.testnet`):
+**What runs today** (NEAR testnet, contract `guard.cleartopay.testnet`, owned by `buyer.cleartopay.testnet`; v2, redeployed with the security-review fixes on 30 Oct; the first verdicts below ran on v1, `cleartopay.testnet`):
 
 - An agent submits a supplier invoice. The contract checks it against the purchase order, a storekeeper-signed delivery note, the supplier registry, duplicates and limits, and stamps it **CLEARED**, **HELD** or **SEIZED**, with reasons and a permanent receipt.
 - A CLEARED invoice pays real testnet USDC (Circle) to the supplier's **registered** address, through fixed payment states.
@@ -28,10 +28,10 @@ Every transaction mentioned below is listed in [docs/testnet-proof.md](docs/test
 
 | Claim | Enforced in | Proof |
 |---|---|---|
-| A fooled AI cannot redirect money: payment goes only to the supplier's registered route | `inspection.rs` (payee check), `payments.rs` (`try_pay` re-checks the route) | Tests `attack_ai_fooled_into_writing_the_attackers_address_is_seized`, `if_the_route_changes_before_payment_the_old_one_is_not_paid`; testnet: INV-2210 **SEIZED** (`payee_mismatch`), tx `7WyaoQhm…` |
-| Billing more than was delivered is held | `inspection.rs` | Test `billing_more_than_was_delivered_is_held`; testnet: INV-2209 **HELD**, tx `4NAEWuuj…` |
+| A fooled AI cannot redirect money: payment goes only to the supplier's registered route | `inspection.rs` (payee check), `payments.rs` (`try_pay` re-checks the route) | Tests `attack_ai_fooled_into_writing_the_attackers_address_is_seized`, `if_the_route_changes_before_payment_the_old_one_is_not_paid`; testnet (v1): INV-2210 **SEIZED** (`payee_mismatch`), tx `7WyaoQhm…` |
+| Billing more than was delivered is held | `inspection.rs` | Test `billing_more_than_was_delivered_is_held`; testnet (v1): INV-2209 **HELD**, tx `4NAEWuuj…` |
 | Changing a supplier's payout address needs the supplier's signature, the buyer's approval and 72 hours | `lib.rs` (registry) | Registry tests in `src/tests.rs`, incl. wrong key, edited address, replayed nonce, signature for another contract |
-| A new supplier cannot be paid for 72 hours | `lib.rs` | Test `new_supplier_is_not_payable_for_72_hours`; testnet: `payable_route` is `null` until Mon 2 Nov 2026 21:17 Lagos |
+| A new supplier cannot be paid for 72 hours | `lib.rs` | Test `new_supplier_is_not_payable_for_72_hours`; testnet (v2): `payable_route` is `null` until Mon 2 Nov 2026 23:29 Lagos |
 | The same invoice, document or delivery note is never paid twice | `inspection.rs` | Tests `attack_paying_the_same_invoice_twice_is_seized`, `attack_renumbered_copy_of_a_paid_document_is_seized`, `attack_reusing_one_delivery_for_two_invoices_is_seized` |
 | A forged copy cannot block the real invoice, even if it carries the real document's fingerprint | `inspection.rs` (the supplier signs the fingerprint; only authenticated documents are remembered) | Tests `a_forged_copy_cannot_block_the_real_invoice`, `attack_forged_invoice_cannot_poison_legitimate_document_hash` |
 | One person cannot play both supplier and storekeeper | `lib.rs`, `inspection.rs` (keys must differ, checked at registration and at submission) | Tests `attack_supplier_key_cannot_be_registered_as_a_storekeeper`, `attack_storekeeper_key_cannot_be_registered_as_a_supplier` |
@@ -40,7 +40,7 @@ Every transaction mentioned below is listed in [docs/testnet-proof.md](docs/test
 | Splitting an invoice to dodge the limit fails | `inspection.rs` | Test `attack_splitting_invoices_to_dodge_the_limit_hits_the_period_limit` |
 | Payments only move through legal states; nothing is paid twice | `payments.rs` (`set_status`) | Tests `a_settled_payment_can_never_be_paid_again`, `a_callback_cannot_settle_the_same_payment_twice` |
 | The operator has no backdoor: no function can send funds anywhere but the registered supplier or back to the buyer | `payments.rs` (`withdraw` pays the owner only, never reserved funds) | Tests `withdraw_only_pays_the_owner_and_never_touches_reserved_money`, `withdraw_cannot_take_reserved_money` |
-| The agent key cannot attach money or call owner actions | NEAR access-key rules + 1-yocto owner methods | Key permissions on chain, tx `8HpViCur…`; refused attempts are reproducible (see proof log) |
+| The agent key cannot attach money or call owner actions | NEAR access-key rules + 1-yocto owner methods | Key permissions on chain, v2 tx `2GQ6or4U…` (v1 `8HpViCur…`); refused attempts are reproducible (see proof log) |
 | Signatures are bound to this contract and message type | Domain-separated sha-256 digests | Golden vectors in `src/vector_tests.rs` and `tools/ctp-sign`; test `attack_signature_made_for_another_contract_is_rejected` |
 | Invisible characters and lookalike letters are rejected in ids and addresses | `lib.rs` (validation) | Tests `addresses_with_invisible_characters_are_rejected`, `supplier_ids_with_lookalike_letters_are_rejected` |
 

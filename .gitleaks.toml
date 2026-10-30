@@ -1,5 +1,5 @@
 # Secret scanning: gitleaks' default rules, plus rules for NEAR keys and the
-# NEAR AI key, with three exact exceptions.
+# NEAR AI key, with exact exceptions.
 #
 # Each exception matches ONE complete published public value (anchored ^...$),
 # checked against the detected secret itself, not against the line. A real secret
@@ -13,8 +13,9 @@ description = "Published public values, exact match only"
 regexes = [
   # Circle's USDC token contract on NEAR testnet
   '''^3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af$''',
-  # The agent's function-call PUBLIC key, published on purpose
+  # The agent's function-call PUBLIC keys (v1 and v2), published on purpose
   '''^GVTR1DmhqJaiLpNfhMRq7Y5rrERKCdmjwZHZnkRbDXra$''',
+  '''^6ZnC3JFuTwHksSLZev3Vbbe24hjKdZs52gFphrLctcWp$''',
   # A testnet transaction ID in an early commit of the proof log
   '''^9Y6MwfP5P91v7cDaJzByLTQXUz9vbSa1bopHn9m3UvzE$''',
 ]

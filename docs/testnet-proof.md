@@ -1,8 +1,25 @@
 # Clear to Pay on NEAR testnet: proof log
 
-Contract: cleartopay.testnet (owner: buyer.cleartopay.testnet)
+Live contract: **guard.cleartopay.testnet** (v2, with the audit fixes; owner: buyer.cleartopay.testnet)
+Retired contract: cleartopay.testnet (v1; its first verdicts stay below as history)
 USDC (Circle, NEAR testnet): 3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af
 Every transaction below links to NearBlocks.
+
+## 30 Oct 2026, v2 deployed after the security review
+Patch 7 changes what suppliers sign and how state is stored, so it went to a fresh account rather than over v1.
+- 15 test USDC withdrawn from v1 back to the buyer (v1 refused a second withdrawal: "not enough unreserved funds"): [7x4bzE1F…](https://testnet.nearblocks.io/txns/7x4bzE1F7qzMzA3NDkeMHKchuQm1TPbnN64UsgKeZmhe)
+- guard.cleartopay.testnet created: [EPCAL1NM…](https://testnet.nearblocks.io/txns/EPCAL1NMXoEhyAsQD1YovcN9p4ptcHpAsKUcCYtHMwju)
+- Contract deployed and initialised (wasm sha-256 94f2ebab…db880): [AcLCZwrf…](https://testnet.nearblocks.io/txns/AcLCZwrfdQH3hojwCVJz1Fd6ftAosviGQfvP2zG7r11x)
+- Registered with the USDC token: [AkbZh8Rt…](https://testnet.nearblocks.io/txns/AkbZh8RtNUmAugW3mMizBnf4uXERrtjp4DvrYbnYMud9)
+- USDC allowed: [5gMeNYsz…](https://testnet.nearblocks.io/txns/5gMeNYszVA28X34F6m8syCVMUW5hquZSg64oNHafxL5G)
+- Supplier qingmar-steel (fictional) registered; payable from Mon 2 Nov 2026 23:29 Lagos: [SihRASoT…](https://testnet.nearblocks.io/txns/SihRASoT9STgAd5MvujyFiHkNBaqGM28aBAQsrEFCQN)
+- Storekeeper key added (a different key from the supplier's, as v2 requires): [57NPNH66…](https://testnet.nearblocks.io/txns/57NPNH66GgxgqgByNPqaQ6PrcaGPpgET93eeFX5eLdNR)
+- Order PO-1184 created: [ETVTZCgX…](https://testnet.nearblocks.io/txns/ETVTZCgXsxyTruS4J8uP8S6uuqYGoPRi2yu4McDwNUxq)
+- Limits set (10 USDC per invoice, 30 per supplier per 30 days, 100 submissions a day): [3bZPM4mK…](https://testnet.nearblocks.io/txns/3bZPM4mKsikVTHUS7s2cqj1gnZNpzzQ1c1rPEiN1kHzA)
+- New agent function-call key ed25519:6ZnC3JFuTwHksSLZev3Vbbe24hjKdZs52gFphrLctcWp: receiver guard.cleartopay.testnet only, methods submit_invoice and execute_payment only, 0.25 NEAR gas allowance: [2GQ6or4U…](https://testnet.nearblocks.io/txns/2GQ6or4UY17dbeQDQ7YCSRtQ2zmcbCbrBcHSZGM9suYn)
+- 15 test USDC deposited: [GVPqFRwi…](https://testnet.nearblocks.io/txns/GVPqFRwiVPt2xWwCPLUY7Bh9KHHNdC9aZ3DP5Z5bEdeQ)
+
+# v1 history (cleartopay.testnet)
 
 ## 30 Oct 2026, setup
 - Contract deployed and initialised: [FbVwuaGq…](https://testnet.nearblocks.io/txns/FbVwuaGqeZ3bXR8dENbFARDkoYsryV5gVyfEJsGNURk)
