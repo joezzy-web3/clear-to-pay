@@ -1,9 +1,36 @@
-# Secret scanning: default rules, plus one exception.
-# The allowed value is Circle's public USDC contract on NEAR testnet; it is an
-# address, not a secret. Nothing else is exempt.
+# Secret scanning: gitleaks' default rules, with narrow, named exceptions.
+# Every exception is a PUBLIC value: a token contract, a public key, or a
+# transaction ID. Nothing shaped like a secret key is exempt.
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Public token contract IDs"
-regexes = ['''^3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af$''']
+description = "Published public values"
+regexTarget = "line"
+regexes = [
+  # Circle's USDC contract on NEAR testnet (public address)
+  '''3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af''',
+  # Public keys we publish on purpose: agent function-call key, supplier, storekeeper
+  '''ed25519:GVTR1DmhqJaiLpNfhMRq7Y5rrERKCdmjwZHZnkRbDXra''',
+  '''ed25519:FvJCFbXCjqkmVAdoTH3vapBZckWdtCEjsuq8K6Rd5VQj''',
+  '''ed25519:D9PKouihN73fDQsqsYE9cXvryoBDxnh9Jut6teNGCrW6''',
+  # A transaction ID that appeared unlinked in an earlier commit of the proof log
+  '''9Y6MwfP5P91v7cDaJzByLTQXUz9vbSa1bopHn9m3UvzE''',
+  # Transaction links in the proof log
+  '''https://testnet\.nearblocks\.io/txns/[1-9A-HJ-NP-Za-km-z]{43,44}\)''',
+]
+
+# Rules for the secrets this project actually handles. Gitleaks' defaults do not
+# know NEAR key formats.
+
+[[rules]]
+id = "near-secret-key"
+description = "NEAR ed25519 secret key (64-byte keypair; public keys are much shorter)"
+regex = '''ed25519:[1-9A-HJ-NP-Za-km-z]{80,90}'''
+keywords = ["ed25519:"]
+
+[[rules]]
+id = "near-ai-api-key"
+description = "NEAR AI Cloud API key in a setting or environment variable"
+regex = '''(?i)near[_-]?ai[_-]?(?:api[_-]?)?key["']?\s*[:=]\s*["']?([^\s"']{16,})'''
+keywords = ["near_ai", "near-ai", "nearai"]
