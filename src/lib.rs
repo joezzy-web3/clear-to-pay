@@ -101,6 +101,15 @@ pub struct Contract {
     owner: AccountId,
     paused: bool,
     suppliers: LookupMap<String, SupplierRecord>,
+    // inspection state (see inspection.rs)
+    storekeepers: Vec<PublicKey>,
+    orders: LookupMap<String, inspection::Order>,
+    receipts: near_sdk::store::Vector<inspection::Receipt>,
+    cleared_invoices: LookupMap<String, u32>,
+    seen_documents: LookupMap<Vec<u8>, u32>,
+    used_delivery_notes: LookupMap<String, u32>,
+    limits: inspection::Limits,
+    spent: LookupMap<String, inspection::PeriodSpend>,
 }
 
 #[near]
@@ -111,6 +120,14 @@ impl Contract {
             owner,
             paused: false,
             suppliers: LookupMap::new(b"s"),
+            storekeepers: Vec::new(),
+            orders: LookupMap::new(b"o"),
+            receipts: near_sdk::store::Vector::new(b"r"),
+            cleared_invoices: LookupMap::new(b"c"),
+            seen_documents: LookupMap::new(b"d"),
+            used_delivery_notes: LookupMap::new(b"n"),
+            limits: inspection::Limits::default(),
+            spent: LookupMap::new(b"p"),
         }
     }
 
@@ -312,13 +329,13 @@ impl Contract {
     }
 }
 
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     env::block_timestamp()
 }
 
 /// Promote an approved change once its 72 hours have passed. The new route is
 /// payable from that moment; the old one stops being payable at the same moment.
-fn settle(rec: &mut SupplierRecord, t: u64) {
+pub(crate) fn settle(rec: &mut SupplierRecord, t: u64) {
     if let Some(p) = &rec.pending {
         let effective_at = p.proposed_at.0 + COOL_OFF_NS;
         if p.approved && t >= effective_at {
@@ -329,11 +346,11 @@ fn settle(rec: &mut SupplierRecord, t: u64) {
     }
 }
 
-fn route_payable_at(rec: &SupplierRecord, t: u64) -> Option<PayoutRoute> {
+pub(crate) fn route_payable_at(rec: &SupplierRecord, t: u64) -> Option<PayoutRoute> {
     (t >= rec.route_payable_from).then(|| rec.route.clone())
 }
 
-fn verify_ed25519(key: &PublicKey, message: &[u8; 32], signature: &[u8]) -> bool {
+pub(crate) fn verify_ed25519(key: &PublicKey, message: &[u8; 32], signature: &[u8]) -> bool {
     if key.curve_type() != CurveType::ED25519 || signature.len() != 64 {
         return false;
     }
@@ -345,7 +362,7 @@ fn verify_ed25519(key: &PublicKey, message: &[u8; 32], signature: &[u8]) -> bool
     env::ed25519_verify(&sig, message, &key_bytes)
 }
 
-fn validate_supplier_id(id: &str) {
+pub(crate) fn validate_supplier_id(id: &str) {
     require!(
         !id.is_empty() && id.len() <= 64,
         "supplier id must be 1 to 64 characters"
@@ -360,7 +377,7 @@ fn validate_supplier_id(id: &str) {
 
 /// Routes are compared byte for byte, so only plain printable ASCII is accepted:
 /// no spaces, no invisible characters, no lookalike letters from other alphabets.
-fn validate_route(r: &PayoutRoute) {
+pub(crate) fn validate_route(r: &PayoutRoute) {
     let clean = |s: &str, max: usize| {
         !s.is_empty() && s.len() <= max && s.bytes().all(|b| b.is_ascii_graphic())
     };
@@ -378,11 +395,15 @@ fn validate_route(r: &PayoutRoute) {
     );
 }
 
-fn emit(event: &str, data: near_sdk::serde_json::Value) {
+pub(crate) fn emit(event: &str, data: near_sdk::serde_json::Value) {
     let log =
         json!({ "standard": "cleartopay", "version": "0.1.0", "event": event, "data": [data] });
     env::log_str(&format!("EVENT_JSON:{log}"));
 }
 
+pub mod inspection;
+
+#[cfg(test)]
+mod inspection_tests;
 #[cfg(test)]
 mod tests;
