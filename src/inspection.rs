@@ -86,6 +86,9 @@ pub struct InvoiceMessage {
     pub domain: String,
     pub contract: AccountId,
     pub invoice: Invoice,
+    /// sha-256 of the original document. Signed by the supplier, so the
+    /// fingerprint cannot be swapped or attached to someone else's invoice.
+    pub document_hash: [u8; 32],
 }
 
 #[near(serializers = [borsh])]
@@ -139,9 +142,26 @@ pub struct Receipt {
 pub struct Limits {
     /// Largest single invoice that can clear. Zero means nothing clears yet.
     pub per_invoice: U128,
-    /// Most that can clear for one supplier within one period.
+    /// Most that can clear for one supplier within one period. Periods are
+    /// fixed windows counted from 1 Jan 1970 UTC (not a rolling window), so a
+    /// supplier can reach the cap at the end of one window and again at the start
+    /// of the next.
     pub per_supplier_per_period: U128,
     pub period_hours: U64,
+    /// Most invoices the agent may submit per UTC day (any verdict). Bounds the
+    /// storage a compromised agent can make the contract pay for.
+    pub max_submissions_per_day: u32,
+}
+
+/// Used when no limits are set yet.
+pub const DEFAULT_SUBMISSIONS_PER_DAY: u32 = 100;
+const DAY_NS: u64 = 24 * 3_600_000_000_000;
+
+#[near(serializers = [borsh])]
+#[derive(Clone, Debug, Default)]
+pub struct DailyCount {
+    pub day: u64,
+    pub count: u32,
 }
 
 #[near(serializers = [borsh])]
@@ -176,6 +196,10 @@ impl Contract {
         require!(
             !self.storekeepers.contains(&key),
             "storekeeper already registered"
+        );
+        require!(
+            !self.supplier_keys.contains_key(key.as_bytes()),
+            "this key is a supplier key; supplier and storekeeper keys must differ"
         );
         require!(self.storekeepers.len() < 20, "too many storekeepers");
         self.storekeepers.push(key.clone());
@@ -246,8 +270,13 @@ impl Contract {
         per_invoice: U128,
         per_supplier_per_period: U128,
         period_hours: U64,
+        max_submissions_per_day: u32,
     ) {
         self.assert_owner_with_yocto();
+        require!(
+            (1..=1000).contains(&max_submissions_per_day),
+            "daily submission limit must be 1 to 1000"
+        );
         require!(
             period_hours.0 >= 1 && period_hours.0 <= 24 * 366,
             "period must be 1 hour to 1 year"
@@ -260,6 +289,7 @@ impl Contract {
             per_invoice,
             per_supplier_per_period,
             period_hours,
+            max_submissions_per_day,
         };
         emit("limits_set", json!({ "limits": self.limits }));
     }
@@ -280,10 +310,28 @@ impl Contract {
             "only the buyer's agent can submit invoices"
         );
         self.assert_not_paused();
+        let doc: [u8; 32] = document_hash
+            .0
+            .clone()
+            .try_into()
+            .unwrap_or_else(|_| env::panic_str("document hash must be 32 bytes (sha-256)"));
+        // Storage protection: a hard cap on submissions per UTC day, whatever the verdict.
+        let today = now() / DAY_NS;
+        let cap = match self.limits.max_submissions_per_day {
+            0 => DEFAULT_SUBMISSIONS_PER_DAY,
+            n => n,
+        };
+        if self.submissions.day != today {
+            self.submissions = DailyCount {
+                day: today,
+                count: 0,
+            };
+        }
         require!(
-            document_hash.0.len() == 32,
-            "document hash must be 32 bytes (sha-256)"
+            self.submissions.count < cap,
+            "daily submission limit reached"
         );
+        self.submissions.count += 1;
         validate_ref(&invoice.supplier_id, "supplier id");
         validate_ref(&invoice.invoice_number, "invoice number");
         validate_ref(&invoice.order_id, "order id");
@@ -304,6 +352,7 @@ impl Contract {
             domain: INVOICE_DOMAIN.into(),
             contract: contract.clone(),
             invoice: invoice.clone(),
+            document_hash: doc,
         }
         .digest();
         let delivery_digest = DeliveryMessage {
@@ -317,12 +366,18 @@ impl Contract {
         let mut hold: Vec<&str> = Vec::new();
 
         // 1. Who is asking to be paid, and are they who they say they are?
+        let mut supplier_signature_ok = false;
         let supplier = self.suppliers.get(&invoice.supplier_id).cloned();
         match &supplier {
             None => hold.push("unknown_supplier"),
             Some(rec) => {
-                if !verify_ed25519(&rec.signing_key, &invoice_digest, &supplier_signature.0) {
+                supplier_signature_ok =
+                    verify_ed25519(&rec.signing_key, &invoice_digest, &supplier_signature.0);
+                if !supplier_signature_ok {
                     seize.push("invalid_supplier_signature");
+                }
+                if rec.signing_key == storekeeper_key {
+                    hold.push("storekeeper_is_supplier");
                 }
                 let mut rec = rec.clone();
                 settle(&mut rec, t);
@@ -487,8 +542,12 @@ impl Contract {
             }
             // A seized document can never come back. Its invoice number is not
             // reserved, so a forged copy cannot block the real supplier's invoice.
+            // Only an authenticated document is remembered as seized. A forged
+            // invoice must not be able to "use up" the fingerprint of a real one.
             Verdict::Seized => {
-                self.seen_documents.insert(document_hash.0.clone(), id);
+                if supplier_signature_ok {
+                    self.seen_documents.insert(document_hash.0.clone(), id);
+                }
             }
             Verdict::Held => {}
         }

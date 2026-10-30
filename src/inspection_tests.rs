@@ -71,7 +71,12 @@ fn setup() -> Contract {
         }],
     );
     ctx(owner(), T0, 1);
-    c.set_limits(U128(100_000 * UNIT), U128(250_000 * UNIT), U64(24 * 30));
+    c.set_limits(
+        U128(100_000 * UNIT),
+        U128(250_000 * UNIT),
+        U64(24 * 30),
+        100,
+    );
     c
 }
 
@@ -100,11 +105,12 @@ fn delivery(note: &str, qty: u64) -> DeliveryNote {
         }],
     }
 }
-fn sign_invoice(k: &SigningKey, inv: &Invoice) -> Base64VecU8 {
+fn sign_invoice(k: &SigningKey, inv: &Invoice, document: u8) -> Base64VecU8 {
     let d = InvoiceMessage {
         domain: INVOICE_DOMAIN.into(),
         contract: contract_id(),
         invoice: inv.clone(),
+        document_hash: [document; 32],
     }
     .digest();
     Base64VecU8(k.sign(&d).to_bytes().to_vec())
@@ -124,7 +130,7 @@ fn doc(n: u8) -> Base64VecU8 {
 
 /// Submit with honest signatures by default.
 fn submit(c: &mut Contract, inv: Invoice, note: DeliveryNote, document: u8) -> InspectionResult {
-    let s1 = sign_invoice(&key(SUPPLIER), &inv);
+    let s1 = sign_invoice(&key(SUPPLIER), &inv, document);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx(owner(), LIVE, 0);
     c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(document))
@@ -257,7 +263,7 @@ fn delivery_note_signed_by_an_unknown_key_is_held() {
     let mut c = setup();
     let inv = invoice("INV-1", 100, 780, 78_000, "qingmar.testnet");
     let note = delivery("DN-1", 100);
-    let s1 = sign_invoice(&key(SUPPLIER), &inv);
+    let s1 = sign_invoice(&key(SUPPLIER), &inv, 1);
     let fake = key(99); // "storekeeper" the buyer never registered
     let s2 = sign_delivery(&fake, &note);
     ctx(owner(), LIVE, 0);
@@ -270,7 +276,7 @@ fn delivery_note_signed_by_an_unknown_key_is_held() {
 fn delivery_note_edited_after_signing_is_held() {
     let mut c = setup();
     let inv = invoice("INV-1", 120, 780, 93_600, "qingmar.testnet");
-    let s1 = sign_invoice(&key(SUPPLIER), &inv);
+    let s1 = sign_invoice(&key(SUPPLIER), &inv, 1);
     let s2 = sign_delivery(&key(STOREKEEPER), &delivery("DN-1", 100));
     ctx(owner(), LIVE, 0);
     // Someone changes 100 to 120 on the note after the storekeeper signed it.
@@ -323,7 +329,7 @@ fn nothing_clears_until_limits_are_set() {
 fn invoice_over_the_single_invoice_limit_is_held() {
     let mut c = setup();
     ctx(owner(), T0, 1);
-    c.set_limits(U128(50_000 * UNIT), U128(250_000 * UNIT), U64(720));
+    c.set_limits(U128(50_000 * UNIT), U128(250_000 * UNIT), U64(720), 100);
     let r = submit(
         &mut c,
         invoice("INV-1", 100, 780, 78_000, "qingmar.testnet"),
@@ -338,7 +344,7 @@ fn invoice_over_the_single_invoice_limit_is_held() {
 fn attack_splitting_invoices_to_dodge_the_limit_hits_the_period_limit() {
     let mut c = setup();
     ctx(owner(), T0, 1);
-    c.set_limits(U128(40_000 * UNIT), U128(60_000 * UNIT), U64(720));
+    c.set_limits(U128(40_000 * UNIT), U128(60_000 * UNIT), U64(720), 100);
     // 78,000 split into 39,000 + 39,000: each is under the single-invoice limit.
     let a = submit(
         &mut c,
@@ -372,7 +378,7 @@ fn route_still_in_its_72_hours_is_held() {
     let mut c = setup();
     let inv = invoice("INV-1", 100, 780, 78_000, "qingmar.testnet");
     let note = delivery("DN-1", 100);
-    let s1 = sign_invoice(&key(SUPPLIER), &inv);
+    let s1 = sign_invoice(&key(SUPPLIER), &inv, 1);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx(owner(), T0 + HOUR, 0); // supplier registered only an hour ago
     let r = c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(1));
@@ -389,7 +395,7 @@ fn attack_new_bank_details_on_a_signed_looking_invoice_is_seized() {
     // sign with their own key and point the payee at themselves.
     let inv = invoice("INV-2210", 100, 780, 78_000, "attacker.testnet");
     let note = delivery("DN-552", 100);
-    let s1 = sign_invoice(&key(66), &inv);
+    let s1 = sign_invoice(&key(66), &inv, 1);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx(owner(), LIVE, 0);
     let r = c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(1));
@@ -417,7 +423,7 @@ fn attack_ai_fooled_into_writing_the_attackers_address_is_seized() {
 fn attack_invoice_edited_after_the_supplier_signed_it_is_seized() {
     let mut c = setup();
     let signed = invoice("INV-1", 100, 780, 78_000, "qingmar.testnet");
-    let s1 = sign_invoice(&key(SUPPLIER), &signed);
+    let s1 = sign_invoice(&key(SUPPLIER), &signed, 1);
     let note = delivery("DN-1", 100);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     let mut edited = signed.clone();
@@ -495,7 +501,7 @@ fn a_forged_copy_cannot_block_the_real_invoice() {
     // An attacker's fake "INV-2208" is seized first...
     let inv = invoice("INV-2208", 100, 780, 78_000, "attacker.testnet");
     let note = delivery("DN-552", 100);
-    let s1 = sign_invoice(&key(66), &inv);
+    let s1 = sign_invoice(&key(66), &inv, 9);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx(owner(), LIVE, 0);
     let fake = c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(9));
@@ -533,7 +539,7 @@ fn strangers_cannot_submit_invoices() {
     let mut c = setup();
     let inv = invoice("INV-1", 100, 780, 78_000, "qingmar.testnet");
     let note = delivery("DN-1", 100);
-    let s1 = sign_invoice(&key(SUPPLIER), &inv);
+    let s1 = sign_invoice(&key(SUPPLIER), &inv, 1);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx("stranger.testnet".parse().unwrap(), LIVE, 0);
     c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(1));
@@ -575,5 +581,5 @@ fn the_agent_key_cannot_create_orders() {
 fn limits_must_be_consistent() {
     let mut c = setup();
     ctx(owner(), T0, 1);
-    c.set_limits(U128(10), U128(5), U64(24));
+    c.set_limits(U128(10), U128(5), U64(24), 100);
 }

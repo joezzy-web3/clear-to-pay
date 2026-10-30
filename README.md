@@ -17,8 +17,8 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 **Run it yourself:**
 
 ```bash
-cargo test                        # 69 contract tests
-(cd tools/ctp-sign && cargo test) # 4 signing-tool tests, incl. golden vectors shared with the contract
+cargo test                        # 88 contract tests
+(cd tools/ctp-sign && cargo test) # 5 signing-tool tests, incl. golden vectors shared with the contract
 cargo near build non-reproducible-wasm
 ```
 
@@ -33,7 +33,10 @@ Every transaction mentioned below is listed in [docs/testnet-proof.md](docs/test
 | Changing a supplier's payout address needs the supplier's signature, the buyer's approval and 72 hours | `lib.rs` (registry) | Registry tests in `src/tests.rs`, incl. wrong key, edited address, replayed nonce, signature for another contract |
 | A new supplier cannot be paid for 72 hours | `lib.rs` | Test `new_supplier_is_not_payable_for_72_hours`; testnet: `payable_route` is `null` until Mon 2 Nov 2026 21:17 Lagos |
 | The same invoice, document or delivery note is never paid twice | `inspection.rs` | Tests `attack_paying_the_same_invoice_twice_is_seized`, `attack_renumbered_copy_of_a_paid_document_is_seized`, `attack_reusing_one_delivery_for_two_invoices_is_seized` |
-| A forged copy cannot block the real invoice | `inspection.rs` | Test `a_forged_copy_cannot_block_the_real_invoice` |
+| A forged copy cannot block the real invoice, even if it carries the real document's fingerprint | `inspection.rs` (the supplier signs the fingerprint; only authenticated documents are remembered) | Tests `a_forged_copy_cannot_block_the_real_invoice`, `attack_forged_invoice_cannot_poison_legitimate_document_hash` |
+| One person cannot play both supplier and storekeeper | `lib.rs`, `inspection.rs` (keys must differ, checked at registration and at submission) | Tests `attack_supplier_key_cannot_be_registered_as_a_storekeeper`, `attack_storekeeper_key_cannot_be_registered_as_a_supplier` |
+| A failed or expired payment can be retried, once, only by the buyer, and only to the current registered route | `payments.rs` (`reauthorize_payment`) | Tests `failed_payment_can_be_reauthorized_and_is_sent_once`, `reauthorized_payment_goes_to_the_current_route_after_an_approved_change` |
+| A hijacked agent cannot fill the contract's storage | `inspection.rs` (daily submission limit, 1–1000, default 100) | Test `agent_cannot_exhaust_contract_storage_beyond_the_daily_limit` |
 | Splitting an invoice to dodge the limit fails | `inspection.rs` | Test `attack_splitting_invoices_to_dodge_the_limit_hits_the_period_limit` |
 | Payments only move through legal states; nothing is paid twice | `payments.rs` (`set_status`) | Tests `a_settled_payment_can_never_be_paid_again`, `a_callback_cannot_settle_the_same_payment_twice` |
 | The operator has no backdoor: no function can send funds anywhere but the registered supplier or back to the buyer | `payments.rs` (`withdraw` pays the owner only, never reserved funds) | Tests `withdraw_only_pays_the_owner_and_never_touches_reserved_money`, `withdraw_cannot_take_reserved_money` |
@@ -58,11 +61,33 @@ Still to come, and not claimed above: the AI invoice reader on NEAR AI Cloud, cr
 - Tax withholding, national e-invoicing systems and local rules on stablecoin payments are out of scope.
 - This is hackathon code. It has not been professionally audited. It runs on testnet and, later, with small mainnet amounts only.
 
+## Security review
+
+On 30 October 2026 the code and the planned designs were given to an independent AI auditor with an attacker's brief. Its findings and what we did:
+
+| Finding | Severity | Outcome |
+|---|---|---|
+| A forged submission could claim the real invoice's document fingerprint and get the real invoice seized | High | **Fixed.** The fingerprint is now inside the supplier's signature, and a SEIZED document is remembered only if the supplier's signature on it was valid. |
+| The same key could be registered as supplier and storekeeper, so one compromised party could vouch for its own delivery | High | **Fixed.** Rejected at registration both ways; held at submission if it ever happens. |
+| A FAILED or EXPIRED payment had no way back, so a cleared invoice could never be paid | Medium | **Fixed.** `reauthorize_payment`: buyer only, from FAILED, EXPIRED or CANCELLED, re-bound to the supplier's current payable route, attempt counted. |
+| A payout whose callback never ran would stay reserved for ever | Medium | **Fixed.** Callbacks must follow a transfer (`promise_results_count == 1`), and after 24 hours the buyer can resolve a stuck payment with `resolve_stuck_payment`, recorded as an event. This sends no money anywhere: it only releases the reservation, and the buyer's answer is on the public record. A late callback is then refused. |
+| A hijacked agent could submit without limit and fill storage | Medium | **Fixed.** Daily submission limit. |
+| Two balance additions were unchecked | Low | **Fixed.** Checked arithmetic everywhere money is counted. |
+| Secret-scan exceptions matched whole lines, so a secret next to a public value would pass | Medium | **Fixed.** Exact-value exceptions; CI plants fake secrets beside public values on every run and fails if any gets through. |
+| CI used moving tags and an unverified download | Low | **Fixed.** Actions pinned to commit SHAs; the gitleaks binary is checked against its sha-256. |
+| The signing tool signed whatever it was given | Low | **Fixed.** It shows payee, total and lines and asks before signing; it refuses one key for both roles. |
+| Account names mean different things on testnet and mainnet | Info | **Documented.** Signatures include the contract account, and mainnet will use a fresh contract account and fresh keys. |
+| Period limits use fixed windows, not rolling ones | Info | **Documented** and tested (`period_limit_uses_fixed_windows_as_documented`). Choose the period with that in mind. |
+| The buyer can withdraw unreserved money before an AUTHORIZED payment is reserved | Info | **By design.** Only reserved money is protected; an AUTHORIZED payment that finds no funds waits, and is visible as such. |
+| The owner key can redeploy the contract | Info | **Disclosed.** During the hackathon the owner holds the deploy key. After it, upgrades move behind a time-locked multisig, or the deploy key is removed. |
+
 ## Security notes
 
 - Owner actions require exactly 1 yoctoNEAR, so a function-call key can never call them.
 - CI runs formatting, strict lints, all tests, a wasm build, `cargo audit` and a secret scan over the full history on every push. Four advisories in host-side test tooling are documented exceptions in `.cargo/audit.toml`; none is in the deployed contract.
 - Keys made by `ctp-sign` live in `~/.config/clear-to-pay/keys`, outside the repository.
+- Supplier and storekeeper must hold different keys.
+- **Upgrades:** the account that owns the contract can deploy new code, as on any NEAR account with a full-access key. This is the one power above the rules described here, and it is disclosed rather than hidden; see the table above for the plan.
 
 ## Timeline
 

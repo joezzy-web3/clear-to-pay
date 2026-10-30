@@ -10,9 +10,16 @@
 //!                                       -> FAILED   (funds return to the pool)
 //!   AUTHORIZED -> EXPIRED   (not paid within 7 days of clearing)
 //!   AUTHORIZED -> CANCELLED (by the buyer)
+//!   FAILED | EXPIRED | CANCELLED -> AUTHORIZED (buyer reauthorises; new attempt,
+//!                                               paid to the supplier's CURRENT route)
 //!
 //! Any other transition is refused. A payment that is not SUBMITTED can never be
 //! settled, and a settled payment can never be paid again.
+//!
+//! If a transfer's callback never runs (for example it ran out of gas), the
+//! payment stays SUBMITTED with its funds reserved: never retried blindly. After
+//! 24 hours the buyer can resolve it, stating whether the supplier was paid; the
+//! decision is logged publicly.
 
 use crate::*;
 use near_sdk::json_types::U128;
@@ -21,7 +28,9 @@ use near_sdk::{Gas, NearToken, Promise, PromiseOrValue, ext_contract};
 /// How long a cleared payment may wait for funds before it expires.
 pub const PAYMENT_TTL_NS: u64 = 7 * 24 * 3_600_000_000_000;
 const GAS_FT_TRANSFER: Gas = Gas::from_tgas(15);
-const GAS_CALLBACK: Gas = Gas::from_tgas(15);
+const GAS_CALLBACK: Gas = Gas::from_tgas(20);
+/// How long a SUBMITTED payment must wait before the buyer may resolve it by hand.
+pub const STUCK_AFTER_NS: u64 = 24 * 3_600_000_000_000;
 /// Gas that must remain for a payout to be sent in the same call.
 const GAS_NEEDED_TO_PAY: Gas = Gas::from_tgas(45);
 
@@ -49,6 +58,8 @@ pub struct Payment {
     pub recipient: PayoutRoute,
     pub authorized_at: U64,
     pub updated_at: U64,
+    /// 1 for the first authorisation; +1 for every buyer reauthorisation.
+    pub attempt: u32,
 }
 
 #[near(serializers = [borsh, json])]
@@ -141,6 +152,85 @@ impl Contract {
         self.set_status(receipt_id, PaymentStatus::Cancelled);
     }
 
+    /// Give a FAILED, EXPIRED or CANCELLED payment a new attempt. Only the buyer can
+    /// do this. The payment is bound to the supplier's route that is payable NOW,
+    /// so an approved route change is respected and an old address is never reused.
+    #[payable]
+    pub fn reauthorize_payment(&mut self, receipt_id: u32) -> PaymentStatus {
+        self.assert_owner_with_yocto();
+        self.assert_not_paused();
+        let p = self
+            .payments
+            .get(&receipt_id)
+            .cloned()
+            .unwrap_or_else(|| env::panic_str("no payment for this receipt"));
+        require!(
+            matches!(
+                p.status,
+                PaymentStatus::Failed | PaymentStatus::Expired | PaymentStatus::Cancelled
+            ),
+            "only failed, expired or cancelled payments can be reauthorised"
+        );
+        let route = self
+            .suppliers
+            .get(&p.supplier_id)
+            .cloned()
+            .and_then(|mut rec| {
+                settle(&mut rec, now());
+                route_payable_at(&rec, now())
+            })
+            .unwrap_or_else(|| env::panic_str("supplier has no payable route"));
+        self.set_status(receipt_id, PaymentStatus::Authorized);
+        let q = self.payments.get_mut(&receipt_id).expect("payment exists");
+        q.recipient = route.clone();
+        q.authorized_at = U64(now());
+        q.attempt += 1;
+        let attempt = q.attempt;
+        emit(
+            "payment_reauthorized",
+            json!({ "receipt_id": receipt_id, "attempt": attempt, "recipient": route }),
+        );
+        self.try_pay(receipt_id)
+    }
+
+    /// Resolve a payment whose transfer result was never recorded (its callback
+    /// failed). Only the buyer, only for SUBMITTED payments, only after 24 hours.
+    /// `supplier_was_paid` must reflect the token contract's own records (e.g. the
+    /// transfer on NearBlocks). The decision is logged publicly with the receipt.
+    #[payable]
+    pub fn resolve_stuck_payment(
+        &mut self,
+        receipt_id: u32,
+        supplier_was_paid: bool,
+    ) -> PaymentStatus {
+        self.assert_owner_with_yocto();
+        let p = self
+            .payments
+            .get(&receipt_id)
+            .cloned()
+            .unwrap_or_else(|| env::panic_str("no payment for this receipt"));
+        require!(
+            p.status == PaymentStatus::Submitted,
+            "only a submitted payment can be resolved"
+        );
+        require!(
+            now() >= p.updated_at.0 + STUCK_AFTER_NS,
+            "a submitted payment can only be resolved 24 hours after it was sent"
+        );
+        let to = if supplier_was_paid {
+            PaymentStatus::Settled
+        } else {
+            PaymentStatus::Failed
+        };
+        self.set_status(receipt_id, to);
+        self.release_reserved(&p, supplier_was_paid);
+        emit(
+            "payment_resolved_by_buyer",
+            json!({ "receipt_id": receipt_id, "supplier_was_paid": supplier_was_paid }),
+        );
+        to
+    }
+
     /// Return unreserved funds to the buyer. Only ever pays the owner, and never
     /// touches money reserved for payments in flight.
     #[payable]
@@ -190,23 +280,7 @@ impl Contract {
             .get(&receipt_id)
             .cloned()
             .expect("payment exists");
-        let token: AccountId = p.token.parse().expect("token was valid when paid");
-        let mut f = self.funds.get(&token).cloned().unwrap_or_default();
-        f.reserved = U128(
-            f.reserved
-                .0
-                .checked_sub(p.amount.0)
-                .expect("reserved covers payment"),
-        );
-        if !ok {
-            f.available = U128(
-                f.available
-                    .0
-                    .checked_add(p.amount.0)
-                    .expect("balance overflow"),
-            );
-        }
-        self.funds.insert(token, f);
+        self.release_reserved(&p, ok);
         to
     }
 
@@ -216,7 +290,12 @@ impl Contract {
         let ok = promise_succeeded();
         if !ok {
             let mut f = self.funds.get(&token).cloned().unwrap_or_default();
-            f.available = U128(f.available.0 + amount.0);
+            f.available = U128(
+                f.available
+                    .0
+                    .checked_add(amount.0)
+                    .expect("balance overflow"),
+            );
             self.funds.insert(token.clone(), f);
         }
         emit(
@@ -242,6 +321,28 @@ impl Contract {
 }
 
 impl Contract {
+    /// Release a payment's reservation: gone for good if the supplier was paid,
+    /// back to the available pool if not.
+    fn release_reserved(&mut self, p: &Payment, supplier_was_paid: bool) {
+        let token: AccountId = p.token.parse().expect("token was valid when paid");
+        let mut f = self.funds.get(&token).cloned().unwrap_or_default();
+        f.reserved = U128(
+            f.reserved
+                .0
+                .checked_sub(p.amount.0)
+                .expect("reserved covers payment"),
+        );
+        if !supplier_was_paid {
+            f.available = U128(
+                f.available
+                    .0
+                    .checked_add(p.amount.0)
+                    .expect("balance overflow"),
+            );
+        }
+        self.funds.insert(token, f);
+    }
+
     /// Called by `submit_invoice` for a CLEARED invoice.
     pub(crate) fn authorize_payment(
         &mut self,
@@ -258,6 +359,7 @@ impl Contract {
             recipient: invoice.payee.clone(),
             authorized_at: U64(t),
             updated_at: U64(t),
+            attempt: 1,
         };
         self.payments.insert(receipt_id, p);
         emit(
@@ -348,6 +450,7 @@ impl Contract {
         let legal = matches!(
             (p.status, to),
             (Authorized, Reserved | Expired | Cancelled)
+                | (Failed | Expired | Cancelled, Authorized)
                 | (Reserved, Submitted)
                 | (Submitted, Settled | Failed)
         );
@@ -374,9 +477,16 @@ fn promise_succeeded() -> bool {
 
 /// `#[private]` already enforces this on chain; checking again inside keeps the
 /// rule visible and testable.
+/// A direct call signed with the contract account's own key would also pass the
+/// predecessor check, so we additionally require exactly one promise result,
+/// which only exists when the call really follows a transfer.
 fn assert_self_callback() {
     require!(
         env::predecessor_account_id() == env::current_account_id(),
         "only this contract can report payout results"
+    );
+    require!(
+        env::promise_results_count() == 1,
+        "callbacks must follow a transfer"
     );
 }

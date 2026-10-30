@@ -81,7 +81,7 @@ fn setup(supplier_route: PayoutRoute) -> Contract {
         }],
     );
     ctx(owner(), T0, 1);
-    c.set_limits(U128(100_000 * UNIT), U128(250_000 * UNIT), U64(720));
+    c.set_limits(U128(100_000 * UNIT), U128(250_000 * UNIT), U64(720), 100);
     ctx(owner(), T0, 1);
     c.allow_token(usdc());
     c
@@ -123,10 +123,12 @@ fn clear_invoice(
             qty: U64(qty),
         }],
     };
+    let fingerprint = env::sha256_array(number.as_bytes()); // a distinct fingerprint per invoice
     let d1 = InvoiceMessage {
         domain: INVOICE_DOMAIN.into(),
         contract: contract_id(),
         invoice: inv.clone(),
+        document_hash: fingerprint,
     }
     .digest();
     let d2 = DeliveryMessage {
@@ -142,7 +144,7 @@ fn clear_invoice(
         note,
         pk(&key(21)),
         Base64VecU8(key(21).sign(&d2).to_bytes().to_vec()),
-        Base64VecU8(env::sha256(number.as_bytes())), // a distinct fingerprint per invoice
+        Base64VecU8(fingerprint.to_vec()),
     )
 }
 

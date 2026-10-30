@@ -60,6 +60,7 @@ fn golden_digests() {
         domain: INVOICE_DOMAIN.into(),
         contract: contract.clone(),
         invoice: sample_invoice(),
+        document_hash: [7u8; 32],
     }
     .digest();
     let note = DeliveryMessage {
@@ -74,7 +75,7 @@ fn golden_digests() {
     );
     assert_eq!(
         hex(&inv),
-        "192ea978fe7786d96831c3b917bad24d8df73bb3f639d1576a4ed59e7192b487"
+        "c32c1956cb24e02607430a2de0fddc3ee69c97d5c055f7f8991561996784c64f"
     );
     assert_eq!(
         hex(&note),

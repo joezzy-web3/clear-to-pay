@@ -1,27 +1,23 @@
-# Secret scanning: gitleaks' default rules, with narrow, named exceptions.
-# Every exception is a PUBLIC value: a token contract, a public key, or a
-# transaction ID. Nothing shaped like a secret key is exempt.
+# Secret scanning: gitleaks' default rules, plus rules for NEAR keys and the
+# NEAR AI key, with three exact exceptions.
+#
+# Each exception matches ONE complete published public value (anchored ^...$),
+# checked against the detected secret itself, not against the line. A real secret
+# on the same line as one of these values is still reported; CI proves that on
+# every run (scripts/secret-scan-selftest.sh).
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Published public values"
-regexTarget = "line"
+description = "Published public values, exact match only"
 regexes = [
-  # Circle's USDC contract on NEAR testnet (public address)
-  '''3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af''',
-  # Public keys we publish on purpose: agent function-call key, supplier, storekeeper
-  '''ed25519:GVTR1DmhqJaiLpNfhMRq7Y5rrERKCdmjwZHZnkRbDXra''',
-  '''ed25519:FvJCFbXCjqkmVAdoTH3vapBZckWdtCEjsuq8K6Rd5VQj''',
-  '''ed25519:D9PKouihN73fDQsqsYE9cXvryoBDxnh9Jut6teNGCrW6''',
-  # A transaction ID that appeared unlinked in an earlier commit of the proof log
-  '''9Y6MwfP5P91v7cDaJzByLTQXUz9vbSa1bopHn9m3UvzE''',
-  # Transaction links in the proof log
-  '''https://testnet\.nearblocks\.io/txns/[1-9A-HJ-NP-Za-km-z]{43,44}\)''',
+  # Circle's USDC token contract on NEAR testnet
+  '''^3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af$''',
+  # The agent's function-call PUBLIC key, published on purpose
+  '''^GVTR1DmhqJaiLpNfhMRq7Y5rrERKCdmjwZHZnkRbDXra$''',
+  # A testnet transaction ID in an early commit of the proof log
+  '''^9Y6MwfP5P91v7cDaJzByLTQXUz9vbSa1bopHn9m3UvzE$''',
 ]
-
-# Rules for the secrets this project actually handles. Gitleaks' defaults do not
-# know NEAR key formats.
 
 [[rules]]
 id = "near-secret-key"

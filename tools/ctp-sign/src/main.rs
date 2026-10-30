@@ -7,12 +7,16 @@
 //! Keys live in ~/.config/clear-to-pay/keys, outside the repository, readable
 //! only by you. Existing keys are never overwritten.
 //!
+//! Before signing, it prints what is about to be signed (payee, total, lines)
+//! and asks for confirmation. --yes skips the question, for scripts.
+//! The supplier and storekeeper keys must be different keys.
+//!
 //! Usage:
 //!   ctp-sign keygen <name>
 //!   ctp-sign pubkey <name>
 //!   ctp-sign hash <file>
-//!   ctp-sign payout-change <key> <contract> <supplier_id> <nonce> <route.json>
-//!   ctp-sign submit-args <supplier_key> <storekeeper_key> <contract> <invoice.json> <delivery.json> <document>
+//!   ctp-sign [--yes] payout-change <key> <contract> <supplier_id> <nonce> <route.json>
+//!   ctp-sign [--yes] submit-args <supplier_key> <storekeeper_key> <contract> <invoice.json> <delivery.json> <document>
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
@@ -20,8 +24,9 @@ use borsh::BorshSerialize;
 use ed25519_dalek::{Signer, SigningKey};
 use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
+use std::io::{BufRead, IsTerminal};
 use std::path::PathBuf;
-use std::{env, fs, process};
+use std::{env, fs, io, process};
 
 const PAYOUT_CHANGE_DOMAIN: &str = "clear-to-pay/payout-change/v1";
 const INVOICE_DOMAIN: &str = "clear-to-pay/invoice/v1";
@@ -86,6 +91,8 @@ struct InvoiceMessage<'a> {
     domain: &'a str,
     contract: &'a str,
     invoice: &'a Invoice,
+    /// sha-256 of the invoice document, signed so nobody else can claim it.
+    document_hash: [u8; 32],
 }
 
 #[derive(BorshSerialize)]
@@ -209,6 +216,48 @@ fn sign(k: &SigningKey, d: &[u8; 32]) -> String {
     B64.encode(k.sign(d).to_bytes())
 }
 
+/// Show what is about to be signed and ask before signing.
+fn confirm(summary: &str, yes: bool) {
+    eprintln!("{summary}");
+    if yes {
+        return;
+    }
+    if !io::stdin().is_terminal() {
+        die("not signing without confirmation; run in a terminal or pass --yes");
+    }
+    eprint!("Sign this? Type yes: ");
+    let mut answer = String::new();
+    let _ = io::stdin().lock().read_line(&mut answer);
+    if answer.trim() != "yes" {
+        die("not signed");
+    }
+}
+
+fn invoice_summary(inv: &Invoice, note: &DeliveryNote, document: &str) -> String {
+    let mut out = format!(
+        "About to sign:\n  invoice   {} from {} for order {}\n  pay to    {} / {} / {}\n  total     {} (smallest units of {})\n",
+        inv.invoice_number,
+        inv.supplier_id,
+        inv.order_id,
+        inv.payee.chain,
+        inv.payee.token,
+        inv.payee.address,
+        inv.total,
+        inv.token
+    );
+    for l in &inv.lines {
+        out += &format!("  line      {} x {} at {}\n", l.qty, l.sku, l.unit_price);
+    }
+    out += &format!(
+        "  delivery  note {} for order {}",
+        note.note_id, note.order_id
+    );
+    for l in &note.lines {
+        out += &format!("\n  delivered {} x {}", l.qty, l.sku);
+    }
+    out + &format!("\n  document  {document}")
+}
+
 fn die(msg: &str) -> ! {
     eprintln!("error: {msg}");
     process::exit(1)
@@ -217,7 +266,11 @@ fn die(msg: &str) -> ! {
 // ------------------------------------------------------------------ commands
 
 fn main() {
-    let a: Vec<String> = env::args().skip(1).collect();
+    let mut a: Vec<String> = env::args().skip(1).collect();
+    let yes = a.first().is_some_and(|x| x == "--yes");
+    if yes {
+        a.remove(0);
+    }
     let s: Vec<&str> = a.iter().map(String::as_str).collect();
     match s.as_slice() {
         ["keygen", name] => keygen(name),
@@ -231,6 +284,13 @@ fn main() {
             let nonce: u64 = nonce
                 .parse()
                 .unwrap_or_else(|_| die("nonce must be a number"));
+            confirm(
+                &format!(
+                    "About to sign a payout change:\n  supplier  {supplier_id}\n  new route {} / {} / {}\n  nonce     {nonce}\n  contract  {contract}",
+                    route.chain, route.token, route.address
+                ),
+                yes,
+            );
             let d = digest(&PayoutChangeMessage {
                 domain: PAYOUT_CHANGE_DOMAIN,
                 contract,
@@ -256,11 +316,21 @@ fn main() {
             let note: DeliveryNote = read_json(delivery);
             let doc =
                 fs::read(document).unwrap_or_else(|_| die(&format!("cannot read {document}")));
+            let document_hash: [u8; 32] = Sha256::digest(&doc).into();
+            if supplier_key == storekeeper_key {
+                die("supplier and storekeeper keys must differ");
+            }
+            let supplier = load(supplier_key);
             let storekeeper = load(storekeeper_key);
+            if supplier.verifying_key() == storekeeper.verifying_key() {
+                die("supplier and storekeeper keys must differ");
+            }
+            confirm(&invoice_summary(&invoice, &note, document), yes);
             let d1 = digest(&InvoiceMessage {
                 domain: INVOICE_DOMAIN,
                 contract,
                 invoice: &invoice,
+                document_hash,
             });
             let d2 = digest(&DeliveryMessage {
                 domain: DELIVERY_DOMAIN,
@@ -269,11 +339,11 @@ fn main() {
             });
             let args = serde_json::json!({
                 "invoice": invoice,
-                "supplier_signature": sign(&load(supplier_key), &d1),
+                "supplier_signature": sign(&supplier, &d1),
                 "delivery": note,
                 "storekeeper_key": near_public(&storekeeper),
                 "delivery_signature": sign(&storekeeper, &d2),
-                "document_hash": B64.encode(Sha256::digest(doc)),
+                "document_hash": B64.encode(document_hash),
             });
             println!("{args}");
         }
@@ -347,9 +417,10 @@ mod tests {
             hex(&digest(&InvoiceMessage {
                 domain: INVOICE_DOMAIN,
                 contract: c,
-                invoice: &invoice
+                invoice: &invoice,
+                document_hash: [7u8; 32],
             })),
-            "192ea978fe7786d96831c3b917bad24d8df73bb3f639d1576a4ed59e7192b487"
+            "c32c1956cb24e02607430a2de0fddc3ee69c97d5c055f7f8991561996784c64f"
         );
         assert_eq!(
             hex(&digest(&DeliveryMessage {
@@ -371,6 +442,36 @@ mod tests {
         let back = serde_json::to_value(&inv).unwrap();
         assert_eq!(back["lines"][0]["qty"], "10");
         assert_eq!(back["total"], "7800000");
+    }
+
+    #[test]
+    fn the_preview_shows_payee_total_and_lines() {
+        let inv = Invoice {
+            supplier_id: "qingmar-steel".into(),
+            invoice_number: "INV-2210".into(),
+            order_id: "PO-1184".into(),
+            token: "usdc.testnet".into(),
+            lines: vec![InvoiceLine {
+                sku: "AH36-12mm".into(),
+                qty: 10,
+                unit_price: 780_000,
+            }],
+            total: 7_800_000,
+            payee: PayoutRoute {
+                chain: "near".into(),
+                token: "usdc.testnet".into(),
+                address: "attacker.testnet".into(),
+            },
+        };
+        let note = DeliveryNote {
+            order_id: "PO-1184".into(),
+            note_id: "DN-1".into(),
+            lines: vec![],
+        };
+        let p = invoice_summary(&inv, &note, "inv.pdf");
+        for want in ["attacker.testnet", "7800000", "10 x AH36-12mm", "INV-2210"] {
+            assert!(p.contains(want), "preview is missing {want}");
+        }
     }
 
     #[test]

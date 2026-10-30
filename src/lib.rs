@@ -10,8 +10,12 @@
 //!   buyer, and then wait 72 hours from the proposal. An email, an invoice or an
 //!   AI cannot change where money goes.
 //! - While a change is pending, the old route stays payable and the new one does not.
-//! - The pause switch only stops activity. No function in this contract can move
-//!   funds to the owner or to any address the owner chooses.
+//! - The pause switch only stops activity.
+//! - Money can only ever go to a supplier's registered, payable route, or back to
+//!   the owner (unreserved funds only, via `withdraw`). No function sends funds to
+//!   any other address, and none can touch money reserved for a payment in flight.
+//! - Supplier and storekeeper keys must be different keys, so the delivery check
+//!   stays independent of the party being paid.
 
 use near_sdk::json_types::{Base64VecU8, U64};
 use near_sdk::serde_json::json;
@@ -114,6 +118,9 @@ pub struct Contract {
     allowed_tokens: Vec<AccountId>,
     funds: LookupMap<AccountId, payments::Funds>,
     payments: LookupMap<u32, payments::Payment>,
+    // role separation and storage protection (audit fixes, 30 Oct)
+    supplier_keys: LookupMap<Vec<u8>, String>,
+    submissions: inspection::DailyCount,
 }
 
 #[near]
@@ -135,6 +142,8 @@ impl Contract {
             allowed_tokens: Vec::new(),
             funds: LookupMap::new(b"f"),
             payments: LookupMap::new(b"y"),
+            supplier_keys: LookupMap::new(b"k"),
+            submissions: inspection::DailyCount::default(),
         }
     }
 
@@ -161,6 +170,16 @@ impl Contract {
             !self.suppliers.contains_key(&supplier_id),
             "supplier already registered"
         );
+        require!(
+            !self.storekeepers.contains(&signing_key),
+            "this key is a storekeeper key; supplier and storekeeper keys must differ"
+        );
+        require!(
+            !self.supplier_keys.contains_key(signing_key.as_bytes()),
+            "this key already belongs to another supplier"
+        );
+        self.supplier_keys
+            .insert(signing_key.as_bytes().to_vec(), supplier_id.clone());
 
         let payable_from = now() + COOL_OFF_NS;
         self.suppliers.insert(
@@ -417,6 +436,8 @@ pub(crate) fn emit(event: &str, data: near_sdk::serde_json::Value) {
 pub mod inspection;
 pub mod payments;
 
+#[cfg(test)]
+mod audit_tests;
 #[cfg(test)]
 mod inspection_tests;
 #[cfg(test)]
