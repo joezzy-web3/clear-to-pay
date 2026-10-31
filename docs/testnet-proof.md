@@ -1,6 +1,6 @@
 # Clear to Pay on NEAR testnet: proof log
 
-Live contract: **guard.cleartopay.testnet** (v2, with the audit fixes; owner: buyer.cleartopay.testnet)
+Live contract: **guard.cleartopay.testnet** (v2.2: audit fixes and the two-person delivery rule; owner: buyer.cleartopay.testnet)
 Retired contract: cleartopay.testnet (v1; its first verdicts stay below as history)
 USDC (Circle, NEAR testnet): 3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af
 Every transaction below links to NearBlocks.
@@ -26,6 +26,13 @@ The contract's stored layout did not change, so the code was upgraded on the sam
 - New code deployed without re-initialising (wasm sha-256 7e45785b…a4e2f0): [FV8cmybT…](https://testnet.nearblocks.io/txns/FV8cmybTw3BeYGBZjAPNq9H3LnzyWgy4TahrQ1zPxgyC)
 - After the upgrade: `get_funds` 40 USDC available, 0 reserved; `get_in_flight` (new) 0 payouts, 0 withdrawing; supplier still payable from Mon 2 Nov 2026 23:29 Lagos.
 - What this shows: the upgrade kept this state, at a moment with no receipts and nothing in flight. It is not a test of upgrading with transfers in flight; upgrades are now made only when `get_in_flight` reads zero (`scripts/upgrade-in-place.sh`).
+
+## 31 Oct 2026, v2.2: two-person delivery rule, deployed in place
+A delivery now needs signatures from two different roles. The stored layout did not change, and nothing was in flight (`get_in_flight`: 0 payouts, 0 withdrawing), so the code was upgraded on the same account with `upgrade-in-place` checks.
+- 0.5 NEAR sent to the contract for the larger code: [EmPqDMw6…](https://testnet.nearblocks.io/txns/EmPqDMw6nfbj5n7RHpNvZiY4pEpwA8yGBA85Nji3GmcB)
+- New code deployed without re-initialising (wasm sha-256 9592d415…124235): [Hp1VxqFZ…](https://testnet.nearblocks.io/txns/Hp1VxqFZsp9mjgbvLxvnDqi3P7THvxH7KKKtLUwzV3s7)
+- Weighbridge key ed25519:BzrpxezSnTwF2EkdRarHKo4fMZeFCeKtjGHwLDWfknrC registered with role `weighbridge`: [D2vDAVji…](https://testnet.nearblocks.io/txns/D2vDAVjigBminnfsWd9a7SiM5DtdfvvyHZjxCVBYpBTj)
+- After the upgrade: `get_funds` 40 USDC available, 0 reserved; supplier unchanged, payable from Mon 2 Nov 2026 23:29 Lagos; `get_delivery_signers`: the storekeeper registered on 30 Oct (role `storekeeper`, carried over without migration) and the weighbridge; `get_delivery_policy("PO-1184")`: 2 roles required, version 0.
 
 # v1 history (cleartopay.testnet)
 
