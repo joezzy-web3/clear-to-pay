@@ -453,7 +453,61 @@ pub mod inspection;
 pub mod payments;
 
 #[cfg(test)]
+pub(crate) mod test_support {
+    //! Delivery signatures for tests: a storekeeper (seed 21) and a weighbridge (seed 22).
+    use super::inspection::*;
+    use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
+
+    pub const STOREKEEPER_SEED: u8 = 21;
+    pub const WEIGHBRIDGE_SEED: u8 = 22;
+
+    pub fn pubkey(seed: u8) -> PublicKey {
+        let mut b = vec![0u8];
+        b.extend_from_slice(
+            SigningKey::from_bytes(&[seed; 32])
+                .verifying_key()
+                .as_bytes(),
+        );
+        PublicKey::try_from(b).unwrap()
+    }
+    pub fn sign_as(
+        seed: u8,
+        role: &str,
+        note: &DeliveryNote,
+        contract: &AccountId,
+        version: u32,
+    ) -> DeliverySignature {
+        let d = DeliverySignerMessage {
+            domain: DELIVERY_SIGNER_DOMAIN.into(),
+            contract: contract.clone(),
+            note: note.clone(),
+            role: role.into(),
+            policy_version: version,
+        }
+        .digest();
+        DeliverySignature {
+            key: pubkey(seed),
+            signature: Base64VecU8(
+                SigningKey::from_bytes(&[seed; 32])
+                    .sign(&d)
+                    .to_bytes()
+                    .to_vec(),
+            ),
+        }
+    }
+    /// The honest pair: storekeeper and weighbridge both sign the note.
+    pub fn two_signatures(note: &DeliveryNote, contract: &AccountId) -> Vec<DeliverySignature> {
+        vec![
+            sign_as(STOREKEEPER_SEED, "storekeeper", note, contract, 0),
+            sign_as(WEIGHBRIDGE_SEED, "weighbridge", note, contract, 0),
+        ]
+    }
+}
+#[cfg(test)]
 mod audit_tests;
+#[cfg(test)]
+mod delivery_tests;
 #[cfg(test)]
 mod inspection_tests;
 #[cfg(test)]

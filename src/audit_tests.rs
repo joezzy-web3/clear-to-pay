@@ -77,6 +77,11 @@ fn setup() -> Contract {
     ctx(owner(), T0, 1);
     c.add_storekeeper(pk(&key(STOREKEEPER)));
     ctx(owner(), T0, 1);
+    c.add_delivery_signer(
+        crate::test_support::pubkey(crate::test_support::WEIGHBRIDGE_SEED),
+        "weighbridge".into(),
+    );
+    ctx(owner(), T0, 1);
     c.create_order(
         "PO-1184".into(),
         "qingmar-steel".into(),
@@ -143,19 +148,13 @@ fn submit_with(
         document_hash: [signed_doc; 32],
     }
     .digest();
-    let d2 = DeliveryMessage {
-        domain: DELIVERY_DOMAIN.into(),
-        contract: contract_id(),
-        note: note.clone(),
-    }
-    .digest();
+    let sigs = crate::test_support::two_signatures(&note, &contract_id());
     ctx(owner(), at, 0);
     c.submit_invoice(
         inv,
         Base64VecU8(key(signer).sign(&d1).to_bytes().to_vec()),
         note,
-        pk(&key(STOREKEEPER)),
-        Base64VecU8(key(STOREKEEPER).sign(&d2).to_bytes().to_vec()),
+        sigs,
         Base64VecU8(vec![submitted_doc; 32]),
     )
 }
@@ -604,12 +603,7 @@ fn submissions_stop_before_the_contract_runs_out_of_storage_money() {
         document_hash: [8; 32],
     }
     .digest();
-    let d2 = DeliveryMessage {
-        domain: DELIVERY_DOMAIN.into(),
-        contract: contract_id(),
-        note: note.clone(),
-    }
-    .digest();
+    let sigs = crate::test_support::two_signatures(&note, &contract_id());
     let mut b = builder(owner(), LIVE, 0);
     b.account_balance(NearToken::from_millinear(1));
     testing_env!(b.build());
@@ -617,8 +611,7 @@ fn submissions_stop_before_the_contract_runs_out_of_storage_money() {
         inv,
         Base64VecU8(key(SUPPLIER).sign(&d1).to_bytes().to_vec()),
         note,
-        pk(&key(STOREKEEPER)),
-        Base64VecU8(key(STOREKEEPER).sign(&d2).to_bytes().to_vec()),
+        sigs,
         Base64VecU8(vec![8; 32]),
     );
 }

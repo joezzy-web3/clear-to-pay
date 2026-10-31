@@ -1,4 +1,4 @@
-//! ctp-sign: plays the supplier and the storekeeper for the Clear to Pay demo.
+//! ctp-sign: plays the supplier and the delivery signers for the Clear to Pay demo.
 //!
 //! It creates ed25519 keys and signs invoices, delivery notes and payout changes
 //! in exactly the bytes the contract verifies (borsh, then sha-256, then ed25519).
@@ -9,14 +9,17 @@
 //!
 //! Before signing, it prints what is about to be signed (payee, total, lines)
 //! and asks for confirmation. --yes skips the question, for scripts.
-//! The supplier and storekeeper keys must be different keys.
+//! The supplier and every delivery signer must hold different keys. Each delivery
+//! signer signs with the role the buyer registered for it on the contract, and the
+//! order's delivery-policy version (0 until the buyer sets a policy).
 //!
 //! Usage:
 //!   ctp-sign keygen <name>
 //!   ctp-sign pubkey <name>
 //!   ctp-sign hash <file>
 //!   ctp-sign [--yes] payout-change <key> <contract> <supplier_id> <nonce> <route.json>
-//!   ctp-sign [--yes] submit-args <supplier_key> <storekeeper_key> <contract> <invoice.json> <delivery.json> <document>
+//!   ctp-sign [--yes] [--policy-version N] submit-args <supplier_key> <signer:role,signer:role> <contract> <invoice.json> <delivery.json> <document>
+//!   e.g. submit-args qingmar-supplier ladol-storekeeper:storekeeper,ladol-weighbridge:weighbridge ...
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
@@ -30,7 +33,10 @@ use std::{env, fs, io, process};
 
 const PAYOUT_CHANGE_DOMAIN: &str = "clear-to-pay/payout-change/v1";
 const INVOICE_DOMAIN: &str = "clear-to-pay/invoice/v1";
+/// The delivery note's fingerprint domain (recorded on receipts); kept for the golden vector.
+#[cfg(test)]
 const DELIVERY_DOMAIN: &str = "clear-to-pay/delivery/v1";
+const DELIVERY_SIGNER_DOMAIN: &str = "clear-to-pay/delivery/v2";
 
 // ------------------------------------------------------------------ the signed shapes
 // Field order matters: it must match the contract's structs exactly.
@@ -95,11 +101,48 @@ struct InvoiceMessage<'a> {
     document_hash: [u8; 32],
 }
 
+#[cfg(test)]
 #[derive(BorshSerialize)]
 struct DeliveryMessage<'a> {
     domain: &'a str,
     contract: &'a str,
     note: &'a DeliveryNote,
+}
+
+/// What each delivery signer signs: the note, its own role and the policy version.
+#[derive(BorshSerialize)]
+struct DeliverySignerMessage<'a> {
+    domain: &'a str,
+    contract: &'a str,
+    note: &'a DeliveryNote,
+    role: &'a str,
+    policy_version: u32,
+}
+
+/// "name:role,name:role" -> [(name, role)], checked: valid roles, no key or role twice.
+fn parse_signers(spec: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for part in spec.split(',') {
+        let Some((name, role)) = part.split_once(':') else {
+            die("delivery signers are name:role pairs, comma-separated")
+        };
+        let ok = !role.is_empty()
+            && role.len() <= 32
+            && role
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+        if !ok {
+            die("a role is 1 to 32 characters of a-z, 0-9, '-'");
+        }
+        if out.iter().any(|(n, r)| n == name || r == role) {
+            die("each delivery signer and each role may appear once");
+        }
+        out.push((name.to_string(), role.to_string()));
+    }
+    if out.is_empty() || out.len() > 5 {
+        die("1 to 5 delivery signers");
+    }
+    out
 }
 
 fn digest<T: BorshSerialize>(m: &T) -> [u8; 32] {
@@ -271,6 +314,17 @@ fn main() {
     if yes {
         a.remove(0);
     }
+    let mut policy_version: u32 = 0;
+    if a.first().is_some_and(|x| x == "--policy-version") {
+        a.remove(0);
+        if a.is_empty() {
+            die("--policy-version needs a number");
+        }
+        policy_version = a
+            .remove(0)
+            .parse()
+            .unwrap_or_else(|_| die("--policy-version needs a number"));
+    }
     let s: Vec<&str> = a.iter().map(String::as_str).collect();
     match s.as_slice() {
         ["keygen", name] => keygen(name),
@@ -306,7 +360,7 @@ fn main() {
         [
             "submit-args",
             supplier_key,
-            storekeeper_key,
+            signers,
             contract,
             invoice,
             delivery,
@@ -317,32 +371,56 @@ fn main() {
             let doc =
                 fs::read(document).unwrap_or_else(|_| die(&format!("cannot read {document}")));
             let document_hash: [u8; 32] = Sha256::digest(&doc).into();
-            if supplier_key == storekeeper_key {
-                die("supplier and storekeeper keys must differ");
-            }
+            let signers = parse_signers(signers);
             let supplier = load(supplier_key);
-            let storekeeper = load(storekeeper_key);
-            if supplier.verifying_key() == storekeeper.verifying_key() {
-                die("supplier and storekeeper keys must differ");
+            let mut loaded = Vec::new();
+            for (name, role) in &signers {
+                if name == supplier_key {
+                    die("supplier and delivery signer keys must differ");
+                }
+                let k = load(name);
+                if k.verifying_key() == supplier.verifying_key()
+                    || loaded
+                        .iter()
+                        .any(|(o, _): &(SigningKey, String)| o.verifying_key() == k.verifying_key())
+                {
+                    die("supplier and delivery signer keys must all differ");
+                }
+                loaded.push((k, role.clone()));
             }
-            confirm(&invoice_summary(&invoice, &note, document), yes);
+            let roles: Vec<&str> = signers.iter().map(|(_, r)| r.as_str()).collect();
+            confirm(
+                &format!(
+                    "{}\n  signed by {} (policy version {policy_version})",
+                    invoice_summary(&invoice, &note, document),
+                    roles.join(" + ")
+                ),
+                yes,
+            );
             let d1 = digest(&InvoiceMessage {
                 domain: INVOICE_DOMAIN,
                 contract,
                 invoice: &invoice,
                 document_hash,
             });
-            let d2 = digest(&DeliveryMessage {
-                domain: DELIVERY_DOMAIN,
-                contract,
-                note: &note,
-            });
+            let delivery_signatures: Vec<serde_json::Value> = loaded
+                .iter()
+                .map(|(k, role)| {
+                    let d = digest(&DeliverySignerMessage {
+                        domain: DELIVERY_SIGNER_DOMAIN,
+                        contract,
+                        note: &note,
+                        role,
+                        policy_version,
+                    });
+                    serde_json::json!({ "key": near_public(k), "signature": sign(k, &d) })
+                })
+                .collect();
             let args = serde_json::json!({
                 "invoice": invoice,
                 "supplier_signature": sign(&supplier, &d1),
                 "delivery": note,
-                "storekeeper_key": near_public(&storekeeper),
-                "delivery_signature": sign(&storekeeper, &d2),
+                "delivery_signatures": delivery_signatures,
                 "document_hash": B64.encode(document_hash),
             });
             println!("{args}");
@@ -429,6 +507,16 @@ mod tests {
                 note: &note
             })),
             "5eebe4e05ec41c06b6df02cbca5a350cc35ca0c1bb9880e4ca663ae337097c18"
+        );
+        assert_eq!(
+            hex(&digest(&DeliverySignerMessage {
+                domain: DELIVERY_SIGNER_DOMAIN,
+                contract: c,
+                note: &note,
+                role: "weighbridge",
+                policy_version: 1,
+            })),
+            "89ae0c5228cc3a8d098d5ec0d955aeb064a33d14cd52617f739f67dc62779c91"
         );
     }
 

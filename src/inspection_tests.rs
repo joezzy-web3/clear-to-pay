@@ -47,6 +47,7 @@ fn route(addr: &str) -> PayoutRoute {
 
 const SUPPLIER: u8 = 7;
 const STOREKEEPER: u8 = 21;
+const WEIGHBRIDGE: u8 = 22;
 
 fn setup() -> Contract {
     ctx(owner(), T0, 0);
@@ -59,6 +60,8 @@ fn setup() -> Contract {
     );
     ctx(owner(), T0, 1);
     c.add_storekeeper(pk(&key(STOREKEEPER)));
+    ctx(owner(), T0, 1);
+    c.add_delivery_signer(pk(&key(WEIGHBRIDGE)), "weighbridge".into());
     ctx(owner(), T0, 1);
     c.create_order(
         "PO-1184".into(),
@@ -115,14 +118,27 @@ fn sign_invoice(k: &SigningKey, inv: &Invoice, document: u8) -> Base64VecU8 {
     .digest();
     Base64VecU8(k.sign(&d).to_bytes().to_vec())
 }
-fn sign_delivery(k: &SigningKey, n: &DeliveryNote) -> Base64VecU8 {
-    let d = DeliveryMessage {
-        domain: DELIVERY_DOMAIN.into(),
+/// One delivery signer's signature over a note, for its role and the policy version.
+fn sign_as(k: &SigningKey, role: &str, n: &DeliveryNote, version: u32) -> DeliverySignature {
+    let d = DeliverySignerMessage {
+        domain: DELIVERY_SIGNER_DOMAIN.into(),
         contract: contract_id(),
         note: n.clone(),
+        role: role.into(),
+        policy_version: version,
     }
     .digest();
-    Base64VecU8(k.sign(&d).to_bytes().to_vec())
+    DeliverySignature {
+        key: pk(k),
+        signature: Base64VecU8(k.sign(&d).to_bytes().to_vec()),
+    }
+}
+/// `k` signs as the storekeeper; the registered weighbridge co-signs honestly.
+fn sign_delivery(k: &SigningKey, n: &DeliveryNote) -> Vec<DeliverySignature> {
+    vec![
+        sign_as(k, "storekeeper", n, 0),
+        sign_as(&key(WEIGHBRIDGE), "weighbridge", n, 0),
+    ]
 }
 fn doc(n: u8) -> Base64VecU8 {
     Base64VecU8(vec![n; 32])
@@ -133,7 +149,7 @@ fn submit(c: &mut Contract, inv: Invoice, note: DeliveryNote, document: u8) -> I
     let s1 = sign_invoice(&key(SUPPLIER), &inv, document);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx(owner(), LIVE, 0);
-    c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(document))
+    c.submit_invoice(inv, s1, note, s2, doc(document))
 }
 
 fn has(r: &InspectionResult, code: &str) -> bool {
@@ -267,7 +283,7 @@ fn delivery_note_signed_by_an_unknown_key_is_held() {
     let fake = key(99); // "storekeeper" the buyer never registered
     let s2 = sign_delivery(&fake, &note);
     ctx(owner(), LIVE, 0);
-    let r = c.submit_invoice(inv, s1, note, pk(&fake), s2, doc(1));
+    let r = c.submit_invoice(inv, s1, note, s2, doc(1));
     assert_eq!(r.verdict, Verdict::Held);
     assert!(has(&r, "unknown_storekeeper"));
 }
@@ -280,14 +296,7 @@ fn delivery_note_edited_after_signing_is_held() {
     let s2 = sign_delivery(&key(STOREKEEPER), &delivery("DN-1", 100));
     ctx(owner(), LIVE, 0);
     // Someone changes 100 to 120 on the note after the storekeeper signed it.
-    let r = c.submit_invoice(
-        inv,
-        s1,
-        delivery("DN-1", 120),
-        pk(&key(STOREKEEPER)),
-        s2,
-        doc(1),
-    );
+    let r = c.submit_invoice(inv, s1, delivery("DN-1", 120), s2, doc(1));
     assert_eq!(r.verdict, Verdict::Held);
     assert!(has(&r, "invalid_delivery_signature"));
 }
@@ -304,6 +313,8 @@ fn nothing_clears_until_limits_are_set() {
     );
     ctx(owner(), T0, 1);
     c.add_storekeeper(pk(&key(STOREKEEPER)));
+    ctx(owner(), T0, 1);
+    c.add_delivery_signer(pk(&key(WEIGHBRIDGE)), "weighbridge".into());
     ctx(owner(), T0, 1);
     c.create_order(
         "PO-1184".into(),
@@ -381,7 +392,7 @@ fn route_still_in_its_72_hours_is_held() {
     let s1 = sign_invoice(&key(SUPPLIER), &inv, 1);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx(owner(), T0 + HOUR, 0); // supplier registered only an hour ago
-    let r = c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(1));
+    let r = c.submit_invoice(inv, s1, note, s2, doc(1));
     assert_eq!(r.verdict, Verdict::Held);
     assert!(has(&r, "payee_not_yet_payable"));
 }
@@ -398,7 +409,7 @@ fn attack_new_bank_details_on_a_signed_looking_invoice_is_seized() {
     let s1 = sign_invoice(&key(66), &inv, 1);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx(owner(), LIVE, 0);
-    let r = c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(1));
+    let r = c.submit_invoice(inv, s1, note, s2, doc(1));
     assert_eq!(r.verdict, Verdict::Seized);
     assert!(has(&r, "invalid_supplier_signature"));
     assert!(has(&r, "payee_mismatch"));
@@ -429,7 +440,7 @@ fn attack_invoice_edited_after_the_supplier_signed_it_is_seized() {
     let mut edited = signed.clone();
     edited.invoice_number = "INV-1-copy".into();
     ctx(owner(), LIVE, 0);
-    let r = c.submit_invoice(edited, s1, note, pk(&key(STOREKEEPER)), s2, doc(1));
+    let r = c.submit_invoice(edited, s1, note, s2, doc(1));
     assert_eq!(r.verdict, Verdict::Seized);
     assert!(has(&r, "invalid_supplier_signature"));
 }
@@ -504,7 +515,7 @@ fn a_forged_copy_cannot_block_the_real_invoice() {
     let s1 = sign_invoice(&key(66), &inv, 9);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx(owner(), LIVE, 0);
-    let fake = c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(9));
+    let fake = c.submit_invoice(inv, s1, note, s2, doc(9));
     assert_eq!(fake.verdict, Verdict::Seized);
     // ...and the real INV-2208 from the real supplier still clears.
     let real = submit(
@@ -542,7 +553,7 @@ fn strangers_cannot_submit_invoices() {
     let s1 = sign_invoice(&key(SUPPLIER), &inv, 1);
     let s2 = sign_delivery(&key(STOREKEEPER), &note);
     ctx("stranger.testnet".parse().unwrap(), LIVE, 0);
-    c.submit_invoice(inv, s1, note, pk(&key(STOREKEEPER)), s2, doc(1));
+    c.submit_invoice(inv, s1, note, s2, doc(1));
 }
 
 #[test]

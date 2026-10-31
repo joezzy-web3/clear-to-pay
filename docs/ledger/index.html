@@ -345,6 +345,10 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     duplicate_line: ["warn", "The same item appears twice."],
     unknown_storekeeper: ["warn", "The delivery note was signed by an unregistered key."],
     invalid_delivery_signature: ["warn", "The delivery note signature does not match its contents."],
+    delivery_signatures_missing: ["warn", "Fewer than two different people (e.g. storekeeper and weighbridge) confirmed the delivery."],
+    duplicate_delivery_signer: ["warn", "The same delivery signer was counted twice."],
+    duplicate_delivery_role: ["warn", "Two signatures came from the same role; it takes two different roles."],
+    delivery_signer_role_not_allowed: ["warn", "A delivery signer's role does not count for this order."],
     delivery_order_mismatch: ["warn", "The delivery note is for a different order."],
     storekeeper_is_supplier: ["warn", "The same key signed as supplier and storekeeper."],
     zero_amount: ["warn", "The amount is zero."],
@@ -366,7 +370,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
       ], payments: {} },
   };
 
-  let contract = "guard.cleartopay.testnet", rpcIndex = 0, rpcHost = "a public NEAR RPC", mode = "connecting";
+  let contract = "guard.cleartopay.testnet", rpcIndex = 0, rpcHost = "", mode = "connecting";
   let receipts = [], payments = {}, filter = "all", onFile = null, clockTimer = null;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -462,6 +466,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     drawPix();
     renderSupplier(d.supplier);
     renderList();
+    if (receipts.length) linkTransactions();
   }
 
   function renderSupplier(s) {
@@ -513,7 +518,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
             </div>
             <ul class="why">${reasons}</ul>
             ${pay}
-            <p class="src">Reported by ${esc(rpcHost)}, a public NEAR RPC server. <a href="https://testnet.nearblocks.io/address/${esc(contract)}" target="_blank" rel="noopener">Check it on NearBlocks</a></p>
+            <p class="src">${mode === "sample" ? "Sample copy of this receipt, recorded on 30 October. The hosted ledger reads it live." : rpcHost ? `Reported by ${esc(rpcHost)}, a public NEAR RPC server.` : "Shown from this browser's last read while it refreshes from a public NEAR RPC server."} <a data-ts="${esc(r.decided_at)}" data-rid="${r.id}" href="${txHref(r)}" target="_blank" rel="noopener">${KNOWN_TX[contract + "#" + r.id] ? "View the transaction on NearBlocks" : "Check it on NearBlocks"}</a></p>
             <details class="raw"><summary>${r.document_hash ? "fingerprint " + esc(short(r.document_hash)) + " · " : ""}raw receipt from the contract</summary><pre>${esc(JSON.stringify(p ? { receipt: r, payment: p } : r, null, 2))}</pre></details>
           </div>
         </div>
@@ -548,6 +553,45 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
       if (state && (y === 14 || y === 16) && x > 1 && x < 14) g.fillStyle = state === "Seized" ? "#C42B1C" : state === "Held" ? "#F4C20D" : state === "Cleared" ? "#127A4A" : "#9FB0C6";
       g.fillRect(x * s, y * s, s - 1, s - 1);
     }
+  }
+
+  // A contract cannot see its own transaction id, so receipts do not store it. The
+  // first verdicts' ids are in docs/testnet-proof.md; for the rest, NearBlocks is asked
+  // for the contract's submit_invoice transactions and each one is matched to its
+  // receipt by block time. If that lookup fails, the link opens the contract's page.
+  const KNOWN_TX = {
+    "cleartopay.testnet#0": "4NAEWuuj94LJtSN3kZRWfWNjAmVqryL6Q1QmnkjYUQFg",
+    "cleartopay.testnet#1": "7WyaoQhmqEZS2dYhxmrgBQ6WBdgiJWEgpKr5WNdx9xAM",
+    "cleartopay.testnet#2": "HgiFFPzQmrjzXNQXvEuDKgQnQtrQqQDmZcBV1LpbcfMg",
+  };
+  const txCache = {};
+  const isHash = (h) => typeof h === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(h);
+  function txHref(r) {
+    const h = KNOWN_TX[contract + "#" + r.id] || (txCache[contract] || {})[r.decided_at];
+    return h ? "https://testnet.nearblocks.io/txns/" + h : "https://testnet.nearblocks.io/address/" + encodeURIComponent(contract);
+  }
+  async function linkTransactions() {
+    const c = contract;
+    if (!txCache[c]) {
+      try {
+        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
+        const r = await fetch(`https://api-testnet.nearblocks.io/v1/account/${encodeURIComponent(c)}/txns?method=submit_invoice&per_page=100`, { signal: ctl.signal });
+        clearTimeout(t);
+        const j = await r.json(), m = {};
+        for (const tx of (Array.isArray(j.txns) ? j.txns : [])) {
+          if (!isHash(tx.transaction_hash)) continue;
+          for (const ts of [tx.block_timestamp, tx.receipt_block && tx.receipt_block.block_timestamp, tx.receipt_outcome && tx.receipt_outcome.block_timestamp]) {
+            if (ts != null && /^\d{1,25}$/.test(String(ts))) m[String(ts)] = tx.transaction_hash;
+          }
+        }
+        txCache[c] = m;
+      } catch (e) { return; }
+    }
+    if (c !== contract) return;
+    document.querySelectorAll("a[data-ts]").forEach((a) => {
+      const h = KNOWN_TX[c + "#" + a.dataset.rid] || txCache[c][a.dataset.ts];
+      if (h) { a.href = "https://testnet.nearblocks.io/txns/" + h; a.textContent = "View the transaction on NearBlocks"; }
+    });
   }
 
   async function sha(buf) { const d = await crypto.subtle.digest("SHA-256", buf); return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join(""); }

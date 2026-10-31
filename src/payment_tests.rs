@@ -70,6 +70,11 @@ fn setup(supplier_route: PayoutRoute) -> Contract {
     ctx(owner(), T0, 1);
     c.add_storekeeper(pk(&key(21)));
     ctx(owner(), T0, 1);
+    c.add_delivery_signer(
+        crate::test_support::pubkey(crate::test_support::WEIGHBRIDGE_SEED),
+        "weighbridge".into(),
+    );
+    ctx(owner(), T0, 1);
     c.create_order(
         "PO-1184".into(),
         "qingmar-steel".into(),
@@ -131,19 +136,13 @@ fn clear_invoice(
         document_hash: fingerprint,
     }
     .digest();
-    let d2 = DeliveryMessage {
-        domain: DELIVERY_DOMAIN.into(),
-        contract: contract_id(),
-        note: note.clone(),
-    }
-    .digest();
+    let sigs = crate::test_support::two_signatures(&note, &contract_id());
     ctx(owner(), at, 0);
     c.submit_invoice(
         inv,
         Base64VecU8(key(7).sign(&d1).to_bytes().to_vec()),
         note,
-        pk(&key(21)),
-        Base64VecU8(key(21).sign(&d2).to_bytes().to_vec()),
+        sigs,
         Base64VecU8(fingerprint.to_vec()),
     )
 }

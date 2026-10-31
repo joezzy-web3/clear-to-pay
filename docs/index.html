@@ -698,11 +698,12 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
     quantity_exceeds_delivery: ["warn", "Delivery", "billed more than delivered"], quantity_exceeds_order: ["warn", "Order", "billed more than ordered"],
     price_mismatch: ["warn", "Price", "differs from the order"], total_mismatch: ["warn", "Total", "does not add up"],
     over_invoice_limit: ["warn", "Limit", "over the per-invoice cap"], over_period_limit: ["warn", "Limit", "over the period cap"],
+    delivery_signatures_missing: ["warn", "Delivery", "needs a second signer"],
   };
   const WHY = {
     payee_mismatch: "Asked to be paid to an address the supplier never registered.", payee_not_yet_payable: "The supplier's address is still inside its 72-hour wait.",
     quantity_exceeds_delivery: "Bills for more than the storekeeper signed as delivered.", invalid_supplier_signature: "Not signed by the supplier's key, or changed after signing.",
-    duplicate_invoice: "This invoice was already paid.", duplicate_document: "This exact document was already submitted.", over_period_limit: "It would take the supplier over its limit for the period.",
+    delivery_signatures_missing: "Only one person confirmed the delivery; it takes two.", duplicate_invoice: "This invoice was already paid.", duplicate_document: "This exact document was already submitted.", over_period_limit: "It would take the supplier over its limit for the period.",
   };
   const toRun = (r) => {
     const verdict = { Cleared: "clear", Held: "held", Seized: "seize" }[r.verdict];

@@ -3,7 +3,8 @@
 //! The AI's job ends before this code runs. What arrives here is a structured
 //! invoice plus two signatures:
 //! - the supplier's, proving the supplier issued exactly this invoice;
-//! - a storekeeper's, proving what was actually delivered.
+//! - two or more delivery signers' (storekeeper, weighbridge, inspector...),
+//!   proving what was actually delivered. One key alone cannot confirm a delivery.
 //!
 //! The contract checks them against data the AI never touched: the buyer's
 //! purchase order, the supplier registry and the limits. It returns one of
@@ -19,8 +20,15 @@ use crate::*;
 use near_sdk::json_types::U128;
 
 pub const INVOICE_DOMAIN: &str = "clear-to-pay/invoice/v1";
+/// Domain of the delivery note's fingerprint (stored on the receipt). Not signed on its own.
 pub const DELIVERY_DOMAIN: &str = "clear-to-pay/delivery/v1";
+/// What each delivery signer signs: the note, plus its own role and the order's policy version.
+pub const DELIVERY_SIGNER_DOMAIN: &str = "clear-to-pay/delivery/v2";
 const MAX_LINES: usize = 50;
+pub const MAX_DELIVERY_SIGNATURES: usize = 5;
+/// Distinct roles that must sign a delivery when the buyer has set no policy for the order.
+pub const DEFAULT_REQUIRED_DELIVERY_SIGNATURES: u8 = 2;
+const DEFAULT_ROLE: &str = "storekeeper";
 
 // ---------------------------------------------------------------------- types
 
@@ -91,11 +99,89 @@ pub struct InvoiceMessage {
     pub document_hash: [u8; 32],
 }
 
+/// The delivery note's fingerprint, recorded on every receipt.
 #[near(serializers = [borsh])]
 pub struct DeliveryMessage {
     pub domain: String,
     pub contract: AccountId,
     pub note: DeliveryNote,
+}
+
+/// What one delivery signer signs. The role and the policy version are inside the
+/// signature, so a signature cannot be reused under another role, and signatures made
+/// under an older policy for the order stop counting when the policy changes.
+#[near(serializers = [borsh])]
+pub struct DeliverySignerMessage {
+    pub domain: String,
+    pub contract: AccountId,
+    pub note: DeliveryNote,
+    pub role: String,
+    pub policy_version: u32,
+}
+
+/// One delivery signer's signature, as the agent submits it.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct DeliverySignature {
+    pub key: PublicKey,
+    pub signature: Base64VecU8,
+}
+
+/// How many distinct roles must sign a delivery for an order, and which roles count.
+/// An empty `roles` list means any registered role counts.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeliveryPolicy {
+    pub required: u8,
+    pub roles: Vec<String>,
+    /// 0 until the buyer sets a policy; +1 on every change.
+    pub version: u32,
+}
+
+/// A registered delivery signer and its one role.
+#[near(serializers = [json])]
+#[derive(Clone, Debug)]
+pub struct DeliverySigner {
+    pub key: PublicKey,
+    pub role: String,
+}
+
+// Kept under their own storage keys (not fields of `Contract`), so adding them did not
+// change the contract's stored layout.
+fn role_key(key: &PublicKey) -> Vec<u8> {
+    let mut k = b"signer_role:".to_vec();
+    k.extend_from_slice(key.as_bytes());
+    k
+}
+fn policy_key(order_id: &str) -> Vec<u8> {
+    let mut k = b"delivery_policy:".to_vec();
+    k.extend_from_slice(order_id.as_bytes());
+    k
+}
+/// A signer's role. Storekeepers registered before roles existed are "storekeeper".
+pub(crate) fn signer_role(key: &PublicKey) -> String {
+    env::storage_read(&role_key(key))
+        .and_then(|b| String::from_utf8(b).ok())
+        .unwrap_or_else(|| DEFAULT_ROLE.to_string())
+}
+pub(crate) fn delivery_policy(order_id: &str) -> DeliveryPolicy {
+    env::storage_read(&policy_key(order_id))
+        .map(|b| near_sdk::borsh::from_slice(&b).expect("policy record is valid"))
+        .unwrap_or(DeliveryPolicy {
+            required: DEFAULT_REQUIRED_DELIVERY_SIGNATURES,
+            roles: Vec::new(),
+            version: 0,
+        })
+}
+fn validate_role(role: &str) {
+    require!(
+        !role.is_empty()
+            && role.len() <= 32
+            && role
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'),
+        "role must be 1 to 32 characters of a-z, 0-9, '-'"
+    );
 }
 
 impl InvoiceMessage {
@@ -104,6 +190,11 @@ impl InvoiceMessage {
     }
 }
 impl DeliveryMessage {
+    pub fn digest(&self) -> [u8; 32] {
+        env::sha256_array(near_sdk::borsh::to_vec(self).expect("encodes"))
+    }
+}
+impl DeliverySignerMessage {
     pub fn digest(&self) -> [u8; 32] {
         env::sha256_array(near_sdk::borsh::to_vec(self).expect("encodes"))
     }
@@ -187,10 +278,18 @@ pub struct InspectionResult {
 
 #[near]
 impl Contract {
-    /// Register a key that may sign delivery notes (a storekeeper or weighbridge).
+    /// Register a storekeeper: a delivery signer with the role "storekeeper".
     #[payable]
     pub fn add_storekeeper(&mut self, key: PublicKey) {
+        self.add_delivery_signer(key, DEFAULT_ROLE.to_string());
+    }
+
+    /// Register a key that may sign delivery notes, with exactly one role
+    /// (e.g. "storekeeper", "weighbridge", "inspector"). A key can hold one role only.
+    #[payable]
+    pub fn add_delivery_signer(&mut self, key: PublicKey, role: String) {
         self.assert_owner_with_yocto();
+        validate_role(&role);
         require!(
             key.curve_type() == CurveType::ED25519,
             "storekeeper key must be ed25519"
@@ -205,16 +304,59 @@ impl Contract {
         );
         require!(self.storekeepers.len() < 20, "too many storekeepers");
         self.storekeepers.push(key.clone());
-        emit("storekeeper_added", json!({ "key": key }));
+        env::storage_write(&role_key(&key), role.as_bytes());
+        emit("storekeeper_added", json!({ "key": key, "role": role }));
     }
 
+    /// Remove a delivery signer. Its signatures stop counting at once, including ones
+    /// already made for deliveries that have not been submitted yet.
     #[payable]
     pub fn remove_storekeeper(&mut self, key: PublicKey) {
         self.assert_owner_with_yocto();
         let before = self.storekeepers.len();
         self.storekeepers.retain(|k| k != &key);
         require!(self.storekeepers.len() < before, "unknown storekeeper");
+        env::storage_remove(&role_key(&key));
         emit("storekeeper_removed", json!({ "key": key }));
+    }
+
+    /// Set how many distinct roles must sign deliveries for an order, and which roles
+    /// count (empty = any). Every change raises the policy version, and signatures made
+    /// under an earlier version no longer count.
+    #[payable]
+    pub fn set_delivery_policy(&mut self, order_id: String, required: u8, roles: Vec<String>) {
+        self.assert_owner_with_yocto();
+        require!(self.orders.contains_key(&order_id), "unknown order");
+        require!(
+            required >= 1 && (required as usize) <= MAX_DELIVERY_SIGNATURES,
+            "required signatures must be 1 to 5"
+        );
+        require!(roles.len() <= MAX_DELIVERY_SIGNATURES, "at most 5 roles");
+        for (i, r) in roles.iter().enumerate() {
+            validate_role(r);
+            require!(!roles[..i].contains(r), "a role is listed twice");
+        }
+        require!(
+            roles.is_empty() || required as usize <= roles.len(),
+            "more signatures required than roles allowed"
+        );
+        let version = delivery_policy(&order_id)
+            .version
+            .checked_add(1)
+            .expect("overflow");
+        let policy = DeliveryPolicy {
+            required,
+            roles,
+            version,
+        };
+        env::storage_write(
+            &policy_key(&order_id),
+            &near_sdk::borsh::to_vec(&policy).expect("encodes"),
+        );
+        emit(
+            "delivery_policy_set",
+            json!({ "order_id": order_id, "policy": policy }),
+        );
     }
 
     /// Record a purchase order. Invoices are checked against it line by line.
@@ -303,8 +445,7 @@ impl Contract {
         invoice: Invoice,
         supplier_signature: Base64VecU8,
         delivery: DeliveryNote,
-        storekeeper_key: PublicKey,
-        delivery_signature: Base64VecU8,
+        delivery_signatures: Vec<DeliverySignature>,
         document_hash: Base64VecU8,
     ) -> InspectionResult {
         require!(
@@ -359,6 +500,10 @@ impl Contract {
             delivery.lines.len() <= MAX_LINES,
             "delivery note has too many lines"
         );
+        require!(
+            delivery_signatures.len() <= MAX_DELIVERY_SIGNATURES,
+            "at most 5 delivery signatures"
+        );
 
         let t = now();
         let contract = env::current_account_id();
@@ -371,7 +516,7 @@ impl Contract {
         .digest();
         let delivery_digest = DeliveryMessage {
             domain: DELIVERY_DOMAIN.into(),
-            contract,
+            contract: contract.clone(),
             note: delivery.clone(),
         }
         .digest();
@@ -390,7 +535,7 @@ impl Contract {
                 if !supplier_signature_ok {
                     seize.push("invalid_supplier_signature");
                 }
-                if rec.signing_key == storekeeper_key {
+                if delivery_signatures.iter().any(|s| s.key == rec.signing_key) {
                     hold.push("storekeeper_is_supplier");
                 }
                 let mut rec = rec.clone();
@@ -434,11 +579,45 @@ impl Contract {
                 if o.token != invoice.token {
                     hold.push("token_mismatch");
                 }
-                if !self.storekeepers.contains(&storekeeper_key) {
-                    hold.push("unknown_storekeeper");
-                } else if !verify_ed25519(&storekeeper_key, &delivery_digest, &delivery_signature.0)
-                {
-                    hold.push("invalid_delivery_signature");
+                // Two-person rule: enough distinct roles must sign this exact note.
+                let policy = delivery_policy(&invoice.order_id);
+                let mut keys_seen: Vec<&PublicKey> = Vec::new();
+                let mut roles_signed: Vec<String> = Vec::new();
+                for s in &delivery_signatures {
+                    if keys_seen.contains(&&s.key) {
+                        hold.push("duplicate_delivery_signer");
+                        continue;
+                    }
+                    keys_seen.push(&s.key);
+                    if self.supplier_keys.contains_key(s.key.as_bytes()) {
+                        hold.push("storekeeper_is_supplier");
+                        continue;
+                    }
+                    if !self.storekeepers.contains(&s.key) {
+                        hold.push("unknown_storekeeper");
+                        continue;
+                    }
+                    let role = signer_role(&s.key);
+                    let digest = DeliverySignerMessage {
+                        domain: DELIVERY_SIGNER_DOMAIN.into(),
+                        contract: contract.clone(),
+                        note: delivery.clone(),
+                        role: role.clone(),
+                        policy_version: policy.version,
+                    }
+                    .digest();
+                    if !verify_ed25519(&s.key, &digest, &s.signature.0) {
+                        hold.push("invalid_delivery_signature");
+                    } else if !policy.roles.is_empty() && !policy.roles.contains(&role) {
+                        hold.push("delivery_signer_role_not_allowed");
+                    } else if roles_signed.contains(&role) {
+                        hold.push("duplicate_delivery_role");
+                    } else {
+                        roles_signed.push(role);
+                    }
+                }
+                if roles_signed.len() < policy.required as usize {
+                    hold.push("delivery_signatures_missing");
                 }
                 if delivery.order_id != invoice.order_id {
                     hold.push("delivery_order_mismatch");
@@ -526,7 +705,14 @@ impl Contract {
             .chain(hold.iter())
             .map(|s| s.to_string())
             .collect();
-        reasons.dedup();
+        let mut seen_reasons: Vec<String> = Vec::new();
+        reasons.retain(|r| {
+            let new = !seen_reasons.contains(r);
+            if new {
+                seen_reasons.push(r.clone());
+            }
+            new
+        });
 
         let id = self.receipts.len();
         match verdict {
@@ -611,6 +797,20 @@ impl Contract {
 
     pub fn get_limits(&self) -> Limits {
         self.limits.clone()
+    }
+
+    pub fn get_delivery_signers(&self) -> Vec<DeliverySigner> {
+        self.storekeepers
+            .iter()
+            .map(|k| DeliverySigner {
+                key: k.clone(),
+                role: signer_role(k),
+            })
+            .collect()
+    }
+
+    pub fn get_delivery_policy(&self, order_id: String) -> DeliveryPolicy {
+        delivery_policy(&order_id)
     }
 
     pub fn get_storekeepers(&self) -> Vec<PublicKey> {

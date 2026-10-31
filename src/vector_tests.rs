@@ -81,4 +81,16 @@ fn golden_digests() {
         hex(&note),
         "5eebe4e05ec41c06b6df02cbca5a350cc35ca0c1bb9880e4ca663ae337097c18"
     );
+    let signer = DeliverySignerMessage {
+        domain: DELIVERY_SIGNER_DOMAIN.into(),
+        contract: "cleartopay.testnet".parse().unwrap(),
+        note: sample_note(),
+        role: "weighbridge".into(),
+        policy_version: 1,
+    }
+    .digest();
+    assert_eq!(
+        hex(&signer),
+        "89ae0c5228cc3a8d098d5ec0d955aeb064a33d14cd52617f739f67dc62779c91"
+    );
 }

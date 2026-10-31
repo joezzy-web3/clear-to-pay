@@ -13,6 +13,9 @@
 //!   4. Nothing clears beyond what was delivered, or beyond what was ordered.
 //!   5. Any change to a signed invoice, its document fingerprint or its signature
 //!      makes the supplier's signature fail: never CLEARED.
+//!   6. Two-person rule: a delivery is accepted only with valid signatures from two
+//!      different registered roles, and nothing else in the list. Any random mix of
+//!      missing, repeated, forged, stale, foreign or supplier signatures is HELD.
 
 use super::inspection::*;
 use super::payments::*;
@@ -102,6 +105,11 @@ fn setup() -> Contract {
     ctx(owner(), T0, 1);
     c.add_storekeeper(pk(&key(STOREKEEPER)));
     ctx(owner(), T0, 1);
+    c.add_delivery_signer(
+        crate::test_support::pubkey(crate::test_support::WEIGHBRIDGE_SEED),
+        "weighbridge".into(),
+    );
+    ctx(owner(), T0, 1);
     c.create_order(
         "PO-1184".into(),
         "qingmar-steel".into(),
@@ -143,7 +151,7 @@ fn invoice_digest(inv: &Invoice, doc: [u8; 32]) -> [u8; 32] {
     }
     .digest()
 }
-fn signed_note(note_id: &str, delivered: u64) -> (DeliveryNote, Base64VecU8) {
+fn signed_note(note_id: &str, delivered: u64) -> (DeliveryNote, Vec<DeliverySignature>) {
     let note = DeliveryNote {
         order_id: "PO-1184".into(),
         note_id: note_id.into(),
@@ -152,16 +160,8 @@ fn signed_note(note_id: &str, delivered: u64) -> (DeliveryNote, Base64VecU8) {
             qty: U64(delivered),
         }],
     };
-    let d = DeliveryMessage {
-        domain: DELIVERY_DOMAIN.into(),
-        contract: contract_id(),
-        note: note.clone(),
-    }
-    .digest();
-    (
-        note,
-        Base64VecU8(key(STOREKEEPER).sign(&d).to_bytes().to_vec()),
-    )
+    let sigs = crate::test_support::two_signatures(&note, &contract_id());
+    (note, sigs)
 }
 
 /// Run one case in its own thread (fresh mock blockchain) and pass its result back.
@@ -320,7 +320,6 @@ fn step(c: &mut Contract, m: &mut Model, op: &Op) -> Result<(), TestCaseError> {
                 inv,
                 Base64VecU8(sig.to_bytes().to_vec()),
                 note,
-                pk(&key(STOREKEEPER)),
                 note_sig,
                 Base64VecU8(doc.to_vec()),
             );
@@ -613,7 +612,6 @@ fn property_any_change_after_signing_is_never_cleared() {
                     inv,
                     Base64VecU8(sig.to_vec()),
                     note,
-                    pk(&key(STOREKEEPER)),
                     note_sig,
                     Base64VecU8(doc.to_vec()),
                 )
@@ -649,9 +647,94 @@ fn property_control_untampered_invoice_clears() {
         inv,
         Base64VecU8(sig.to_bytes().to_vec()),
         note,
-        pk(&key(STOREKEEPER)),
         note_sig,
         Base64VecU8(vec![5u8; 32]),
     );
     assert_eq!(r.verdict, Verdict::Cleared, "{:?}", r.reasons);
+}
+
+// ------------------------------------------------------------------ rule 6: two-person rule
+
+/// The kinds of delivery signature an attacker (or a careless signer) could put in the list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Sig {
+    Storekeeper,  // valid
+    Weighbridge,  // valid
+    SupplierKey,  // the supplier signing as a second role
+    Unregistered, // a key the buyer never registered
+    OtherNote,    // weighbridge signature for a different note
+    OldPolicy,    // weighbridge signature for another policy version
+    WrongRole,    // weighbridge key signing as "storekeeper"
+    FlippedBit,   // storekeeper signature with one bit changed
+}
+
+fn delivery_sig(kind: Sig, note: &DeliveryNote) -> DeliverySignature {
+    use crate::test_support::{STOREKEEPER_SEED as S, WEIGHBRIDGE_SEED as W, sign_as};
+    let c = contract_id();
+    match kind {
+        Sig::Storekeeper => sign_as(S, "storekeeper", note, &c, 0),
+        Sig::Weighbridge => sign_as(W, "weighbridge", note, &c, 0),
+        Sig::SupplierKey => sign_as(SUPPLIER, "weighbridge", note, &c, 0),
+        Sig::Unregistered => sign_as(99, "inspector", note, &c, 0),
+        Sig::OtherNote => {
+            let mut other = note.clone();
+            other.note_id = "DN-OTHER".into();
+            sign_as(W, "weighbridge", &other, &c, 0)
+        }
+        Sig::OldPolicy => sign_as(W, "weighbridge", note, &c, 7),
+        Sig::WrongRole => sign_as(W, "storekeeper", note, &c, 0),
+        Sig::FlippedBit => {
+            let mut s = sign_as(S, "storekeeper", note, &c, 0);
+            s.signature.0[17] ^= 0x10;
+            s
+        }
+    }
+}
+
+#[test]
+fn property_a_delivery_needs_exactly_two_valid_roles() {
+    let kinds = prop_oneof![
+        Just(Sig::Storekeeper),
+        Just(Sig::Weighbridge),
+        Just(Sig::SupplierKey),
+        Just(Sig::Unregistered),
+        Just(Sig::OtherNote),
+        Just(Sig::OldPolicy),
+        Just(Sig::WrongRole),
+        Just(Sig::FlippedBit),
+    ];
+    run(
+        SIGNATURE_CASES,
+        prop::collection::vec(kinds, 0..=5),
+        |list| {
+            isolated(move || {
+                let mut c = setup();
+                let inv = invoice("INV-1", 10, "qingmar.testnet");
+                let sig = key(SUPPLIER).sign(&invoice_digest(&inv, [5u8; 32]));
+                let (note, _) = signed_note("DN-1", 10);
+                let sigs: Vec<DeliverySignature> =
+                    list.iter().map(|k| delivery_sig(*k, &note)).collect();
+                ctx(owner(), LIVE, 0);
+                let r = c.submit_invoice(
+                    inv,
+                    Base64VecU8(sig.to_bytes().to_vec()),
+                    note,
+                    sigs,
+                    Base64VecU8(vec![5u8; 32]),
+                );
+                let honest_pair = list.len() == 2
+                    && list.contains(&Sig::Storekeeper)
+                    && list.contains(&Sig::Weighbridge);
+                prop_assert_eq!(
+                    r.verdict == Verdict::Cleared,
+                    honest_pair,
+                    "signatures {:?} gave {:?} {:?}",
+                    list,
+                    r.verdict,
+                    r.reasons
+                );
+                Ok(())
+            })
+        },
+    );
 }
