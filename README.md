@@ -17,7 +17,7 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 **Run it yourself:**
 
 ```bash
-cargo test                        # 88 contract tests
+cargo test                        # 91 contract tests, incl. 3 property tests (~1,300 random cases)
 (cd tools/ctp-sign && cargo test) # 5 signing-tool tests, incl. golden vectors shared with the contract
 cargo near build non-reproducible-wasm
 ```
@@ -41,6 +41,7 @@ Every transaction mentioned below is listed in [docs/testnet-proof.md](docs/test
 | Payments only move through legal states; nothing is paid twice | `payments.rs` (`set_status`) | Tests `a_settled_payment_can_never_be_paid_again`, `a_callback_cannot_settle_the_same_payment_twice` |
 | The operator has no backdoor: no function can send funds anywhere but the registered supplier or back to the buyer | `payments.rs` (`withdraw` pays the owner only, never reserved funds) | Tests `withdraw_only_pays_the_owner_and_never_touches_reserved_money`, `withdraw_cannot_take_reserved_money` |
 | The agent key cannot attach money or call owner actions | NEAR access-key rules + 1-yocto owner methods | Key permissions on chain, v2 tx `2GQ6or4U…` (v1 `8HpViCur…`); refused attempts are reproducible (see proof log) |
+| The money rules hold for random inputs, not just chosen cases | `src/property_tests.rs` (proptest) | 300 random sequences of up to 40 actions (deposit, submit, pay, fail, cancel, retry, resolve, withdraw, wait), checked after every step: a payee not on file never clears; available + reserved + withdrawals in flight always equal the tokens held; no invoice is paid twice; nothing clears beyond delivery or order. Plus 1,000 random edits to a signed invoice, its fingerprint or its signature: none clears. Checked against deliberately broken builds: disabling the payee check or the refund on a failed transfer makes these tests fail. |
 | Signatures are bound to this contract and message type | Domain-separated sha-256 digests | Golden vectors in `src/vector_tests.rs` and `tools/ctp-sign`; test `attack_signature_made_for_another_contract_is_rejected` |
 | Invisible characters and lookalike letters are rejected in ids and addresses | `lib.rs` (validation) | Tests `addresses_with_invisible_characters_are_rejected`, `supplier_ids_with_lookalike_letters_are_rejected` |
 
