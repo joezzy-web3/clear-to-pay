@@ -16,6 +16,8 @@ regexes = [
   # The agent's function-call PUBLIC keys (v1 and v2), published on purpose
   '''^GVTR1DmhqJaiLpNfhMRq7Y5rrERKCdmjwZHZnkRbDXra$''',
   '''^6ZnC3JFuTwHksSLZev3Vbbe24hjKdZs52gFphrLctcWp$''',
+  # The weighbridge's delivery-signer PUBLIC key (v2.2), published on purpose
+  '''^BzrpxezSnTwF2EkdRarHKo4fMZeFCeKtjGHwLDWfknrC$''',
   # A testnet transaction ID in an early commit of the proof log
   '''^9Y6MwfP5P91v7cDaJzByLTQXUz9vbSa1bopHn9m3UvzE$''',
 ]

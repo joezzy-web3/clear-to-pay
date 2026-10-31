@@ -19,6 +19,8 @@ expect() { # expect <caught|clean> <name> <content>
 }
 
 expect clean  public_values_alone        "token=$USDC agent=$AGENT"
+expect clean  delivery_signer_pubkey     "- Weighbridge key ed25519:BzrpxezSnTwF2EkdRarHKo4fMZeFCeKtjGHwLDWfknrC registered with role weighbridge"
+expect caught secret_beside_signer_key   "- Weighbridge key ed25519:BzrpxezSnTwF2EkdRarHKo4fMZeFCeKtjGHwLDWfknrC secret=ed25519:$(b58 88)"
 expect caught near_secret_beside_pubkey  "agent=$AGENT secret=ed25519:$(b58 88)"
 expect caught near_secret_beside_usdc    "\"token\": \"$USDC\", \"key\": \"ed25519:$(b58 88)\""
 expect caught api_key_beside_usdc        "token=$USDC api_key=\"$(b58 40)\""
