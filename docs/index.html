@@ -251,7 +251,7 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
 <body>
 <header class="hero gut"><div class="in" style="width:100%;display:flex;flex-direction:column;flex:1">
   <nav class="nav"><a class="logo" id="logo" href="#top"><svg width="26" height="30" viewBox="0 0 120 136" aria-hidden="true" overflow="visible"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14C50 14 82 14 112 14L94 50L112 86C82 86 50 86 20 86Z" fill="#F4C20D"><animate class="wave" attributeName="d" dur="2.6s" begin="0.4s;logo.mouseenter" values="M20 14C50 14 82 14 112 14L94 50L112 86C82 86 50 86 20 86Z;M20 14C44 -2 78 30 104 6L88 42L102 78C78 102 44 70 20 86Z;M20 14C44 30 78 -2 103 22L88 58L104 94C78 70 44 102 20 86Z;M20 14C44 -2 78 30 104 6L88 42L102 78C78 102 44 70 20 86Z;M20 14C44 30 78 -2 103 22L88 58L104 94C78 70 44 102 20 86Z;M20 14C44 -2 78 30 104 6L88 42L102 78C78 102 44 70 20 86Z;M20 14C50 14 82 14 112 14L94 50L112 86C82 86 50 86 20 86Z" keyTimes="0;.16;.33;.5;.66;.83;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1" fill="freeze"/></path><g><animateTransform class="wave" attributeName="transform" type="translate" dur="2.6s" begin="0.4s;logo.mouseenter" values="0 0;-4 -6;-5 6;-4 -6;-5 6;-2 -3;0 0" keyTimes="0;.16;.33;.5;.66;.83;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1" fill="freeze"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></g></svg>Clear to Pay</a>
-    <div class="links"><a href="#how">How it works</a><a href="#sea">At sea</a><a href="#checks">The checks</a><a href="#proof">Proof</a><a href="ledger/">Ledger</a></div>
+    <div class="links"><a href="#how">How it works</a><a href="#sea">At sea</a><a href="#checks">The checks</a><a href="#proof">Proof</a></div>
     <span class="navr"><a class="near" href="https://near.org" title="Built on NEAR"><img src="near.png" alt="" width="22" height="22">Built on NEAR</a><a class="xlink" href="https://x.com/cleartopay" target="_blank" rel="noopener" title="Follow the build on X"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M17.75 3h3.07l-6.7 7.66L22 21h-6.17l-4.83-6.32L5.47 21H2.4l7.17-8.2L2 3h6.33l4.37 5.77L17.75 3Zm-1.08 16.2h1.7L7.4 4.7H5.58l11.09 14.5Z"/></svg>@cleartopay</a><a class="btn sec" href="ledger/">Open the live ledger</a></span></nav>
   <div class="htext">
     <span class="live" id="livepill"><i></i><span id="livetext"><b>Reading NEAR testnet</b> · checking the contract</span></span>
@@ -360,14 +360,14 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
 /* Clear to Pay: read the contracts once and share the result with every section. */
 (() => {
   const USDC = "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af";
-  const RPCS = ["https://rpc.testnet.near.org", "https://test.rpc.fastnear.com", "https://archival-rpc.testnet.fastnear.com"];
+  const RPCS = ["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org", "https://archival-rpc.testnet.fastnear.com"];
   const CONTRACTS = ["guard.cleartopay.testnet", "cleartopay.testnet"];
   const b64 = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
   async function view(contract, method, args = {}) {
     let last;
     for (const url of RPCS) {
       try {
-        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 7000);
+        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
         const r = await fetch(url, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: b64(args) } }) });
         clearTimeout(t);

@@ -28,43 +28,45 @@ a{color:inherit}
 :focus-visible{outline:2px solid var(--signal);outline-offset:3px}
 code{font-family:var(--mono);font-size:.9em}
 
-/* hero: same sea, same glass nav */
-.hero{position:relative;background:#6FA6DA url("../sea.jpg") center 46.8%/cover no-repeat;overflow:hidden}
-.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,34,66,0) 30%,rgba(14,34,66,.42) 100%)}
-.nav{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:22px}
-.logo{display:flex;align-items:center;gap:10px;font:800 26px/1 var(--display);color:#fff;text-decoration:none;text-shadow:0 1px 12px rgba(14,34,66,.35)}
-.links{display:flex;gap:6px;flex-wrap:wrap}
-.links a{font:500 15px var(--body);color:#fff;text-decoration:none;padding:9px 14px;border-radius:9px;background:rgba(255,255,255,.14);backdrop-filter:blur(6px)}
-.links a:hover{background:rgba(255,255,255,.26)}
+/* header: the "Live from testnet" ledger template, not the landing page's sea */
+.top{background:var(--deep);color:var(--paper);position:relative;overflow:hidden}
+.nav{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px;border-bottom:1px solid #1E3560}
+.logo{display:flex;align-items:center;gap:10px;font:800 24px/1 var(--display);color:var(--paper);text-decoration:none}
+.crumb{font:500 13px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--nmute);margin-left:4px}
+.links{display:flex;gap:4px;flex-wrap:wrap}
+.links a{font:500 14.5px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px}
+.links a:hover{color:var(--paper);background:#13284A}
 .navr{display:flex;align-items:center;gap:10px}
-.near{display:inline-flex;align-items:center;gap:8px;font:600 14px var(--body);color:#fff;text-decoration:none;background:rgba(14,34,66,.35);backdrop-filter:blur(8px);padding:6px 12px 6px 6px;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
+.near{display:inline-flex;align-items:center;gap:8px;font:600 14px var(--body);color:var(--paper);text-decoration:none;background:#13284A;padding:6px 12px 6px 6px;border-radius:10px;box-shadow:inset 0 0 0 1px #24406B}
 .near img{border-radius:6px;display:block}
-.htext{position:relative;padding-block:clamp(26px,6vh,64px) clamp(40px,7vh,76px)}
-.live{display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);border-radius:999px;padding:8px 16px 8px 12px;font:500 14.5px var(--body);box-shadow:0 10px 30px -18px rgba(16,38,74,.6)}
-.live i{width:9px;height:9px;border-radius:50%;background:var(--mute);flex:none}
-.live.on i{background:var(--clear);box-shadow:0 0 0 4px rgba(18,122,74,.18);animation:beat 2s infinite}
+.back{font:600 14px var(--body);color:var(--navy);background:var(--paper);text-decoration:none;padding:9px 14px;border-radius:10px}
+.htext{position:relative;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr);gap:clamp(20px,4vw,56px);align-items:center;padding-block:clamp(30px,5vw,56px) 8px}
+.live{display:inline-flex;align-items:center;gap:10px;background:#13284A;border-radius:999px;padding:7px 14px 7px 11px;font:500 14px var(--body);color:var(--paper);box-shadow:inset 0 0 0 1px #24406B}
+.live i{width:9px;height:9px;border-radius:50%;background:var(--nmute);flex:none}
+.live.on i{background:#3DDC84;box-shadow:0 0 0 4px rgba(61,220,132,.18);animation:beat 2s infinite}
 .live.sample i{background:var(--signal)}
 .live.err i{background:var(--seize)}
-.live b{font-weight:600}
-@keyframes beat{50%{box-shadow:0 0 0 7px rgba(18,122,74,.05)}}
-h1{font:800 clamp(52px,8vw,112px)/.98 var(--display);color:#fff;margin:20px 0 0;max-width:12ch;text-wrap:balance;text-shadow:0 2px 30px rgba(14,34,66,.25)}
-.kicker{display:inline-block;margin-top:18px;font:500 13px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;background:var(--signal);color:var(--navy);padding:8px 12px}
-.sub{font:400 clamp(16px,1.4vw,19px)/1.5 var(--body);color:#fff;max-width:54ch;margin:14px 0 0;text-shadow:0 1px 14px rgba(14,34,66,.45)}
-.switch{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
-.switch button{font:600 15px var(--body);border:0;border-radius:10px;padding:11px 16px;cursor:pointer;color:#fff;background:rgba(255,255,255,.16);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
-.switch button[aria-pressed="true"]{background:var(--navy);box-shadow:none}
+.live b{font-weight:600}.live a{color:var(--signal)}
+@keyframes beat{50%{box-shadow:0 0 0 7px rgba(61,220,132,.04)}}
+h1{font:800 clamp(56px,9vw,128px)/.92 var(--display);color:var(--paper);margin:20px 0 0;letter-spacing:.005em}
+h1 span{color:var(--signal)}
+.sub{font:400 clamp(16px,1.3vw,18px)/1.5 var(--body);color:var(--nmute);max-width:54ch;margin:16px 0 0}
+.switch{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+.switch button{font:600 15px var(--body);border:0;border-radius:0;padding:11px 16px;cursor:pointer;color:var(--paper);background:#13284A;box-shadow:inset 0 0 0 2px #24406B;text-align:left}
+.switch button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
 .switch small{display:block;font:400 12px var(--mono);opacity:.75;margin-top:2px}
 
 /* night band: stats as in the "Live from testnet" template */
 .night{background:var(--deep);color:var(--paper)}
-.band{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:clamp(20px,4vw,56px);align-items:center;padding-block:clamp(48px,7vw,88px)}
+.band{padding-block:28px clamp(48px,6vw,72px)}
+.tiles{grid-template-columns:repeat(4,minmax(0,1fr))!important}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .tile{background:#13284A;border:2px solid #24406B;padding:22px 24px;min-width:0}
 .tile b{display:block;font:800 clamp(44px,6vw,76px)/.95 var(--display);color:var(--paper);font-variant-numeric:tabular-nums}
 .tile b small{font:500 16px var(--mono);letter-spacing:.08em;color:var(--nmute);margin-left:6px}
 .tile span{display:block;margin-top:12px;font:500 12.5px/1.35 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--nmute)}
 .tile em{font-style:normal;color:var(--signal)}
-.pix{position:relative;width:100%;max-width:420px;justify-self:center;aspect-ratio:1}
+.pix{position:relative;width:100%;max-width:360px;justify-self:end;aspect-ratio:1}
 .pix canvas{width:100%;height:100%;display:block}
 .pix figcaption{position:absolute;right:0;bottom:0;background:var(--deep);font:400 12.5px var(--mono);color:var(--nmute);padding:6px 8px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px;font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--nmute)}
@@ -178,8 +180,10 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 
 @media (max-width:900px){
   .links{display:none}
-  .band,.pair{grid-template-columns:1fr}
-  .pix{max-width:300px;order:-1}
+  .pair,.htext{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .pix{max-width:240px;justify-self:start}
+  .back span{display:none}
   .hcard{grid-template-columns:minmax(0,1fr) 98px}
   .h-stub{padding:8px}.seal{width:84px}
   .h-grid{grid-template-columns:1fr}
@@ -187,6 +191,12 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   .kv{grid-template-columns:1fr;gap:2px 0}.kv dd{margin-bottom:8px}
 }
 @media (max-width:520px){
+  .crumb{display:none}
+  .logo{white-space:nowrap;font-size:21px}
+  .tile{padding:18px 16px}
+  .tile b{font-size:40px}
+  .tile b small{display:block;margin:6px 0 0;font-size:13px}
+  .switch button{flex:1 1 100%}
   .tiles{gap:10px}.tile{padding:16px}
   .near span{display:none}
   .hcard{grid-template-columns:1fr}
@@ -195,32 +205,37 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   .drop{grid-template-columns:64px minmax(0,1fr)}.drop canvas{width:64px;height:80px}
   .empty{grid-template-columns:1fr}
 }
-@media (prefers-reduced-motion:reduce){.live.on i,.empty .seal,.flash{animation:none}}
+.sk{display:inline-block;width:var(--w,4ch);height:var(--h,.7em);border-radius:var(--r,4px);vertical-align:middle;--a:#18304F;--b:#2B4C7C;
+  background:linear-gradient(100deg,var(--a) 0 35%,var(--b) 50%,var(--a) 65% 100%) 100% 0/300% 100%;animation:sk 1.5s ease-in-out infinite}
+.sk.lt{--a:#E2E7E1;--b:#F6F7F3}
+.ghost .h-main{padding:26px clamp(18px,3vw,30px);display:grid;gap:16px;align-content:start}
+.ghost .h-stub{display:grid;place-items:center;padding:20px;border-radius:0 16px 16px 0}
+.ghost .row{display:flex;gap:12px;flex-wrap:wrap}
+@keyframes sk{to{background-position:0 0}}
+@media (prefers-reduced-motion:reduce){.live.on i,.empty .seal,.flash,.sk{animation:none}}
 </style>
 
 </head>
 <body>
-<header class="hero gut"><div class="in">
+<header class="top gut"><div class="in">
   <nav class="nav">
-    <a class="logo" href="../" title="Clear to Pay home"><svg width="26" height="30" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a>
-    <div class="links"><a href="../">Home</a><a href="#receipts">Receipts</a><a href="#supplier">Supplier</a><a href="#verify">Verify a document</a><a href="#reads">How it reads</a></div>
-    <span class="navr"><a class="near" href="https://near.org" target="_blank" rel="noopener" title="Built on NEAR"><img src="../near.png" alt="" width="22" height="22"><span>Built on NEAR</span></a></span>
+    <a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay<span class="crumb">/ Ledger</span></a>
+    <div class="links"><a href="#receipts">Receipts</a><a href="#supplier">Address lock</a><a href="#verify">Verify a document</a><a href="#reads">How it reads</a></div>
+    <span class="navr"><a class="near" href="https://near.org" target="_blank" rel="noopener" title="Built on NEAR"><img src="../near.png" alt="" width="22" height="22"><span>Built on NEAR</span></a><a class="back" id="home" href="../">&larr;<span> Back to the site</span></a></span>
   </nav>
   <div class="htext" id="top">
-    <span class="live" id="live"><i></i><span id="liveText"><b>Connecting</b> · NEAR testnet</span></span>
-    <h1>Every verdict, on chain.</h1>
-    <p class="kicker">The ledger</p>
-    <p class="sub">This page asks the Clear to Pay contract directly, from your browser. No server, no database, no keys. What you see here is what the contract decided.</p>
-    <div class="switch" role="group" aria-label="Contract">
-      <button type="button" id="sw-live" data-net="guard.cleartopay.testnet" aria-pressed="true">Live contract<small>guard.cleartopay.testnet</small></button>
-      <button type="button" id="sw-v1" data-net="cleartopay.testnet" aria-pressed="false">First verdicts (v1)<small>cleartopay.testnet</small></button>
+    <div>
+      <span class="live" id="live"><i></i><span id="liveText"><b>Connecting</b> · NEAR testnet</span></span>
+      <h1>Live from <span>testnet.</span></h1>
+      <p class="sub">The Clear to Pay contract, read directly from your browser. No server, no database, no keys. Every number on this page is what the contract holds right now.</p>
+      <div class="switch" role="group" aria-label="Contract">
+        <button type="button" id="sw-live" data-net="guard.cleartopay.testnet" aria-pressed="true">Live contract<small>guard.cleartopay.testnet</small></button>
+        <button type="button" id="sw-v1" data-net="cleartopay.testnet" aria-pressed="false">First verdicts (v1)<small>cleartopay.testnet</small></button>
+      </div>
     </div>
+    <figure class="pix" style="margin:0"><canvas id="pix" width="420" height="420" aria-label="One square per receipt, coloured by verdict"></canvas><figcaption id="pixcap">one square per receipt</figcaption></figure>
   </div>
-</div></header>
-
-<main>
-<section class="night gut" aria-label="Contract state"><div class="in band">
-  <div>
+  <div class="band" aria-label="Contract state">
     <div class="tiles">
       <div class="tile"><b id="t-avail">–</b><span>USDC in the pool</span></div>
       <div class="tile"><b id="t-res">–</b><span id="t-res-l">Reserved for payments on their way</span></div>
@@ -229,9 +244,9 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     </div>
     <div class="legend" aria-hidden="true"><span><i style="background:var(--clear)"></i>Cleared</span><span><i style="background:var(--signal)"></i>Held</span><span><i style="background:var(--seize)"></i>Seized</span><span id="limits"></span></div>
   </div>
-  <figure class="pix" style="margin:0"><canvas id="pix" width="420" height="420" aria-label="One square per receipt, coloured by verdict"></canvas><figcaption id="pixcap">one square per receipt</figcaption></figure>
-</div></section>
+</div></header>
 
+<main>
 <section class="s gut" id="receipts"><div class="in">
   <div class="head">
     <div><span class="kick">Receipts</span><h2>Every invoice the agent <mark>submitted</mark>.</h2>
@@ -301,7 +316,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 (() => {
   const USDC = "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af";
   const SUPPLIER = "qingmar-steel";
-  const RPCS = ["https://rpc.testnet.near.org", "https://test.rpc.fastnear.com", "https://archival-rpc.testnet.fastnear.com"];
+  const RPCS = ["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org", "https://archival-rpc.testnet.fastnear.com"];
   const HOSTED = "https://joezzy-web3.github.io/clear-to-pay/ledger/";
   const REASONS = {
     payee_mismatch: ["bad", "Asked to be paid to an address that is not the supplier's registered one."],
@@ -361,7 +376,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     for (let n = 0; n < RPCS.length; n++) {
       const url = RPCS[(rpcIndex + n) % RPCS.length];
       try {
-        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
+        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
         const r = await fetch(url, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: b64(args) } }) });
         clearTimeout(t);
@@ -410,7 +425,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 
   function renderSupplier(s) {
     clearInterval(clockTimer);
-    if (!s) { $("s-addr").textContent = "Not registered on this contract"; $("s-clock").textContent = "–"; return; }
+    if (!s) { $("s-addr").textContent = "Not registered on this contract"; $("s-clock").textContent = "–"; ["s-tok", "s-key", "s-pend"].forEach((id) => { $(id).textContent = "–"; }); return; }
     onFile = s.route_on_file.address;
     $("s-addr").textContent = s.route_on_file.address;
     $("s-tok").textContent = "USDC on " + s.route_on_file.chain.toUpperCase() + " (" + short(s.route_on_file.token, 8, 6) + ")";
@@ -508,13 +523,39 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     }
   }
 
+  const SK = (w, lt, extra = "") => `<i class="sk${lt ? " lt" : ""}" style="--w:${w};${extra}" aria-hidden="true"></i>`;
+  const GHOST = () => `<div class="hcard ghost" aria-hidden="true"><div class="h-main">
+      <div class="row">${SK("88px", 1, "--h:26px;--r:6px")}${SK("140px", 1, "--h:26px;--r:6px")}</div>
+      ${SK("min(420px,80%)", 1, "--h:34px")}
+      <div class="row">${SK("120px", 1)}${SK("170px", 1)}${SK("90px", 1)}</div>
+      ${SK("min(560px,95%)", 1)}${SK("min(380px,70%)", 1)}
+    </div><div class="h-stub">${SK("112px", 1, "--h:112px;--r:50%")}</div></div>`;
+  function skeleton() {
+    ["t-avail", "t-res", "t-count", "t-stop"].forEach((id, k) => { $(id).innerHTML = SK(k < 2 ? "3.4ch" : "1.4ch"); });
+    ["s-addr", "s-tok", "s-key", "s-pend"].forEach((id) => { $(id).innerHTML = SK("min(260px,100%)", 1); });
+    $("s-clock").innerHTML = SK("5ch", 1, "--h:.8em"); $("s-when").textContent = "";
+    $("list").innerHTML = GHOST() + GHOST();
+  }
+
   function setLive(kind, html) { $("live").className = "live " + kind; $("liveText").innerHTML = html; }
 
+  /* Show the last numbers this browser read at once, clearly marked, while fresh ones load. */
+  const KEY = (c) => "ctp-ledger:" + c;
+  function remember(c, d) { try { localStorage.setItem(KEY(c), JSON.stringify({ at: Date.now(), d })); } catch (e) {} }
+  function recall(c) { try { const v = JSON.parse(localStorage.getItem(KEY(c)) || "null"); return v && v.d && v.d.funds ? v : null; } catch (e) { return null; } }
+
   async function refresh() {
+    const asked = contract;
+    if (mode !== "live") {
+      const c = recall(asked);
+      if (c) { setLive("sample", `<b>Last read ${esc(new Date(c.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</b> · updating from NEAR testnet…`); render(c.d); }
+    }
     try {
       const d = await loadLive();
+      if (asked !== contract) return;
       mode = "live";
       setLive("on", `<b>Live on NEAR testnet</b> · ${esc(contract)}`);
+      remember(asked, d);
       render(d);
     } catch (e) {
       if (e.network) {
@@ -529,11 +570,11 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   }
 
   function select(id) {
-    contract = id;
+    contract = id; mode = "connecting";
     document.querySelectorAll(".switch button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.net === id)));
     $("nb").href = "https://testnet.nearblocks.io/address/" + id;
     $("vout").textContent = ""; drawDoc(null);
-    $("list").innerHTML = "";
+    skeleton();
     refresh();
   }
 
