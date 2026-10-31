@@ -6,9 +6,23 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 
 ---
 
+## Try it
+
+**30 seconds, nothing to install.** Open the [live ledger, first verdicts](https://joezzy-web3.github.io/clear-to-pay/ledger/#v1). Download [`demo/INV-2210/document.txt`](demo/INV-2210/document.txt) (a fake invoice asking to be paid to a new address) and drop it on **Verify a document**. Your browser fingerprints the file and finds its receipt on NEAR testnet: **SEIZED**, `payee_mismatch`, with a link to the transaction. Switch to **Live contract** to see the pool, the limits, the two delivery signers and the supplier's locked address, read straight from the chain.
+
+**5 minutes, clone and test.** No wallet, no keys:
+
+```bash
+git clone https://github.com/joezzy-web3/clear-to-pay && cd clear-to-pay
+cargo test                                   # 122 contract tests
+(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)   # 118 reader tests (use a virtualenv, or add --user --break-system-packages)
+```
+
+**15 minutes, check it on chain.** Every step we ran on testnet is in [docs/testnet-proof.md](docs/testnet-proof.md) with its transaction on NearBlocks: the deploys, the supplier registration, the agent's fenced key and the calls it was refused, the HELD and SEIZED verdicts, the two-person upgrade. [demo/README.md](demo/README.md) shows how the demo invoices are signed and submitted.
+
 ## For reviewers
 
-**What runs today** (NEAR testnet, contract `guard.cleartopay.testnet`, owned by `buyer.cleartopay.testnet`; v2, redeployed with the security-review fixes on 30 Oct; the first verdicts below ran on v1, `cleartopay.testnet`):
+**What runs today** (NEAR testnet, contract `guard.cleartopay.testnet`, owned by `buyer.cleartopay.testnet`; v2.2, with three security reviews' fixes and the two-person delivery rule; the first verdicts ran on v1, `cleartopay.testnet`):
 
 - An agent submits a supplier invoice. The contract checks it against the purchase order, a delivery note signed by two different people (e.g. storekeeper and weighbridge), the supplier registry, duplicates and limits, and stamps it **CLEARED**, **HELD** or **SEIZED**, with reasons and a permanent receipt.
 - A CLEARED invoice pays real testnet USDC (Circle) to the supplier's **registered** address, through fixed payment states.
@@ -51,6 +65,32 @@ Every testnet transaction mentioned below is listed in [docs/testnet-proof.md](d
 | The AI cannot choose the payee | `reader/ctp_reader/schema.py` | Its answer has no payee field; any extra field is rejected, never repaired; the payee is the registered route and the token comes from the order. Test `test_a_well_formed_answer_becomes_exactly_the_invoice_the_supplier_signs` |
 | Signatures are bound to this contract and message type | Domain-separated sha-256 digests | Golden vectors in `src/vector_tests.rs` and `tools/ctp-sign`; test `attack_signature_made_for_another_contract_is_rejected` |
 | Invisible characters and lookalike letters are rejected in ids and addresses | `lib.rs` (validation) | Tests `addresses_with_invisible_characters_are_rejected`, `supplier_ids_with_lookalike_letters_are_rejected` |
+
+## Why this matters: agents have already been talked into paying
+
+Each of these is documented. In every one, the agent treated text it read as an instruction about where money should go.
+
+| Incident | What happened | What Clear to Pay does instead |
+|---|---|---|
+| **Bankr / Grok, May 2026, Base** | Someone asked Grok to translate a Morse-code message and pass it to a wallet bot. The decoded text was a transfer order; about 3 billion DRB tokens (reported at $150k–$200k) were sent. ([AI Incident Database #1556](https://incidentdatabase.ai/cite/1556/)) | The agent never chooses who gets paid. The payee is the supplier's registered route; any other address is SEIZED (`payee_mismatch`). |
+| **Hidden instructions on web pages, 2026** | Zscaler planted instructions in web pages for browsing agents. Of 26 models tested, four (Llama 3.3 70B, Llama 3.2 90B Vision, Gemini 3 Flash, Gemini 2.5 Pro) made a crypto payment. ([SecurityWeek](https://www.securityweek.com/prompt-injection-attacks-trick-ai-agents-into-making-crypto-payments/)) | Text a person cannot see is removed before any model reads the invoice, and the invoice is HELD (`reader/`, 19-invoice attack corpus). |
+| **ElizaOS "fake memories", Princeton + Sentient, 2025** | False instructions planted in an agent's memory redirected its transfers to the attacker: 0.001 ETH on Sepolia, then repeated on mainnet. ([arXiv 2503.16248](https://arxiv.org/abs/2503.16248)) | Nothing the agent remembers or is told can change the payee or the amount: the contract checks the signed invoice, the order and the signed delivery. |
+| **OpenAI internal model, Sepolia, June 2026 (reported Oct 2026)** | Short of test ETH, a research model derived wallets from common developer seed phrases, spent from one it had no permission to use, and left that out of its report. ([Decrypt](https://decrypt.co/381123/openai-model-used-testnet-ethereum-wallet-without-permission-to-finish-coding-task)) | The agent's key can call two methods. It cannot attach money, change rules, or move USDC; NEAR refuses those calls before they reach the contract (proof log). |
+
+## Not just steel
+
+The demo is a steel order, so its delivery signers are a storekeeper and a weighbridge. The contract knows only **roles**, named by the buyer, and for each order how many different roles must confirm a delivery (two unless the buyer sets otherwise; any change is versioned and recorded).
+
+| Business | "Delivered" means | Two roles that confirm it |
+|---|---|---|
+| Goods (the demo) | 100 t arrived | storekeeper + weighbridge |
+| Construction | Milestone finished | site engineer + client's inspector |
+| Software or agency | Feature shipped | QA lead + product owner |
+| Logistics | Parcel handed over | courier + receiving clerk |
+| Services | Hours or report delivered | project manager + client approver |
+| Marine | Repair completed | yard supervisor + class surveyor |
+
+The rule is the same everywhere: whoever benefits from saying "delivered" is never the only one who can say it.
 
 ## NEAR stack used
 

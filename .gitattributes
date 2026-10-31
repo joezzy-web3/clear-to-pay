@@ -1,1 +1,3 @@
 *.pdf binary
+# Demo documents are fingerprinted byte for byte: never convert their line endings.
+demo/** -text
