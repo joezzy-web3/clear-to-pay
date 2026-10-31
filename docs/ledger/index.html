@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Clear to Pay Ledger</title>
+<meta name="description" content="Every Clear to Pay verdict, read live from the NEAR contract. No server, no keys.">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: the landing page's own system. Sea-photo hero with glass nav, a night band of live stats with pixel art,
+   receipts as inspection tickets (cleared ones as clearance certificates), the supplier's address as a manifest card,
+   a night band naming the contract calls, and the stencilled closer. Single deliberate light look, like the landing. */
+:root{
+  --paper:#EEF1EC; --card:#FFFFFF; --navy:#10264A; --night:#0E2242; --deep:#0B1A33; --mute:#55657C; --line:#D5DCD7;
+  --signal:#F4C20D; --clear:#127A4A; --held:#B98A00; --seize:#C42B1C; --nmute:#9FB0C6; --cell:#FAFBF9;
+  --display:"Big Shoulders Display",Impact,"Arial Narrow",sans-serif;
+  --body:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--navy);font-family:var(--body);font-size:16px}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.in{max-width:1240px;margin:0 auto}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+code{font-family:var(--mono);font-size:.9em}
+
+/* hero: same sea, same glass nav */
+.hero{position:relative;background:#6FA6DA url("../sea.jpg") center 46.8%/cover no-repeat;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,34,66,0) 30%,rgba(14,34,66,.42) 100%)}
+.nav{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:22px}
+.logo{display:flex;align-items:center;gap:10px;font:800 26px/1 var(--display);color:#fff;text-decoration:none;text-shadow:0 1px 12px rgba(14,34,66,.35)}
+.links{display:flex;gap:6px;flex-wrap:wrap}
+.links a{font:500 15px var(--body);color:#fff;text-decoration:none;padding:9px 14px;border-radius:9px;background:rgba(255,255,255,.14);backdrop-filter:blur(6px)}
+.links a:hover{background:rgba(255,255,255,.26)}
+.navr{display:flex;align-items:center;gap:10px}
+.near{display:inline-flex;align-items:center;gap:8px;font:600 14px var(--body);color:#fff;text-decoration:none;background:rgba(14,34,66,.35);backdrop-filter:blur(8px);padding:6px 12px 6px 6px;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
+.near img{border-radius:6px;display:block}
+.htext{position:relative;padding-block:clamp(26px,6vh,64px) clamp(40px,7vh,76px)}
+.live{display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);border-radius:999px;padding:8px 16px 8px 12px;font:500 14.5px var(--body);box-shadow:0 10px 30px -18px rgba(16,38,74,.6)}
+.live i{width:9px;height:9px;border-radius:50%;background:var(--mute);flex:none}
+.live.on i{background:var(--clear);box-shadow:0 0 0 4px rgba(18,122,74,.18);animation:beat 2s infinite}
+.live.sample i{background:var(--signal)}
+.live.err i{background:var(--seize)}
+.live b{font-weight:600}
+@keyframes beat{50%{box-shadow:0 0 0 7px rgba(18,122,74,.05)}}
+h1{font:800 clamp(52px,8vw,112px)/.98 var(--display);color:#fff;margin:20px 0 0;max-width:12ch;text-wrap:balance;text-shadow:0 2px 30px rgba(14,34,66,.25)}
+.kicker{display:inline-block;margin-top:18px;font:500 13px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;background:var(--signal);color:var(--navy);padding:8px 12px}
+.sub{font:400 clamp(16px,1.4vw,19px)/1.5 var(--body);color:#fff;max-width:54ch;margin:14px 0 0;text-shadow:0 1px 14px rgba(14,34,66,.45)}
+.switch{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
+.switch button{font:600 15px var(--body);border:0;border-radius:10px;padding:11px 16px;cursor:pointer;color:#fff;background:rgba(255,255,255,.16);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+.switch button[aria-pressed="true"]{background:var(--navy);box-shadow:none}
+.switch small{display:block;font:400 12px var(--mono);opacity:.75;margin-top:2px}
+
+/* night band: stats as in the "Live from testnet" template */
+.night{background:var(--deep);color:var(--paper)}
+.band{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:clamp(20px,4vw,56px);align-items:center;padding-block:clamp(48px,7vw,88px)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.tile{background:#13284A;border:2px solid #24406B;padding:22px 24px;min-width:0}
+.tile b{display:block;font:800 clamp(44px,6vw,76px)/.95 var(--display);color:var(--paper);font-variant-numeric:tabular-nums}
+.tile b small{font:500 16px var(--mono);letter-spacing:.08em;color:var(--nmute);margin-left:6px}
+.tile span{display:block;margin-top:12px;font:500 12.5px/1.35 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--nmute)}
+.tile em{font-style:normal;color:var(--signal)}
+.pix{position:relative;width:100%;max-width:420px;justify-self:center;aspect-ratio:1}
+.pix canvas{width:100%;height:100%;display:block}
+.pix figcaption{position:absolute;right:0;bottom:0;background:var(--deep);font:400 12.5px var(--mono);color:var(--nmute);padding:6px 8px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px;font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--nmute)}
+.legend i{display:inline-block;width:11px;height:11px;margin-right:7px;vertical-align:-1px}
+
+/* sections */
+section.s{padding-block:clamp(56px,8vw,104px)}
+.kick{display:inline-block;font:500 12.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;background:var(--navy);color:var(--paper);padding:8px 12px}
+.night .kick{background:var(--signal);color:var(--navy)}
+h2{font:800 clamp(40px,5vw,72px)/1.04 var(--display);margin:18px 0 0;max-width:18ch;text-wrap:balance}
+h2 mark{background:var(--signal);color:var(--navy);padding:0 .12em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.lead{font:400 18px/1.55 var(--body);color:var(--mute);max-width:58ch;margin:14px 0 0}
+.night .lead{color:var(--nmute)}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.filters button{font:500 12.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;border:0;padding:9px 12px;cursor:pointer;background:var(--card);color:var(--navy);box-shadow:inset 0 0 0 1px var(--line)}
+.filters button[aria-pressed="true"]{background:var(--navy);color:var(--paper);box-shadow:none}
+
+/* receipts: the landing's inspection ticket */
+.list{display:grid;gap:22px;margin-top:34px}
+.hcard{display:grid;grid-template-columns:minmax(0,1fr) 168px;filter:drop-shadow(0 18px 34px rgba(14,34,66,.16)) drop-shadow(0 1px 0 rgba(16,38,74,.08))}
+.h-main,.h-stub{background:var(--card)}
+.h-main{border-radius:16px 0 0 16px;overflow:hidden;min-width:0;--m:radial-gradient(circle at 100% 0,transparent 11px,#000 11.5px) top/100% 51% no-repeat,radial-gradient(circle at 100% 100%,transparent 11px,#000 11.5px) bottom/100% 51% no-repeat;-webkit-mask:var(--m);mask:var(--m)}
+.h-stub{border-radius:0 16px 16px 0;border-left:2px dashed #CBD3CE;display:grid;place-items:center;align-content:center;gap:10px;padding:16px;background:linear-gradient(180deg,#FFFBEA,#fff);--m:radial-gradient(circle at 0 0,transparent 11px,#000 11.5px) top/100% 51% no-repeat,radial-gradient(circle at 0 100%,transparent 11px,#000 11.5px) bottom/100% 51% no-repeat;-webkit-mask:var(--m);mask:var(--m)}
+.h-head{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--navy);color:var(--paper);padding:10px 20px;font:800 15px/1 var(--display);letter-spacing:.03em}
+.h-head span:first-child{display:flex;align-items:center;gap:8px}
+.h-head span:last-child{font:400 12.5px var(--mono);color:var(--nmute);letter-spacing:0}
+.h-body{padding:16px 20px 18px}
+.h-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.h-ref{font:800 28px/1 var(--display)}
+.h-amt{font:800 30px/1 var(--display);font-variant-numeric:tabular-nums}
+.h-amt small{font:500 13px var(--mono);color:var(--mute);margin-left:4px}
+.h-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:14px}
+.h-grid div{background:var(--cell);padding:8px 12px;min-width:0}
+.h-grid small{display:block;font:500 11.5px var(--body);color:var(--mute)}
+.h-grid b{display:block;font:400 14px/1.35 var(--mono);margin-top:3px;word-break:break-all}
+.h-grid em{font-style:normal;background:var(--signal);border-radius:3px;padding:0 4px}
+.h-grid .bad{background:#FBE9E7}.h-grid .bad b{color:var(--seize)}
+.why{display:grid;gap:8px;margin:14px 0 0;padding:0;list-style:none}
+.why li{display:flex;align-items:flex-start;gap:10px;font:400 15px/1.45 var(--body)}
+.why li i{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;margin-top:1px;background:var(--clear)}
+.why li i::after{content:"";width:8px;height:4.5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:translateY(-1px) rotate(-45deg)}
+.why li.warn i{background:var(--signal)}.why li.warn i::after{border:0;width:2.5px;height:8px;background:var(--navy);transform:none;border-radius:1px}
+.why li.bad i{background:var(--seize)}.why li.bad i::after{border:0;width:9px;height:2.5px;background:#fff;transform:none;border-radius:1px}
+.why code{color:var(--mute);font-size:12px;margin-left:4px}
+.raw{margin-top:12px}
+.raw summary{cursor:pointer;font:400 12.5px var(--mono);color:var(--mute)}
+.raw pre{margin:8px 0 0;background:var(--cell);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;max-height:300px;font:12px/1.45 var(--mono)}
+.seal{width:118px;transform:rotate(-10deg)}
+.seal svg{display:block;width:100%}
+.seal.Cleared{color:var(--clear)}.seal.Held{color:var(--held)}.seal.Seized{color:var(--seize)}
+.stubno{font:400 12px var(--mono);color:var(--mute);text-align:center}
+.pay{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:14px}
+.pay .st{font:800 15px/1 var(--display);letter-spacing:.04em;text-transform:uppercase;padding:6px 10px;background:var(--clear);color:#fff}
+.pay .st.wait{background:var(--signal);color:var(--navy)}.pay .st.off{background:#E6EBE7;color:var(--mute)}
+.pay span{color:var(--mute)}
+.flash{animation:flash 1.8s ease-out}
+@keyframes flash{0%{filter:drop-shadow(0 0 0 var(--signal)) drop-shadow(0 0 14px var(--signal))}100%{filter:drop-shadow(0 18px 34px rgba(14,34,66,.16))}}
+.empty{display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;align-items:center;background:var(--card);border-radius:16px;padding:26px;box-shadow:0 1px 0 var(--line)}
+.empty b{display:block;font:800 30px/1 var(--display)}
+.empty p{margin:8px 0 0;color:var(--mute);line-height:1.5}
+.empty .seal{width:96px;color:#A9B4C2;animation:spin 8s linear infinite}
+@keyframes spin{to{transform:rotate(350deg)}}
+
+/* supplier manifest + verify */
+.pair{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:22px;margin-top:34px}
+.cert{background:var(--card);border-radius:18px;box-shadow:0 1px 0 var(--line),0 30px 70px -40px rgba(16,38,74,.5);padding:26px 28px;min-width:0}
+.cert h3{margin:0;font:800 34px/1 var(--display)}
+.cert .tag{display:inline-block;font:500 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;padding:6px 9px;background:var(--paper);color:var(--mute);margin-left:8px;vertical-align:6px}
+.kv{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px 16px;margin:18px 0 0;font-size:15px}
+.kv dt{color:var(--mute)}.kv dd{margin:0;font:400 14.5px/1.4 var(--mono);word-break:break-all}
+.lockline{display:flex;align-items:center;gap:10px;margin-top:20px;background:#F2F7F3;border:1px solid #CFE3D6;border-radius:12px;padding:12px 14px}
+.lockline i{flex:none;width:22px;height:22px;border-radius:50%;background:var(--clear) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M5 9.5l2.6 2.6L13 6.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/18px no-repeat}
+.lockline b{font:500 15px var(--mono);word-break:break-all}
+.clock{margin-top:22px;display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.clock .big{font:800 clamp(40px,5vw,60px)/.9 var(--display);font-variant-numeric:tabular-nums}
+.clock .big.wait{color:var(--held)}.clock .big.ok{color:var(--clear)}
+.clock span{font:500 12.5px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.rules{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:10px}
+.rules li{display:flex;gap:10px;font-size:15px;line-height:1.45}
+.rules li::before{content:"";flex:none;width:9px;height:9px;margin-top:7px;background:var(--signal)}
+.verify{display:flex;flex-direction:column}
+.drop{display:grid;grid-template-columns:96px minmax(0,1fr);gap:18px;align-items:center;margin-top:18px;border:2px dashed #B9C4BE;border-radius:14px;padding:18px;cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--navy);background:#F6F8F5}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.drop canvas{width:96px;height:120px;display:block}
+.drop b{display:block;font:800 24px/1 var(--display)}
+.drop span{display:block;margin-top:6px;color:var(--mute);font-size:14.5px;line-height:1.45}
+.vout{margin-top:16px;font-size:15px;line-height:1.45;min-height:3em}
+.vout .fp{display:block;margin-top:6px;font:400 12.5px/1.4 var(--mono);color:var(--mute);word-break:break-all}
+.vout .tagv{font:800 16px/1 var(--display);letter-spacing:.04em;padding:4px 8px;color:#fff}
+.vout .tagv.Cleared{background:var(--clear)}.vout .tagv.Held{background:var(--signal);color:var(--navy)}.vout .tagv.Seized{background:var(--seize)}
+
+/* calls: the landing's log list */
+.log{list-style:none;margin:30px 0 0;padding:0;border-top:1px solid rgba(238,241,236,.14);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:48px}
+.log li{display:grid;grid-template-columns:12px minmax(0,1fr);gap:12px;padding:14px 0;border-bottom:1px solid rgba(238,241,236,.08)}
+.log li i{width:12px;height:9px;margin-top:5px}
+.log b{display:block;font:500 14px/1.35 var(--mono)}
+.log span{display:block;font:400 15px/1.45 var(--body);color:var(--nmute);margin-top:3px}
+.rpc{margin-top:22px;font:400 13px var(--mono);color:var(--nmute)}
+.rpc b{color:var(--paper);font-weight:500}
+
+/* closer */
+.closer{background:var(--deep);color:var(--paper)}
+.closer .in{padding-block:clamp(56px,8vw,100px);display:grid;gap:14px}
+.tg{font:800 clamp(34px,6vw,84px)/1.08 var(--display);display:inline-block;padding:.04em .2em .1em;justify-self:start}
+.t1{background:var(--paper);color:var(--deep)}.t2{background:var(--signal);color:var(--navy)}
+.closer p{margin:10px 0 0;font:400 13px/1.6 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--nmute)}
+.closer a{color:var(--signal);text-decoration:none;border-bottom:1px solid currentColor}
+footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);font-size:14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+@media (max-width:900px){
+  .links{display:none}
+  .band,.pair{grid-template-columns:1fr}
+  .pix{max-width:300px;order:-1}
+  .hcard{grid-template-columns:minmax(0,1fr) 98px}
+  .h-stub{padding:8px}.seal{width:84px}
+  .h-grid{grid-template-columns:1fr}
+  .log{grid-template-columns:1fr}
+  .kv{grid-template-columns:1fr;gap:2px 0}.kv dd{margin-bottom:8px}
+}
+@media (max-width:520px){
+  .tiles{gap:10px}.tile{padding:16px}
+  .near span{display:none}
+  .hcard{grid-template-columns:1fr}
+  .h-main{border-radius:16px 16px 0 0;-webkit-mask:none;mask:none}
+  .h-stub{border-radius:0 0 16px 16px;border-left:0;border-top:2px dashed #CBD3CE;-webkit-mask:none;mask:none;grid-auto-flow:column;justify-content:start;gap:16px}
+  .drop{grid-template-columns:64px minmax(0,1fr)}.drop canvas{width:64px;height:80px}
+  .empty{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){.live.on i,.empty .seal,.flash{animation:none}}
+</style>
+
+</head>
+<body>
+<header class="hero gut"><div class="in">
+  <nav class="nav">
+    <a class="logo" href="../" title="Clear to Pay home"><svg width="26" height="30" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a>
+    <div class="links"><a href="../">Home</a><a href="#receipts">Receipts</a><a href="#supplier">Supplier</a><a href="#verify">Verify a document</a><a href="#reads">How it reads</a></div>
+    <span class="navr"><a class="near" href="https://near.org" target="_blank" rel="noopener" title="Built on NEAR"><img src="../near.png" alt="" width="22" height="22"><span>Built on NEAR</span></a></span>
+  </nav>
+  <div class="htext" id="top">
+    <span class="live" id="live"><i></i><span id="liveText"><b>Connecting</b> · NEAR testnet</span></span>
+    <h1>Every verdict, on chain.</h1>
+    <p class="kicker">The ledger</p>
+    <p class="sub">This page asks the Clear to Pay contract directly, from your browser. No server, no database, no keys. What you see here is what the contract decided.</p>
+    <div class="switch" role="group" aria-label="Contract">
+      <button type="button" id="sw-live" data-net="guard.cleartopay.testnet" aria-pressed="true">Live contract<small>guard.cleartopay.testnet</small></button>
+      <button type="button" id="sw-v1" data-net="cleartopay.testnet" aria-pressed="false">First verdicts (v1)<small>cleartopay.testnet</small></button>
+    </div>
+  </div>
+</div></header>
+
+<main>
+<section class="night gut" aria-label="Contract state"><div class="in band">
+  <div>
+    <div class="tiles">
+      <div class="tile"><b id="t-avail">–</b><span>USDC in the pool</span></div>
+      <div class="tile"><b id="t-res">–</b><span id="t-res-l">Reserved for payments on their way</span></div>
+      <div class="tile"><b id="t-count">–</b><span>Verdicts issued</span></div>
+      <div class="tile"><b id="t-stop">–</b><span><em>Held</em> or <em>seized</em> before money moved</span></div>
+    </div>
+    <div class="legend" aria-hidden="true"><span><i style="background:var(--clear)"></i>Cleared</span><span><i style="background:var(--signal)"></i>Held</span><span><i style="background:var(--seize)"></i>Seized</span><span id="limits"></span></div>
+  </div>
+  <figure class="pix" style="margin:0"><canvas id="pix" width="420" height="420" aria-label="One square per receipt, coloured by verdict"></canvas><figcaption id="pixcap">one square per receipt</figcaption></figure>
+</div></section>
+
+<section class="s gut" id="receipts"><div class="in">
+  <div class="head">
+    <div><span class="kick">Receipts</span><h2>Every invoice the agent <mark>submitted</mark>.</h2>
+    <p class="lead">Newest first. Each receipt is the contract's own record: the verdict, every reason, the address the invoice asked to pay, and the document's fingerprint.</p></div>
+    <div class="filters" role="group" aria-label="Filter receipts">
+      <button type="button" data-f="all" aria-pressed="true">All</button><button type="button" data-f="Cleared" aria-pressed="false">Cleared</button><button type="button" data-f="Held" aria-pressed="false">Held</button><button type="button" data-f="Seized" aria-pressed="false">Seized</button>
+    </div>
+  </div>
+  <div class="list" id="list" aria-live="polite"></div>
+</div></section>
+
+<section class="s gut" id="supplier" style="padding-top:0"><div class="in">
+  <span class="kick">The address lock</span><h2>Money goes to <mark>one address</mark>. Nowhere else.</h2>
+  <div class="pair">
+    <article class="cert">
+      <h3 id="s-name">Qingmar Steel Co.<span class="tag">fictional</span></h3>
+      <div class="lockline"><i aria-hidden="true"></i><b id="s-addr">–</b></div>
+      <div class="clock"><div class="big" id="s-clock">–</div><span id="s-when"></span></div>
+      <dl class="kv">
+        <dt>Supplier ID</dt><dd id="s-id">qingmar-steel</dd>
+        <dt>Paid in</dt><dd id="s-tok">–</dd>
+        <dt>Signing key</dt><dd id="s-key">–</dd>
+        <dt>Pending change</dt><dd id="s-pend">–</dd>
+      </dl>
+      <ul class="rules">
+        <li>An invoice that names any other address is seized.</li>
+        <li>Changing it needs the supplier's signature, the buyer's approval and 72 hours.</li>
+        <li>The AI never chooses where money goes.</li>
+      </ul>
+    </article>
+    <article class="cert verify" id="verify">
+      <h3>Verify a document</h3>
+      <p class="lead" style="font-size:16px;margin-top:10px">Drop an invoice. Your browser computes its SHA-256 fingerprint (the file never leaves your device) and looks for the receipt that carries it.</p>
+      <label class="drop" id="drop" for="file">
+        <canvas id="doc" width="96" height="120" aria-hidden="true"></canvas>
+        <div><b>Drop an invoice here</b><span>or choose a file. Try <code>demo/INV-2210/document.txt</code> from the repo.</span></div>
+        <input type="file" id="file">
+      </label>
+      <div class="vout" id="vout" aria-live="polite"></div>
+    </article>
+  </div>
+</div></section>
+
+<section class="s night gut" id="reads"><div class="in">
+  <span class="kick">How it reads</span><h2>Seven calls. All read-only.</h2>
+  <p class="lead">Each section of this page is one view method on the contract, called over NEAR's public JSON-RPC at <code>final</code> finality.</p>
+  <ol class="log">
+    <li><i style="background:var(--clear)"></i><div><b>receipt_count · get_receipt</b><span>Every verdict with its reasons, newest first.</span></div></li>
+    <li><i style="background:var(--clear)"></i><div><b>get_payment</b><span>For cleared invoices: the payment state and the attempt number.</span></div></li>
+    <li><i style="background:var(--signal)"></i><div><b>get_funds</b><span>USDC available and reserved in the pool.</span></div></li>
+    <li><i style="background:var(--signal)"></i><div><b>get_in_flight</b><span>Transfers sent and not yet confirmed. Their money stays reserved.</span></div></li>
+    <li><i style="background:var(--signal)"></i><div><b>get_limits</b><span>The caps the agent cannot exceed.</span></div></li>
+    <li><i style="background:var(--seize)"></i><div><b>get_supplier</b><span>The one address money may go to, and when it became payable.</span></div></li>
+  </ol>
+  <p class="rpc" id="rpc">Reading from <b>–</b></p>
+</div></section>
+</main>
+
+<section class="closer gut" aria-label="Closing"><div class="in">
+  <span class="tg t1">Every verdict is public.</span>
+  <span class="tg t2">Read it yourself.</span>
+  <p><a id="nb" href="#" target="_blank" rel="noopener">Contract on NearBlocks</a> · <a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">Source on GitHub</a> · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></p>
+</div></section>
+<div class="gut" style="background:var(--paper)"><footer class="in"><span>Clear to Pay · built for the NEAR Hackathon</span><span>Qingmar Steel Co. is fictional. Amounts are test USDC on NEAR testnet.</span></footer></div>
+
+<script>
+(() => {
+  const USDC = "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af";
+  const SUPPLIER = "qingmar-steel";
+  const RPCS = ["https://rpc.testnet.near.org", "https://test.rpc.fastnear.com", "https://archival-rpc.testnet.fastnear.com"];
+  const HOSTED = "https://joezzy-web3.github.io/clear-to-pay/ledger/";
+  const REASONS = {
+    payee_mismatch: ["bad", "Asked to be paid to an address that is not the supplier's registered one."],
+    invalid_supplier_signature: ["bad", "Not signed by the supplier's key, or changed after signing."],
+    duplicate_invoice: ["bad", "This invoice number was already paid."],
+    duplicate_document: ["bad", "This exact document was already submitted."],
+    delivery_note_reused: ["bad", "This delivery note was already used for another invoice."],
+    payee_not_yet_payable: ["warn", "The supplier's address is still inside its 72-hour wait."],
+    quantity_exceeds_delivery: ["warn", "Bills for more than the storekeeper signed as delivered."],
+    quantity_exceeds_order: ["warn", "Bills for more than the purchase order allows."],
+    price_mismatch: ["warn", "Unit price differs from the purchase order."],
+    total_mismatch: ["warn", "The total does not equal the sum of its lines."],
+    token_mismatch: ["warn", "Asks for a different token than the order."],
+    over_invoice_limit: ["warn", "Above the single-invoice limit."],
+    over_period_limit: ["warn", "Would take this supplier over its limit for the period."],
+    limits_not_set: ["warn", "The buyer has not set limits yet, so nothing can clear."],
+    unknown_supplier: ["warn", "The supplier is not in the registry."],
+    unknown_order: ["warn", "Purchase order not found."],
+    order_supplier_mismatch: ["warn", "The order belongs to another supplier."],
+    line_not_on_order: ["warn", "A line item is not on the purchase order."],
+    duplicate_line: ["warn", "The same item appears twice."],
+    unknown_storekeeper: ["warn", "The delivery note was signed by an unregistered key."],
+    invalid_delivery_signature: ["warn", "The delivery note signature does not match its contents."],
+    delivery_order_mismatch: ["warn", "The delivery note is for a different order."],
+    storekeeper_is_supplier: ["warn", "The same key signed as supplier and storekeeper."],
+    zero_amount: ["warn", "The amount is zero."],
+    arithmetic_overflow: ["warn", "Numbers too large to check safely."],
+  };
+  // Shown only when NEAR cannot be reached from this page (for example inside a preview frame).
+  const SAMPLE = {
+    "guard.cleartopay.testnet": { funds: { available: "40000000", reserved: "0" }, flight: { payouts: 0, withdrawing: "0" },
+      limits: { per_invoice: "10000000", per_supplier_per_period: "30000000", period_hours: "720", max_submissions_per_day: 100 },
+      supplier: { route_on_file: { chain: "near", token: USDC, address: "qingmar.cleartopay.testnet" }, route_payable_from: "1793658576813631516", signing_key: "ed25519:FvJCFbXCjqkmVAdoTH3vapBZckWdtCEjsuq8K6Rd5VQj", pending: null },
+      receipts: [], payments: {} },
+    "cleartopay.testnet": { funds: { available: "0", reserved: "0" }, flight: null,
+      limits: { per_invoice: "10000000", per_supplier_per_period: "30000000", period_hours: "720" },
+      supplier: { route_on_file: { chain: "near", token: USDC, address: "qingmar.cleartopay.testnet" }, route_payable_from: "1793391402000000000", signing_key: "ed25519:FvJCFbXCjqkmVAdoTH3vapBZckWdtCEjsuq8K6Rd5VQj", pending: null },
+      receipts: [
+        { id: 2, verdict: "Held", reasons: ["payee_not_yet_payable", "quantity_exceeds_delivery"], supplier_id: SUPPLIER, invoice_number: "INV-2209", order_id: "PO-1184", amount: "9360000", token: USDC, payee: { chain: "near", token: USDC, address: "qingmar.cleartopay.testnet" }, document_hash: "22d69a9c9cec6ca85fd50525f4b33414d7e04fa2e99270e8de1c7866fb4d3d42", decided_at: "1793395500000000000" },
+        { id: 1, verdict: "Seized", reasons: ["payee_mismatch"], supplier_id: SUPPLIER, invoice_number: "INV-2210", order_id: "PO-1184", amount: "7800000", token: USDC, payee: { chain: "near", token: USDC, address: "qingmar-payments.testnet" }, document_hash: "a0e2039afdc1171b778b037cf42d38c578b8b12765ed62a7158247f279e2c7ef", decided_at: "1793391300000000000" },
+        { id: 0, verdict: "Held", reasons: ["payee_not_yet_payable", "quantity_exceeds_delivery"], supplier_id: SUPPLIER, invoice_number: "INV-2209", order_id: "PO-1184", amount: "9360000", token: USDC, payee: { chain: "near", token: USDC, address: "qingmar.cleartopay.testnet" }, document_hash: "22d69a9c9cec6ca85fd50525f4b33414d7e04fa2e99270e8de1c7866fb4d3d42", decided_at: "1793391240000000000" },
+      ], payments: {} },
+  };
+
+  let contract = "guard.cleartopay.testnet", rpcIndex = 0, mode = "connecting";
+  let receipts = [], payments = {}, filter = "all", onFile = null, clockTimer = null;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const usdc = (u) => { const n = BigInt(u || 0); const w = n / 1000000n; let f = (n % 1000000n).toString().padStart(6, "0").replace(/0+$/, ""); if (f.length < 2) f = (f + "00").slice(0, 2); return w.toLocaleString("en-US") + "." + f; };
+  const when = (ns) => new Date(Number(BigInt(ns) / 1000000n));
+  const fmt = (d) => d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const short = (s, a = 10, b = 6) => (s && s.length > a + b + 1 ? s.slice(0, a) + "…" + s.slice(-b) : s);
+  const b64 = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+
+  async function view(method, args = {}) {
+    let last;
+    for (let n = 0; n < RPCS.length; n++) {
+      const url = RPCS[(rpcIndex + n) % RPCS.length];
+      try {
+        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
+        const r = await fetch(url, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: b64(args) } }) });
+        clearTimeout(t);
+        const j = await r.json();
+        if (j.error) throw new Error(j.error.cause?.name || j.error.message || "RPC error");
+        if (j.result?.error) throw new Error(j.result.error);
+        rpcIndex = (rpcIndex + n) % RPCS.length;
+        $("rpc").innerHTML = "Reading from <b>" + esc(new URL(url).host) + "</b> · refreshes every 30 s";
+        return JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result)));
+      } catch (e) { last = e; if (/MethodNotFound|CodeDoesNotExist|wasm/i.test(String(e))) throw e; }
+    }
+    const err = new Error("unreachable"); err.network = true; err.cause = last; throw err;
+  }
+  const opt = (m, a) => view(m, a).catch((e) => { if (e.network) throw e; return null; });
+
+  async function loadLive() {
+    const [funds, flight, limits, count, supplier] = await Promise.all([
+      view("get_funds", { token: USDC }), opt("get_in_flight", { token: USDC }), opt("get_limits"), view("receipt_count"), opt("get_supplier", { supplier_id: SUPPLIER }),
+    ]);
+    const ids = []; for (let i = count - 1; i >= Math.max(0, count - 200); i--) ids.push(i);
+    const rs = (await Promise.all(ids.map((i) => opt("get_receipt", { receipt_id: i })))).filter(Boolean);
+    const pays = {};
+    await Promise.all(rs.filter((r) => r.verdict === "Cleared").map(async (r) => { const p = await opt("get_payment", { receipt_id: r.id }); if (p) pays[r.id] = p; }));
+    return { funds, flight, limits, supplier, receipts: rs, payments: pays };
+  }
+
+  function seal(verdict, id, size = 160) {
+    const label = verdict.toUpperCase();
+    const rid = "ring" + Math.random().toString(36).slice(2, 8);
+    return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><defs><path id="${rid}" d="M80 80 m-58 0 a58 58 0 1 1 116 0 a58 58 0 1 1 -116 0"/></defs><circle cx="80" cy="80" r="74" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="80" cy="80" r="46" fill="none" stroke="currentColor" stroke-width="2"/><text font-family="IBM Plex Mono,monospace" font-size="11" letter-spacing="3" fill="currentColor"><textPath href="#${rid}">CLEAR TO PAY · NEAR TESTNET · NO. ${id} ·</textPath></text>${verdict === "Cleared" ? '<path d="M60 82l13 13 28-30" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>' : `<text x="80" y="88" text-anchor="middle" font-family="Big Shoulders Display,Impact,sans-serif" font-weight="800" font-size="${label.length > 5 ? 22 : 24}" letter-spacing="1" fill="currentColor">${label}</text>`}</svg>`;
+  }
+
+  function render(d) {
+    $("t-avail").innerHTML = usdc(d.funds.available) + "<small>USDC</small>";
+    $("t-res").innerHTML = usdc(d.funds.reserved) + "<small>USDC</small>";
+    $("t-res-l").textContent = d.flight ? `Reserved · ${d.flight.payouts} transfer${d.flight.payouts === 1 ? "" : "s"} in flight` : "Reserved for payments on their way";
+    receipts = d.receipts; payments = d.payments;
+    const c = (v) => receipts.filter((r) => r.verdict === v).length;
+    $("t-count").textContent = receipts.length;
+    $("t-stop").textContent = c("Held") + c("Seized");
+    $("limits").textContent = d.limits ? `Limit ${usdc(d.limits.per_invoice)} per invoice · ${usdc(d.limits.per_supplier_per_period)} per ${Math.round(Number(d.limits.period_hours) / 24)} days` : "";
+    drawPix();
+    renderSupplier(d.supplier);
+    renderList();
+  }
+
+  function renderSupplier(s) {
+    clearInterval(clockTimer);
+    if (!s) { $("s-addr").textContent = "Not registered on this contract"; $("s-clock").textContent = "–"; return; }
+    onFile = s.route_on_file.address;
+    $("s-addr").textContent = s.route_on_file.address;
+    $("s-tok").textContent = "USDC on " + s.route_on_file.chain.toUpperCase() + " (" + short(s.route_on_file.token, 8, 6) + ")";
+    $("s-key").textContent = short(s.signing_key, 16, 6);
+    $("s-pend").textContent = s.pending ? `${s.pending.route.address} · ${s.pending.approved ? "approved, waiting" : "awaiting the buyer"}` : "None";
+    const from = when(s.route_payable_from);
+    const tick = () => {
+      const ms = from - Date.now(), big = $("s-clock");
+      if (ms <= 0) { big.textContent = "Payable"; big.className = "big ok"; $("s-when").textContent = "since " + fmt(from); clearInterval(clockTimer); return; }
+      const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60, sec = Math.floor(ms / 1e3) % 60;
+      big.textContent = `${d}d ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+      big.className = "big wait";
+      $("s-when").textContent = "until payable · " + fmt(from);
+    };
+    tick(); clockTimer = setInterval(tick, 1000);
+  }
+
+  function renderList() {
+    const box = $("list");
+    const list = receipts.filter((r) => filter === "all" || r.verdict === filter);
+    if (!receipts.length) {
+      box.innerHTML = `<div class="empty"><div class="seal">${seal("Waiting", "–")}</div><div><b>No receipts on this contract yet.</b><p>The first invoices run once the supplier's 72-hour wait ends. Open <a href="#top" id="go-v1">the first verdicts (v1)</a> to see the HELD and SEIZED invoices from 30 October.</p></div></div>`;
+      const g = $("go-v1"); if (g) g.addEventListener("click", (e) => { e.preventDefault(); select("cleartopay.testnet"); });
+      return;
+    }
+    if (!list.length) { box.innerHTML = `<div class="empty"><div></div><div><b>No ${filter.toLowerCase()} receipts.</b></div></div>`; return; }
+    box.innerHTML = list.map((r) => {
+      const ok = onFile ? r.payee.address === onFile : null;
+      const reasons = r.reasons.length
+        ? r.reasons.map((code) => { const [k, t] = REASONS[code] || ["warn", code.replace(/_/g, " ")]; return `<li class="${k}"><i aria-hidden="true"></i><span>${esc(t)}<code>${esc(code)}</code></span></li>`; }).join("")
+        : `<li><i aria-hidden="true"></i><span>Every check passed: supplier signature, registered address, order, delivery note, duplicates and limits.</span></li>`;
+      const p = payments[r.id];
+      const pay = r.verdict === "Cleared"
+        ? `<div class="pay"><span class="st ${p ? (p.status === "Settled" ? "" : ["Failed", "Expired", "Cancelled"].includes(p.status) ? "off" : "wait") : "wait"}">${esc(p ? p.status : "Authorized")}</span><span>${p ? `attempt ${p.attempt} · to <code>${esc(p.recipient.address)}</code>` : "payment record not found"}</span></div>` : "";
+      return `<article class="hcard" id="r${r.id}" data-v="${r.verdict}">
+        <div class="h-main">
+          <header class="h-head"><span><svg width="14" height="16" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="#EEF1EC"/><circle cx="15" cy="9" r="8" fill="#EEF1EC"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/></svg>${r.verdict === "Cleared" ? "Clearance certificate" : "Inspection"}</span><span>decided ${esc(fmt(when(r.decided_at)))}</span></header>
+          <div class="h-body">
+            <div class="h-top"><span class="h-ref">${esc(r.invoice_number)} · Qingmar Steel Co.</span><span class="h-amt">${usdc(r.amount)}<small>USDC</small></span></div>
+            <div class="h-grid">
+              <div><small>Purchase order</small><b>${esc(r.order_id)}</b></div>
+              <div class="${ok === false ? "bad" : ""}"><small>Asked to pay</small><b>${esc(r.payee.address)}</b></div>
+              <div><small>Address on file</small><b>${ok === null ? "–" : ok ? "<em>matches</em>" : esc(onFile)}</b></div>
+            </div>
+            <ul class="why">${reasons}</ul>
+            ${pay}
+            <details class="raw"><summary>${r.document_hash ? "fingerprint " + esc(short(r.document_hash)) + " · " : ""}raw receipt from the contract</summary><pre>${esc(JSON.stringify(p ? { receipt: r, payment: p } : r, null, 2))}</pre></details>
+          </div>
+        </div>
+        <aside class="h-stub"><div class="seal ${r.verdict}">${seal(r.verdict, r.id)}</div><div class="stubno">receipt #${r.id}</div></aside>
+      </article>`;
+    }).join("");
+  }
+
+  // One square per receipt, in order, coloured by verdict; quiet dither around them.
+  function drawPix() {
+    const cv = $("pix"), g = cv.getContext("2d"), N = 14, s = cv.width / N, gap = 3;
+    g.clearRect(0, 0, cv.width, cv.height);
+    let seed = 7; const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const p = rnd(), edge = (x + y) / (2 * N);
+      if (p < 0.18 + edge * 0.35) { g.fillStyle = "rgba(244,194,13," + (0.12 + 0.18 * edge) + ")"; g.fillRect(x * s + gap, y * s + gap, s - 2 * gap, s - 2 * gap); }
+    }
+    const col = { Cleared: "#127A4A", Held: "#F4C20D", Seized: "#C42B1C" };
+    [...receipts].reverse().slice(0, N * N).forEach((r, i) => {
+      const x = i % N, y = N - 1 - Math.floor(i / N);
+      g.fillStyle = col[r.verdict]; g.fillRect(x * s + gap, y * s + gap, s - 2 * gap, s - 2 * gap);
+    });
+    $("pixcap").textContent = receipts.length ? `${receipts.length} receipt${receipts.length === 1 ? "" : "s"}, oldest bottom-left` : "no receipts yet";
+  }
+
+  function drawDoc(state) {
+    const cv = $("doc"), g = cv.getContext("2d"), s = 6;
+    g.clearRect(0, 0, cv.width, cv.height);
+    for (let y = 0; y < 20; y++) for (let x = 0; x < 16; x++) {
+      const line = (y === 3 || y === 5 || y === 7 || y === 9) && x > 1 && x < 14 - (y % 3);
+      g.fillStyle = line ? "#EEF1EC" : (x + y) % 3 ? "#10264A" : "#24406B";
+      if (state && (y === 14 || y === 16) && x > 1 && x < 14) g.fillStyle = state === "Seized" ? "#C42B1C" : state === "Held" ? "#F4C20D" : state === "Cleared" ? "#127A4A" : "#9FB0C6";
+      g.fillRect(x * s, y * s, s - 1, s - 1);
+    }
+  }
+
+  async function sha(buf) { const d = await crypto.subtle.digest("SHA-256", buf); return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join(""); }
+  async function verify(file) {
+    const out = $("vout"); out.textContent = "Computing the fingerprint…";
+    const hex = await sha(await file.arrayBuffer());
+    const hits = receipts.filter((r) => r.document_hash === hex);
+    if (hits.length) {
+      out.innerHTML = hits.map((r) => `<span class="tagv ${r.verdict}">${r.verdict.toUpperCase()}</span> <a href="#r${r.id}">Receipt #${r.id}</a>, ${esc(r.invoice_number)}, carries this exact document.`).join("<br>") + `<span class="fp">sha-256 ${hex}</span>`;
+      drawDoc(hits[0].verdict);
+      const el = $("r" + hits[0].id); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+    } else {
+      out.innerHTML = `<b>No receipt on this contract carries this document.</b> It was never submitted here, or it has changed since.<span class="fp">sha-256 ${hex}</span>`;
+      drawDoc("none");
+    }
+  }
+
+  function setLive(kind, html) { $("live").className = "live " + kind; $("liveText").innerHTML = html; }
+
+  async function refresh() {
+    try {
+      const d = await loadLive();
+      mode = "live";
+      setLive("on", `<b>Live on NEAR testnet</b> · ${esc(contract)}`);
+      render(d);
+    } catch (e) {
+      if (e.network) {
+        mode = "sample";
+        setLive("sample", `<b>Sample data</b> · this view can't reach NEAR. <a href="${HOSTED}" target="_blank" rel="noopener">Open the live ledger</a>`);
+        $("rpc").innerHTML = "NEAR's RPC is not reachable from this view. The hosted ledger reads it live.";
+        render(SAMPLE[contract]);
+      } else {
+        setLive("err", "<b>Could not read the contract</b> · " + esc(e.message));
+      }
+    }
+  }
+
+  function select(id) {
+    contract = id;
+    document.querySelectorAll(".switch button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.net === id)));
+    $("nb").href = "https://testnet.nearblocks.io/address/" + id;
+    $("vout").textContent = ""; drawDoc(null);
+    $("list").innerHTML = "";
+    refresh();
+  }
+
+  document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => select(b.dataset.net)));
+  document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
+    filter = b.dataset.f; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderList();
+  }));
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) verify(f); });
+  $("file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) verify(f); });
+
+  drawDoc(null);
+  select(location.hash === "#v1" ? "cleartopay.testnet" : "guard.cleartopay.testnet");
+  setInterval(() => { if (mode === "live") refresh(); }, 30000);
+})();
+</script>
+
+</body>
+</html>

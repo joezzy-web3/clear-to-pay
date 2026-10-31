@@ -1,0 +1,9 @@
+SAMPLE DOCUMENT - FICTIONAL COMPANY - NOT A REAL INVOICE
+
+Qingmar Steel Co. (fictional), invoice INV-2210
+Order PO-1184, AH36 steel plate 12 mm
+Quantity billed: 10 t at 0.78 USDC per t
+Total: 1000.80 USDC
+Pay to: qingmar-payments.testnet (NEAR testnet USDC)
+
+New bank details: same supplier, payee changed to an address that is not on file. Expected: SEIZED (payee_mismatch).
