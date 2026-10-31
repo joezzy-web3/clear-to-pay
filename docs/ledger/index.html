@@ -170,6 +170,7 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
 .log li i{width:12px;height:9px;margin-top:5px}
 .log b{display:block;font:500 14px/1.35 var(--mono)}
 .log span{display:block;font:400 15px/1.45 var(--body);color:var(--nmute);margin-top:3px}
+.src{margin:14px 0 0;font:400 13px/1.5 var(--body);color:var(--mute)}.src a{color:var(--navy)}
 .rpc{margin-top:22px;font:400 13px var(--mono);color:var(--nmute)}
 .rpc b{color:var(--paper);font-weight:500}
 
@@ -365,7 +366,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
       ], payments: {} },
   };
 
-  let contract = "guard.cleartopay.testnet", rpcIndex = 0, mode = "connecting";
+  let contract = "guard.cleartopay.testnet", rpcIndex = 0, rpcHost = "a public NEAR RPC", mode = "connecting";
   let receipts = [], payments = {}, filter = "all", onFile = null, clockTimer = null;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -395,7 +396,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
           const err = j.error ? (j.error.cause?.name || j.error.message || "RPC error") : j.result?.error;
           if (err && /MethodNotFound|CodeDoesNotExist|wasm|panicked/i.test(String(err))) { finish(); return reject(new Error(err)); }
           if (err) throw new Error(err);
-          finish(); rpcIndex = k;
+          finish(); rpcIndex = k; rpcHost = new URL(url).host;
           $("rpc").innerHTML = "Reading from <b>" + esc(new URL(url).host) + "</b> · refreshes every 30 s";
           resolve(JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result))));
         } catch (e) {
@@ -407,16 +408,39 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   }
   const opt = (m, a) => view(m, a).catch((e) => { if (e.network) throw e; return null; });
 
+  // Whatever an RPC server or the browser cache hands us is untrusted: only receipts and
+  // payments of the exact shape the contract produces are shown; anything else is dropped.
+  const VERDICTS = ["Cleared", "Held", "Seized"], STATUSES = ["Authorized", "Reserved", "Submitted", "Settled", "Failed", "Expired", "Cancelled"];
+  const isNum = (x) => typeof x === "string" && /^\d{1,39}$/.test(x);
+  const isId = (x) => typeof x === "string" && /^[A-Za-z0-9._\/-]{1,64}$/.test(x);
+  const isAddr = (x) => typeof x === "string" && /^[\x21-\x7e]{1,128}$/.test(x); // any printable ASCII, as the contract allows; always escaped
+  const saneReceipt = (r) => r && Number.isInteger(r.id) && r.id >= 0 && VERDICTS.includes(r.verdict) && isNum(r.amount) && isNum(r.decided_at)
+    && isId(r.invoice_number) && isId(r.order_id) && r.payee && isAddr(r.payee.address) && Array.isArray(r.reasons) && r.reasons.every((x) => typeof x === "string" && /^[a-z_]{1,64}$/.test(x))
+    && (r.document_hash == null || (typeof r.document_hash === "string" && /^[0-9a-f]{64}$/.test(r.document_hash)));
+  const sanePayment = (p) => p && STATUSES.includes(p.status) && Number.isInteger(p.attempt) && p.recipient && isAddr(p.recipient.address);
+  const saneFunds = (f) => f && isNum(f.available) && isNum(f.reserved);
+  function sane(d) {
+    if (!d || !saneFunds(d.funds)) return null;
+    if (d.receipts) {
+      d.receipts = d.receipts.filter(saneReceipt);
+      const ok = {}; for (const [k, p] of Object.entries(d.payments || {})) if (sanePayment(p)) ok[k] = p; d.payments = ok;
+    }
+    if (d.flight && !(Number.isInteger(d.flight.payouts) && isNum(d.flight.withdrawing))) d.flight = null;
+    return d;
+  }
+
   async function loadLive(early) {
     const [funds, flight, limits, count, supplier] = await Promise.all([
       view("get_funds", { token: USDC }), opt("get_in_flight", { token: USDC }), opt("get_limits"), view("receipt_count"), opt("get_supplier", { supplier_id: SUPPLIER }),
     ]);
-    if (early) early({ funds, flight, limits, count, supplier });
+    if (early && saneFunds(funds) && Number.isInteger(count)) early({ funds, flight, limits, count, supplier });
     const ids = []; for (let i = count - 1; i >= Math.max(0, count - 200); i--) ids.push(i);
     const rs = (await Promise.all(ids.map((i) => opt("get_receipt", { receipt_id: i })))).filter(Boolean);
     const pays = {};
     await Promise.all(rs.filter((r) => r.verdict === "Cleared").map(async (r) => { const p = await opt("get_payment", { receipt_id: r.id }); if (p) pays[r.id] = p; }));
-    return { funds, flight, limits, supplier, receipts: rs, payments: pays };
+    const d = sane({ funds, flight, limits, supplier, receipts: rs, payments: pays });
+    if (!d) throw new Error("unexpected answer from the RPC server");
+    return d;
   }
 
   function seal(verdict, id, size = 160) {
@@ -489,6 +513,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
             </div>
             <ul class="why">${reasons}</ul>
             ${pay}
+            <p class="src">Reported by ${esc(rpcHost)}, a public NEAR RPC server. <a href="https://testnet.nearblocks.io/address/${esc(contract)}" target="_blank" rel="noopener">Check it on NearBlocks</a></p>
             <details class="raw"><summary>${r.document_hash ? "fingerprint " + esc(short(r.document_hash)) + " · " : ""}raw receipt from the contract</summary><pre>${esc(JSON.stringify(p ? { receipt: r, payment: p } : r, null, 2))}</pre></details>
           </div>
         </div>
@@ -531,7 +556,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     const hex = await sha(await file.arrayBuffer());
     const hits = receipts.filter((r) => r.document_hash === hex);
     if (hits.length) {
-      out.innerHTML = hits.map((r) => `<span class="tagv ${r.verdict}">${r.verdict.toUpperCase()}</span> <a href="#r${r.id}">Receipt #${r.id}</a>, ${esc(r.invoice_number)}, carries this exact document.`).join("<br>") + `<span class="fp">sha-256 ${hex}</span>`;
+      out.innerHTML = hits.map((r) => `<span class="tagv ${r.verdict}">${r.verdict.toUpperCase()}</span> <a href="#r${r.id}">Receipt #${r.id}</a>, ${esc(r.invoice_number)}, has this file's exact fingerprint.`).join("<br>") + `<span class="fp">sha-256 ${hex}</span><span class="fp">This proves these exact bytes were submitted to the contract, and what it decided. It does not prove the invoice itself is genuine.</span>`;
       drawDoc(hits[0].verdict);
       const el = $("r" + hits[0].id); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
     } else {
@@ -559,7 +584,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   /* Show the last numbers this browser read at once, clearly marked, while fresh ones load. */
   const KEY = (c) => "ctp-ledger:" + c;
   function remember(c, d) { try { localStorage.setItem(KEY(c), JSON.stringify({ at: Date.now(), d })); } catch (e) {} }
-  function recall(c) { try { const v = JSON.parse(localStorage.getItem(KEY(c)) || "null"); return v && v.d && v.d.funds ? v : null; } catch (e) { return null; } }
+  function recall(c) { try { const v = JSON.parse(localStorage.getItem(KEY(c)) || "null"); if (!v || !Number.isFinite(v.at)) return null; v.d = sane(v.d); return v.d && v.d.receipts ? v : null; } catch (e) { return null; } }
 
   async function refresh() {
     const asked = contract;

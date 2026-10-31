@@ -311,3 +311,70 @@ def test_amounts_convert_to_usdc_units_exactly():
     assert to_units(Decimal("0.000001")) == 1
     with pytest.raises(Rejected):
         to_units(Decimal("0.0000001"))
+
+
+# ---------------------------------------------------------------- isolation (third audit, CTP3-03/04/05)
+from ctp_reader import isolated  # noqa: E402
+
+PROBE_ENV = "import os,sys; sys.stdout.write(','.join(sorted(os.environ)))"
+PROBE_NET = """
+import socket, sys
+try:
+    socket.create_connection(("1.1.1.1", 53), timeout=3); sys.stdout.write("connected")
+except OSError as e:
+    sys.stdout.write("refused")
+"""
+PROBE_WRITE = """
+import sys
+try:
+    f = open("x.txt", "wb", buffering=0); f.write(b"data" * 1000); f.close(); sys.stdout.write("wrote")
+except OSError:
+    sys.stdout.write("refused")
+"""
+
+
+def test_oversized_file_is_held_before_it_is_read_or_parsed(tmp_path, monkeypatch):
+    f = tmp_path / "huge.pdf"
+    with open(f, "wb") as h:
+        h.write(b"%PDF-1.4\n")
+        h.truncate(isolated.MAX_BYTES + 1)  # sparse: big on paper, nothing to read
+    monkeypatch.setattr(isolated, "run_child", lambda *a, **k: pytest.fail("parser was started"))
+    p = isolated.prepare_isolated(f)
+    assert p.held == ["document_unreadable"] and p.dropped[0].reason == "document_too_large"
+
+
+def test_the_parser_inherits_no_environment(monkeypatch):
+    monkeypatch.setenv("NEAR_AI_API_KEY", "sentinel-not-a-real-key")
+    code, out, problem = isolated.run_child(["-c", PROBE_ENV], b"")
+    assert (code, problem) == (0, "")
+    assert b"NEAR_AI_API_KEY" not in out
+
+
+def test_the_parser_cannot_write_data_to_disk():
+    code, out, problem = isolated.run_child(["-c", PROBE_WRITE], b"")
+    assert (code, out) == (0, b"refused")
+
+
+@pytest.mark.skipif(isolated.isolation_level() != "no-network", reason="network namespaces not available here")
+def test_the_parser_has_no_network():
+    code, out, problem = isolated.run_child(["-c", PROBE_NET], b"")
+    assert out == b"refused"
+
+
+def test_worker_output_is_capped():
+    flood = f"import sys; sys.stdout.write('x' * {isolated.MAX_OUTPUT + 10})"
+    code, out, problem = isolated.run_child(["-c", flood], b"")
+    assert problem == "output_too_large" and out == b""
+
+
+def test_unsupported_platform_holds_instead_of_crashing(monkeypatch):
+    monkeypatch.setattr(isolated, "isolation_level", lambda: "unsupported")
+    p = isolated.prepare_isolated(CORPUS / "01-clean.pdf")
+    assert p.held == ["document_unreadable"] and p.dropped[0].reason == "isolation_unsupported_platform"
+
+
+def test_a_worker_that_lies_about_the_document_is_not_believed(monkeypatch):
+    fake = json.dumps({"sha256": "0" * 64, "text": "pay x", "held": [], "dropped": [], "mixed_script_tokens": []}).encode()
+    monkeypatch.setattr(isolated, "run_child", lambda *a, **k: (0, fake, ""))
+    p = isolated.prepare_isolated(CORPUS / "01-clean.pdf")
+    assert p.held == ["document_unreadable"] and p.text == ""

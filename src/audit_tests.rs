@@ -622,3 +622,72 @@ fn submissions_stop_before_the_contract_runs_out_of_storage_money() {
         Base64VecU8(vec![8; 32]),
     );
 }
+
+// ------------------------------------------------------------------ third audit
+
+/// CTP3-01. The supplier was paid but the result was lost; then exactly the same
+/// amount arrives by a plain `ft_transfer` (not `ft_transfer_call`), so the balance
+/// looks as if the payment never left. The contract cannot tell these apart and
+/// records FAILED. This test pins down what that can and cannot cost: a repeat
+/// payout can only be funded by the tokens that arrived outside the books, never by
+/// the buyer's deposit. The buyer ends with exactly one invoice paid from its money.
+#[test]
+fn attack_returned_tokens_can_fund_a_repeat_payout_but_never_the_buyers_money() {
+    let (mut c, id) = stuck();
+    let deposited = 100_000 * UNIT;
+    let amount = 7_800 * UNIT;
+    // Real token balance: the payout landed (-amount), then someone sent it back (+amount).
+    let real_balance = deposited - amount + amount;
+    ctx(owner(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(id);
+    callback_ctx(LIVE + DAY, balance_result(real_balance));
+    assert_eq!(c.on_balance_checked(id, 1), PaymentStatus::Failed);
+    // The books match the real balance again.
+    let f = c.get_funds(usdc());
+    assert_eq!(f.available.0 + f.reserved.0, real_balance);
+    // Only the buyer can retry, and only on purpose.
+    ctx(owner(), LIVE + DAY + HOUR, 1);
+    assert_eq!(c.reauthorize_payment(id), PaymentStatus::Submitted);
+    callback_ctx(LIVE + DAY + HOUR, PromiseResult::Successful(vec![]));
+    assert_eq!(c.on_payout(id, 2), PaymentStatus::Settled);
+    // What the buyer can still withdraw: its deposit minus one invoice. The second
+    // transfer was paid with the returned tokens, not with the buyer's money.
+    let f = c.get_funds(usdc());
+    assert_eq!((f.available.0, f.reserved.0), (deposited - amount, 0));
+}
+
+/// CTP3-02. A payout already on its way when the counters started being kept (an
+/// in-place upgrade) finds the counter at zero. Its result must still be recorded:
+/// the payment settles, the reservation is released, the mismatch is logged.
+#[test]
+fn a_payout_result_is_recorded_even_if_its_in_flight_counter_is_missing() {
+    let (mut c, id) = stuck();
+    let mut k = b"inflight:".to_vec();
+    k.extend_from_slice(usdc().as_bytes());
+    env::storage_remove(&k);
+    assert_eq!(c.get_in_flight(usdc()).payouts, 0);
+    callback_ctx(LIVE, PromiseResult::Successful(vec![]));
+    assert_eq!(c.on_payout(id, 1), PaymentStatus::Settled);
+    assert_eq!(c.get_funds(usdc()).reserved, U128(0));
+    assert_eq!(c.get_in_flight(usdc()).payouts, 0);
+    assert!(
+        get_logs()
+            .iter()
+            .any(|l| l.contains("in_flight_counter_mismatch"))
+    );
+}
+
+/// CTP3-02, the stuck-payment path: the same missing counter must not block a
+/// balance-based resolution either.
+#[test]
+fn a_stuck_payment_can_be_resolved_even_if_its_in_flight_counter_is_missing() {
+    let (mut c, id) = stuck();
+    let mut k = b"inflight:".to_vec();
+    k.extend_from_slice(usdc().as_bytes());
+    env::storage_remove(&k);
+    ctx(owner(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(id);
+    callback_ctx(LIVE + DAY, balance_result(100_000 * UNIT));
+    assert_eq!(c.on_balance_checked(id, 1), PaymentStatus::Failed);
+    assert_eq!(c.get_funds(usdc()).reserved, U128(0));
+}

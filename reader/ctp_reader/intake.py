@@ -26,6 +26,7 @@ the payee rule is the backstop: the payee never comes from the document.
 from __future__ import annotations
 
 import hashlib
+import io
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -163,7 +164,14 @@ def _why_hidden(ch: LTChar, page_box, background, later_covers) -> str | None:
 
 
 def read_pdf(path: str | Path) -> Intake:
-    raw = Path(path).read_bytes()
+    p = Path(path)
+    if p.stat().st_size > MAX_BYTES:  # checked before anything is read
+        raise ValueError("document larger than 10 MB")
+    return read_pdf_bytes(p.read_bytes())
+
+
+def read_pdf_bytes(raw: bytes) -> Intake:
+    """Same as `read_pdf`, for a document already in memory (the isolated worker gets it on stdin)."""
     if len(raw) > MAX_BYTES:
         raise ValueError("document larger than 10 MB")
     if not raw.startswith(b"%PDF-"):
@@ -177,7 +185,7 @@ def read_pdf(path: str | Path) -> Intake:
     dropped: list[Dropped] = []
     held: set[str] = set()
     n = 0
-    with open(path, "rb") as f:
+    with io.BytesIO(raw) as f:
         for n, page in enumerate(PDFPage.get_pages(f), start=1):
             if n > MAX_PAGES:
                 raise ValueError("more than 20 pages")

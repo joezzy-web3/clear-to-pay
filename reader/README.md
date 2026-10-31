@@ -52,11 +52,20 @@ amount in words read first.
 
 ## Isolation
 
-`isolated.prepare_isolated()` parses each document in a child process limited to
-512 MB of memory, 10 s of CPU, 20 s wall-clock and no file writes. A crash, timeout
-or limit breach HOLDS the invoice as `document_unreadable`. Tested with a 1 MB PDF
-that inflates to 1 GiB. Network isolation is a deployment requirement, not enforced
-in code.
+`isolated.prepare_isolated()` measures the file first (over 10 MB is HELD before a
+byte is read), then parses it in a child process that gets the document on stdin
+(no path), an empty environment (no API keys or tokens), an empty working folder,
+512 MB of memory, 10 s of CPU, 20 s wall-clock, at most 64 open files and no data
+writes, and on Linux no network (its own empty network namespace via `unshare -rn`;
+`isolation_level()` reports `no-network` or `limits-only`). Its answer is capped at
+4 MB and checked strictly; a crash, timeout, limit breach or odd answer HOLDS the
+invoice as `document_unreadable`. On systems without these controls (Windows) every
+document is HELD. Tested with a 1 MB PDF that inflates to 1 GiB, and with probes
+that try to read the environment, write a file, open a socket and flood the output.
+
+Not enforced here: the child runs as the same OS user and can read what that user
+can read. In production, run the reader as a dedicated low-privilege user or in a
+container with no network and only the runtime mounted.
 
 ## Not covered yet (stated, not claimed)
 

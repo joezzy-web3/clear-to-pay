@@ -25,6 +25,7 @@ The contract's stored layout did not change, so the code was upgraded on the sam
 - 1 NEAR sent to the contract for storage and the 0.05 NEAR write reserve: [Gs52QsUW…](https://testnet.nearblocks.io/txns/Gs52QsUWWS8PSAGJZ8AoPgpnn9DttBLWPEvjxJhxwCXM)
 - New code deployed without re-initialising (wasm sha-256 7e45785b…a4e2f0): [FV8cmybT…](https://testnet.nearblocks.io/txns/FV8cmybTw3BeYGBZjAPNq9H3LnzyWgy4TahrQ1zPxgyC)
 - After the upgrade: `get_funds` 40 USDC available, 0 reserved; `get_in_flight` (new) 0 payouts, 0 withdrawing; supplier still payable from Mon 2 Nov 2026 23:29 Lagos.
+- What this shows: the upgrade kept this state, at a moment with no receipts and nothing in flight. It is not a test of upgrading with transfers in flight; upgrades are now made only when `get_in_flight` reads zero (`scripts/upgrade-in-place.sh`).
 
 # v1 history (cleartopay.testnet)
 

@@ -400,7 +400,16 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
       }));
     }));
     const funds = await fundsP;
-    return { source: "live", receipts: out, funds };
+    // An RPC server's answer is untrusted: keep only receipts of the exact shape the
+    // contract produces, with identifiers in the character set the contract allows.
+    const id = (x) => typeof x === "string" && /^[A-Za-z0-9._\/-]{1,64}$/.test(x);
+    const num = (x) => typeof x === "string" && /^\d{1,39}$/.test(x);
+    const ok = (r) => r && Number.isInteger(r.id) && r.id >= 0 && ["Cleared", "Held", "Seized"].includes(r.verdict) && id(r.invoice_number) && id(r.order_id)
+      && num(r.amount) && num(r.decided_at) && r.payee && typeof r.payee.address === "string" && /^[\x21-\x7e]{1,128}$/.test(r.payee.address)
+      && Array.isArray(r.reasons) && r.reasons.every((x) => typeof x === "string" && /^[a-z_]{1,64}$/.test(x))
+      && (r.document_hash == null || /^[0-9a-f]{64}$/.test(r.document_hash))
+      && (!r.payment || ["Authorized", "Reserved", "Submitted", "Settled", "Failed", "Expired", "Cancelled"].includes(r.payment.status));
+    return { source: "live", receipts: out.filter(ok), funds: funds && num(funds.available) && num(funds.reserved) ? funds : null };
   }
   // The same three v1 receipts, as recorded on 30 Oct, for views that cannot reach NEAR.
   const SNAPSHOT = { source: "sample", funds: null, receipts: [

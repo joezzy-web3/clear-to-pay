@@ -403,12 +403,13 @@ impl Contract {
         assert_self_callback();
         let ok = promise_succeeded();
         let mut fl = in_flight(&token);
-        fl.withdrawing = U128(
-            fl.withdrawing
-                .0
-                .checked_sub(amount.0)
-                .expect("withdrawal was in flight"),
-        );
+        fl.withdrawing = U128(fl.withdrawing.0.checked_sub(amount.0).unwrap_or_else(|| {
+            emit(
+                "in_flight_counter_mismatch",
+                json!({ "token": token, "amount": amount, "counter": "withdrawing" }),
+            );
+            0
+        }));
         set_in_flight(&token, &fl);
         if !ok {
             let mut f = self.funds.get(&token).cloned().unwrap_or_default();
@@ -447,10 +448,20 @@ impl Contract {
 }
 
 impl Contract {
+    /// A payout's result has been recorded. If the counter says nothing was in flight
+    /// (e.g. after an upgrade that started counting while a transfer was already on its
+    /// way), record the mismatch and carry on: refusing here would leave the payment
+    /// stuck with its money reserved, which is worse than a counter that reads zero.
     fn payout_finished(&mut self, p: &Payment) {
         let token: AccountId = p.token.parse().expect("token was valid when paid");
         let mut fl = in_flight(&token);
-        fl.payouts = fl.payouts.checked_sub(1).expect("payout was in flight");
+        fl.payouts = fl.payouts.checked_sub(1).unwrap_or_else(|| {
+            emit(
+                "in_flight_counter_mismatch",
+                json!({ "token": token, "receipt_id": p.receipt_id, "counter": "payouts" }),
+            );
+            0
+        });
         set_in_flight(&token, &fl);
     }
 

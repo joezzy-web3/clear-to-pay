@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .intake import Dropped, read_pdf
+from .intake import Dropped, read_pdf, read_pdf_bytes
 from .normalize import clean
 
 
@@ -35,7 +35,14 @@ class Prepared:
 
 
 def prepare(path: str | Path) -> Prepared:
-    intake = read_pdf(path)
+    return _prepared(read_pdf(path))
+
+
+def prepare_bytes(raw: bytes) -> Prepared:
+    return _prepared(read_pdf_bytes(raw))
+
+
+def _prepared(intake) -> Prepared:
     c = clean(intake.visible_text)
     return Prepared(
         sha256=intake.sha256,
