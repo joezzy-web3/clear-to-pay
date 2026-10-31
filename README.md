@@ -23,6 +23,8 @@ cargo test                        # 99 contract tests, incl. 3 property tests (~
 cargo near build non-reproducible-wasm
 ```
 
+**Live ledger:** [joezzy-web3.github.io/clear-to-pay](https://joezzy-web3.github.io/clear-to-pay/) reads the contract straight from NEAR testnet in your browser (no server, no keys): every receipt with its verdict and reasons, the pool, the limits, the supplier's locked address and its countdown, and a button that fingerprints a document in the browser and finds its receipt. Source: [docs/index.html](docs/index.html).
+
 Every transaction mentioned below is listed in [docs/testnet-proof.md](docs/testnet-proof.md) and can be opened at `https://testnet.nearblocks.io/txns/<id>`.
 
 ## Claims and proof

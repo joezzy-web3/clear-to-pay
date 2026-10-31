@@ -20,6 +20,12 @@ Patch 7 changes what suppliers sign and how state is stored, so it went to a fre
 - 15 test USDC deposited: [GVPqFRwi…](https://testnet.nearblocks.io/txns/GVPqFRwiVPt2xWwCPLUY7Bh9KHHNdC9aZ3DP5Z5bEdeQ)
 - 31 Oct: 25 more test USDC deposited (Circle faucet), pool now 40 USDC: [37MqaoBv…](https://testnet.nearblocks.io/txns/37MqaoBvbgZADP7r9GswqwBtezCnZAvrr3MCZ63gdbXJ)
 
+## 31 Oct 2026, v2.1: second-audit fixes deployed in place
+The contract's stored layout did not change, so the code was upgraded on the same account: the supplier, the order, the limits, the 40 USDC and the 72-hour clock are untouched (checked before and after with `get_funds` and `get_supplier`).
+- 1 NEAR sent to the contract for storage and the 0.05 NEAR write reserve: [Gs52QsUW…](https://testnet.nearblocks.io/txns/Gs52QsUWWS8PSAGJZ8AoPgpnn9DttBLWPEvjxJhxwCXM)
+- New code deployed without re-initialising (wasm sha-256 7e45785b…a4e2f0): [FV8cmybT…](https://testnet.nearblocks.io/txns/FV8cmybTw3BeYGBZjAPNq9H3LnzyWgy4TahrQ1zPxgyC)
+- After the upgrade: `get_funds` 40 USDC available, 0 reserved; `get_in_flight` (new) 0 payouts, 0 withdrawing; supplier still payable from Mon 2 Nov 2026 23:29 Lagos.
+
 # v1 history (cleartopay.testnet)
 
 ## 30 Oct 2026, setup
