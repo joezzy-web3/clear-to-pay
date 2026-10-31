@@ -378,3 +378,21 @@ def test_a_worker_that_lies_about_the_document_is_not_believed(monkeypatch):
     monkeypatch.setattr(isolated, "run_child", lambda *a, **k: (0, fake, ""))
     p = isolated.prepare_isolated(CORPUS / "01-clean.pdf")
     assert p.held == ["document_unreadable"] and p.text == ""
+
+
+def test_the_parser_finds_libraries_installed_for_the_user_only(tmp_path, monkeypatch):
+    # Reproduces `pip install --user`: a library folder the parent imports from, which a
+    # child started with -I and an empty environment would not see on its own.
+    lib = tmp_path / "userlib"
+    (lib / "ctp_probe_lib").mkdir(parents=True)
+    (lib / "ctp_probe_lib" / "__init__.py").write_text("VALUE = 'found'\n")
+    monkeypatch.syspath_prepend(str(lib))
+    worker = tmp_path / "w.py"
+    worker.write_text(
+        "import json, sys\n"
+        "for p in reversed(json.loads(sys.argv[1])): sys.path.insert(0, p)\n"
+        "import ctp_probe_lib; sys.stdout.write(ctp_probe_lib.VALUE)\n"
+    )
+    paths = [p for p in __import__("sys").path if p]
+    code, out, problem = isolated.run_child([str(worker), json.dumps(paths)], b"")
+    assert (code, out, problem) == (0, b"found", "")

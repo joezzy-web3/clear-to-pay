@@ -19,7 +19,7 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 ```bash
 cargo test                        # 102 contract tests, incl. 3 property tests (~1,300 random cases)
 (cd tools/ctp-sign && cargo test) # 5 signing-tool tests, incl. golden vectors shared with the contract
-(cd reader && python3 -m pytest -q) # 117 reader tests, incl. the 19-invoice attack corpus
+(cd reader && python3 -m pytest -q) # 118 reader tests, incl. the 19-invoice attack corpus
 scripts/mutation-check.sh         # breaks the contract on purpose; the property test must catch it
 cargo near build non-reproducible-wasm
 ```

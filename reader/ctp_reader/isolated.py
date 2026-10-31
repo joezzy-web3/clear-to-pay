@@ -165,7 +165,11 @@ def prepare_isolated(path: str | Path) -> Prepared:
     if len(raw) > MAX_BYTES:  # grew after it was measured
         return _unreadable(sha256, "document_too_large")
 
-    code, out, problem = run_child([str(WORKER)], raw)
+    # The child starts with `-I` and an empty environment, so it would not see packages
+    # installed with `pip install --user` or in a virtualenv. It is told the exact
+    # library folders this process already imports from, and nothing else.
+    paths = [p for p in sys.path if p and Path(p).is_dir()]
+    code, out, problem = run_child([str(WORKER), json.dumps(paths)], raw)
     if problem:
         return _unreadable(sha256, problem)
     if code != 0:
