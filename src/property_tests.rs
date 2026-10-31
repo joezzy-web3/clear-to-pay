@@ -217,6 +217,7 @@ enum Op {
     Payout {
         pick: u8,
         ok: bool,
+        stale: bool,
     },
     Cancel(u8),
     Reauthorize(u8),
@@ -237,7 +238,7 @@ fn op() -> impl Strategy<Value = Op> {
                 billed, delivered, honest_payee, honest_signature, document, reuse_note
             }),
         2 => any::<u8>().prop_map(Op::Execute),
-        3 => (any::<u8>(), any::<bool>()).prop_map(|(pick, ok)| Op::Payout { pick, ok }),
+        3 => (any::<u8>(), any::<bool>(), prop::bool::weighted(0.2)).prop_map(|(pick, ok, stale)| Op::Payout { pick, ok, stale }),
         1 => any::<u8>().prop_map(Op::Cancel),
         2 => any::<u8>().prop_map(Op::Reauthorize),
         1 => (any::<u8>(), any::<bool>()).prop_map(|(pick, t)| Op::Resolve { pick, transfer_really_succeeded: t }),
@@ -247,12 +248,21 @@ fn op() -> impl Strategy<Value = Op> {
     ]
 }
 
+/// A transfer the contract started. `landed` is the real outcome once it is known
+/// to the world (the token contract), even if the contract has not seen it yet.
+#[derive(Clone, Copy, Debug)]
+struct Flight {
+    amount: u128,
+    attempt: u32,
+    landed: Option<bool>,
+}
+
 /// What really happened, independent of the contract's own bookkeeping.
 #[derive(Default)]
 struct Model {
     now: u64,
     tokens_held: u128,
-    payouts_in_flight: BTreeMap<u32, u128>,
+    payouts_in_flight: BTreeMap<u32, Flight>,
     withdrawals_in_flight: Vec<u128>,
     times_paid: BTreeMap<u32, u32>,
     cleared_tonnes: u64,
@@ -338,20 +348,36 @@ fn step(c: &mut Contract, m: &mut Model, op: &Op) -> Result<(), TestCaseError> {
                 owner_call(m, 0, || c.execute_payment(id));
             }
         }
-        Op::Payout { pick: n, ok } => {
+        Op::Payout { pick: n, ok, stale } => {
             let Some(id) = pick(m, n) else { return Ok(()) };
-            callback_ctx(m.now, ok);
-            let result = catch_unwind(AssertUnwindSafe(|| c.on_payout(id)));
+            let current = c.get_payment(id).map(|p| p.attempt).unwrap_or(1);
+            if stale {
+                // A result tagged with an earlier attempt must never be accepted.
+                callback_ctx(m.now, ok);
+                let before = c.get_payment(id).map(|p| p.status);
+                let r = catch_unwind(AssertUnwindSafe(|| c.on_payout(id, current - 1)));
+                prop_assert!(r.is_err(), "a stale payout result was accepted");
+                prop_assert_eq!(c.get_payment(id).map(|p| p.status), before);
+                return Ok(());
+            }
             match m.payouts_in_flight.remove(&id) {
-                Some(amount) => {
-                    prop_assert!(result.is_ok(), "the real result of a transfer was refused");
-                    if ok {
-                        m.tokens_held -= amount;
+                Some(f) => {
+                    // Once the transfer has landed one way, its result says the same.
+                    let real = f.landed.unwrap_or(ok);
+                    callback_ctx(m.now, real);
+                    let r = catch_unwind(AssertUnwindSafe(|| c.on_payout(id, f.attempt)));
+                    prop_assert!(r.is_ok(), "the real result of a transfer was refused");
+                    if real && f.landed.is_none() {
+                        m.tokens_held -= f.amount;
                         *m.times_paid.entry(id).or_default() += 1;
                     }
                 }
                 // No transfer is in flight for this receipt: a callback must be refused.
-                None => prop_assert!(result.is_err(), "a callback with no transfer moved state"),
+                None => {
+                    callback_ctx(m.now, ok);
+                    let r = catch_unwind(AssertUnwindSafe(|| c.on_payout(id, current)));
+                    prop_assert!(r.is_err(), "a callback with no transfer moved state");
+                }
             }
         }
         Op::Cancel(n) => {
@@ -369,20 +395,50 @@ fn step(c: &mut Contract, m: &mut Model, op: &Op) -> Result<(), TestCaseError> {
             transfer_really_succeeded,
         } => {
             let Some(id) = pick(m, n) else { return Ok(()) };
-            // The buyer reports what the token contract's records show.
-            let resolved = owner_call(m, 1, || {
-                c.resolve_stuck_payment(id, transfer_really_succeeded)
-            });
-            if resolved.is_some() {
-                let amount = m.payouts_in_flight.remove(&id);
-                prop_assert!(
-                    amount.is_some(),
-                    "resolved a payment that was not in flight"
-                );
+            if owner_call(m, 1, || {
+                let _ = c.resolve_stuck_payment(id);
+            })
+            .is_none()
+            {
+                return Ok(());
+            }
+            let f = m.payouts_in_flight.get_mut(&id);
+            prop_assert!(
+                f.is_some(),
+                "resolution started for a payment not in flight"
+            );
+            let f = f.unwrap();
+            // By now the transfer has landed one way or the other in the real world.
+            if f.landed.is_none() {
+                f.landed = Some(transfer_really_succeeded);
                 if transfer_really_succeeded {
-                    m.tokens_held -= amount.unwrap();
+                    m.tokens_held -= f.amount;
                     *m.times_paid.entry(id).or_default() += 1;
                 }
+            }
+            let (landed, attempt) = (f.landed, f.attempt);
+            // The token contract reports what we really hold. The buyer says nothing.
+            testing_env!(
+                builder(contract_id(), m.now, 0).build(),
+                test_vm_config(),
+                RuntimeFeesConfig::test(),
+                Default::default(),
+                vec![PromiseResult::Successful(
+                    format!("\"{}\"", m.tokens_held).into_bytes()
+                )]
+            );
+            match c.on_balance_checked(id, attempt) {
+                PaymentStatus::Failed => {
+                    prop_assert_eq!(landed, Some(false), "refunded money that had left");
+                    m.payouts_in_flight.remove(&id);
+                }
+                PaymentStatus::Settled => {
+                    prop_assert_eq!(landed, Some(true), "settled money that never left");
+                    m.payouts_in_flight.remove(&id);
+                }
+                // Unknown stays unknown, and reserved.
+                PaymentStatus::Submitted => {}
+                other => prop_assert!(false, "resolution produced {:?}", other),
             }
         }
         Op::Withdraw(a) => {
@@ -414,14 +470,22 @@ fn step(c: &mut Contract, m: &mut Model, op: &Op) -> Result<(), TestCaseError> {
 /// Record transfers the contract just started, then check every rule.
 fn check(c: &Contract, m: &mut Model) -> Result<(), TestCaseError> {
     let mut reserved_for_flights = 0u128;
+    let mut landed_but_unrecorded = 0u128;
     for id in 0..m.receipts {
         let Some(p) = c.get_payment(id) else { continue };
         // Never left half-way: RESERVED only exists inside a single call.
         prop_assert_ne!(p.status, PaymentStatus::Reserved);
         if p.status == PaymentStatus::Submitted {
-            m.payouts_in_flight.entry(id).or_insert(p.amount.0);
-            prop_assert_eq!(m.payouts_in_flight[&id], p.amount.0);
+            let f = m.payouts_in_flight.entry(id).or_insert(Flight {
+                amount: p.amount.0,
+                attempt: p.attempt,
+                landed: None,
+            });
+            prop_assert_eq!((f.amount, f.attempt), (p.amount.0, p.attempt));
             reserved_for_flights += p.amount.0;
+            if f.landed == Some(true) {
+                landed_but_unrecorded += p.amount.0;
+            }
         } else {
             prop_assert!(
                 !m.payouts_in_flight.contains_key(&id),
@@ -432,13 +496,20 @@ fn check(c: &Contract, m: &mut Model) -> Result<(), TestCaseError> {
         // Rule 3
         let paid = m.times_paid.get(&id).copied().unwrap_or(0);
         prop_assert!(paid <= 1, "receipt {} was paid {} times", id, paid);
-        prop_assert_eq!(p.status == PaymentStatus::Settled, paid == 1);
+        let landed = m.payouts_in_flight.get(&id).and_then(|f| f.landed) == Some(true);
+        prop_assert_eq!(p.status == PaymentStatus::Settled || landed, paid == 1);
     }
-    // Rule 2
+    // Rule 2: money that has left but whose result is not recorded yet stays reserved.
     let f = c.get_funds(usdc());
     let withdrawing: u128 = m.withdrawals_in_flight.iter().sum();
-    prop_assert_eq!(f.available.0 + f.reserved.0 + withdrawing, m.tokens_held);
+    prop_assert_eq!(
+        f.available.0 + f.reserved.0 + withdrawing,
+        m.tokens_held + landed_but_unrecorded
+    );
     prop_assert_eq!(f.reserved.0, reserved_for_flights);
+    let fl = c.get_in_flight(usdc());
+    prop_assert_eq!(fl.payouts as usize, m.payouts_in_flight.len());
+    prop_assert_eq!(fl.withdrawing.0, withdrawing);
     Ok(())
 }
 

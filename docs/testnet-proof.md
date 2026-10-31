@@ -18,6 +18,7 @@ Patch 7 changes what suppliers sign and how state is stored, so it went to a fre
 - Limits set (10 USDC per invoice, 30 per supplier per 30 days, 100 submissions a day): [3bZPM4mK…](https://testnet.nearblocks.io/txns/3bZPM4mKsikVTHUS7s2cqj1gnZNpzzQ1c1rPEiN1kHzA)
 - New agent function-call key ed25519:6ZnC3JFuTwHksSLZev3Vbbe24hjKdZs52gFphrLctcWp: receiver guard.cleartopay.testnet only, methods submit_invoice and execute_payment only, 0.25 NEAR gas allowance: [2GQ6or4U…](https://testnet.nearblocks.io/txns/2GQ6or4UY17dbeQDQ7YCSRtQ2zmcbCbrBcHSZGM9suYn)
 - 15 test USDC deposited: [GVPqFRwi…](https://testnet.nearblocks.io/txns/GVPqFRwiVPt2xWwCPLUY7Bh9KHHNdC9aZ3DP5Z5bEdeQ)
+- 31 Oct: 25 more test USDC deposited (Circle faucet), pool now 40 USDC: [37MqaoBv…](https://testnet.nearblocks.io/txns/37MqaoBvbgZADP7r9GswqwBtezCnZAvrr3MCZ63gdbXJ)
 
 # v1 history (cleartopay.testnet)
 

@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest==9.2.0
+# only to regenerate the corpus (tools/make_corpus.py):
+reportlab==5.0.1
+pillow==12.3.0
+qrcode==8.2

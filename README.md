@@ -17,8 +17,9 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 **Run it yourself:**
 
 ```bash
-cargo test                        # 91 contract tests, incl. 3 property tests (~1,300 random cases)
+cargo test                        # 99 contract tests, incl. 3 property tests (~1,300 random cases)
 (cd tools/ctp-sign && cargo test) # 5 signing-tool tests, incl. golden vectors shared with the contract
+(cd reader && python3 -m pytest -q) # 110 reader tests, incl. the 19-invoice attack corpus
 cargo near build non-reproducible-wasm
 ```
 
@@ -42,6 +43,8 @@ Every transaction mentioned below is listed in [docs/testnet-proof.md](docs/test
 | The operator has no backdoor: no function can send funds anywhere but the registered supplier or back to the buyer | `payments.rs` (`withdraw` pays the owner only, never reserved funds) | Tests `withdraw_only_pays_the_owner_and_never_touches_reserved_money`, `withdraw_cannot_take_reserved_money` |
 | The agent key cannot attach money or call owner actions | NEAR access-key rules + 1-yocto owner methods | Key permissions on chain, v2 tx `2GQ6or4U…` (v1 `8HpViCur…`); refused attempts are reproducible (see proof log) |
 | The money rules hold for random inputs, not just chosen cases | `src/property_tests.rs` (proptest) | 300 random sequences of up to 40 actions (deposit, submit, pay, fail, cancel, retry, resolve, withdraw, wait), checked after every step: a payee not on file never clears; available + reserved + withdrawals in flight always equal the tokens held; no invoice is paid twice; nothing clears beyond delivery or order. Plus 1,000 random edits to a signed invoice, its fingerprint or its signature: none clears. Checked against deliberately broken builds: disabling the payee check or the refund on a failed transfer makes these tests fail. |
+| Hidden instructions in an invoice never reach the AI | `reader/` (intake, normalize) | 19-invoice attack corpus in `reader/corpus/`: white, tiny, invisible, off-page, low-contrast and fully or partly painted-over text that mentions payment is dropped and the invoice HELD; zero-width, right-to-left and lookalike-letter tricks HELD; every case decided before any model call. Tests in `reader/tests/` |
+| The AI cannot choose the payee | `reader/ctp_reader/schema.py` | Its answer has no payee field; any extra field is rejected, never repaired; the payee is the registered route and the token comes from the order. Test `test_a_well_formed_answer_becomes_exactly_the_invoice_the_supplier_signs` |
 | Signatures are bound to this contract and message type | Domain-separated sha-256 digests | Golden vectors in `src/vector_tests.rs` and `tools/ctp-sign`; test `attack_signature_made_for_another_contract_is_rejected` |
 | Invisible characters and lookalike letters are rejected in ids and addresses | `lib.rs` (validation) | Tests `addresses_with_invisible_characters_are_rejected`, `supplier_ids_with_lookalike_letters_are_rejected` |
 
@@ -54,7 +57,7 @@ Every transaction mentioned below is listed in [docs/testnet-proof.md](docs/test
 | NEP-141 token payments (Circle USDC on testnet) | `src/payments.rs` |
 | NEP-297 events for every decision | `emit()` in `src/lib.rs` |
 
-Still to come, and not claimed above: the AI invoice reader on NEAR AI Cloud, cross-chain payouts through NEAR Intents, the shared seizure list, the live ledger page.
+Still to come, and not claimed above: the model call on NEAR AI Cloud (the reader's document checks and answer validation above are built), the rendered-image check, cross-chain payouts through NEAR Intents, the shared seizure list, the live ledger page.
 
 ## What it does not do
 
@@ -81,6 +84,26 @@ On 30 October 2026 the code and the planned designs were given to an independent
 | Period limits use fixed windows, not rolling ones | Info | **Documented** and tested (`period_limit_uses_fixed_windows_as_documented`). Choose the period with that in mind. |
 | The buyer can withdraw unreserved money before an AUTHORIZED payment is reserved | Info | **By design.** Only reserved money is protected; an AUTHORIZED payment that finds no funds waits, and is visible as such. |
 | The owner key can redeploy the contract | Info | **Disclosed.** During the hackathon the owner holds the deploy key. After it, upgrades move behind a time-locked multisig, or the deploy key is removed. |
+
+### Second review (31 October 2026)
+
+The same auditor reviewed patches 1–10. It rated payee control, role separation, document-bound signatures and the secret scan as passing, and found:
+
+| Finding | Severity | Outcome |
+|---|---|---|
+| CTP-01: resolving a stuck payment took the buyer's word, so a wrong answer could lead to a second payment | High | **Fixed.** The buyer states nothing: the contract reads its own token balance on chain. Money returns to the pool only if the balance proves it never left; it is SETTLED only if the balance proves it left and no other transfer is in flight; any other balance leaves it reserved. Tests `resolution_reads_the_balance_and_refunds_only_if_the_money_never_left`, `attack_unknown_outcome_is_never_treated_as_failure`, `with_two_payouts_in_flight_a_lower_balance_proves_nothing`, and the property test, which now models transfers that have landed but are not yet recorded. |
+| CTP-02: a payout result was matched to the receipt, not the attempt | High | **Fixed.** Every result carries its attempt number; one from an earlier attempt is refused. Test `attack_stale_payout_result_from_an_earlier_attempt_cannot_touch_the_current_one`, plus random stale results in the property test. (On NEAR a transfer's result arrives within blocks, so this is defence in depth.) |
+| F8 follow-up: one reservation addition was unchecked | Low | **Fixed.** |
+| CTP-08: signatures do not name the network | Medium | **Fixed differently.** Signatures name the contract account; `new` now refuses implicit accounts, the only kind that exist on every network. Named `.testnet` and `.near` accounts cannot collide. Test `contract_refuses_an_implicit_account_that_exists_on_every_network`. |
+| CTP-09: storage can grow until the contract cannot write | Medium | **Fixed.** Submissions stop while the contract has less than 0.05 NEAR free, so cancellations, withdrawals and payout results can always be recorded. The agent key's 0.25 NEAR gas allowance also caps how many calls it can ever make. Test `submissions_stop_before_the_contract_runs_out_of_storage_money`. |
+| CTP-03: an image-only scan skipped the scanned-document hold | Medium | **Fixed.** Corpus case 15. |
+| CTP-04: text half covered by a box passed the centre-point test | Medium | **Fixed.** A glyph a quarter or more under later paint is hidden. Corpus case 16. |
+| CTP-07: white text on a dark bar was a false alarm; outline text was judged by the wrong colour | Medium | **Fixed.** Visibility is contrast against what is painted behind; outline text uses its outline colour. This also catches grey text on a same-grey box. Corpus cases 17, 18, 19. |
+| CTP-05: no isolation for hostile PDFs | Medium | **Fixed.** Parsing runs in a child process with memory, CPU and file-write limits; a decompression bomb is held, not fatal. Network isolation is a deployment requirement. |
+| CTP-06: the Chinese amount parser accepted 壹拾拾元 as 20 | Medium | **Fixed.** Strict grammar; ambiguous colloquial forms (贰佰伍) are refused, not guessed. |
+| CTP-10: Python dependencies not hash-locked | Low | **Fixed.** CI installs with `--require-hashes`. |
+| `--yes` in the signing tool bypasses confirmation | Info | **Documented.** The signing tool holds supplier and storekeeper keys; the buyer's agent never has them. |
+| A QR code in an invoice could carry an attacker's address (our own question) | — | Images are never decoded and the payee is always the registered route. Corpus case 14. |
 
 ## Security notes
 

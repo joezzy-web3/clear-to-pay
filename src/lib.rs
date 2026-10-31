@@ -16,6 +16,8 @@
 //!   any other address, and none can touch money reserved for a payment in flight.
 //! - Supplier and storekeeper keys must be different keys, so the delivery check
 //!   stays independent of the party being paid.
+//! - The contract must live under a named account, so a signature made for a
+//!   testnet deployment can never be valid on mainnet.
 
 use near_sdk::json_types::{Base64VecU8, U64};
 use near_sdk::serde_json::json;
@@ -127,6 +129,13 @@ pub struct Contract {
 impl Contract {
     #[init]
     pub fn new(owner: AccountId) -> Self {
+        // Signatures name this contract's account. Named accounts are network-specific
+        // (".testnet" and ".near" are separate namespaces); implicit accounts (64 hex
+        // characters, or 0x addresses) can exist on every network, so they are refused.
+        require!(
+            !is_implicit(env::current_account_id().as_str()),
+            "deploy under a named account, not an implicit one"
+        );
         Self {
             owner,
             paused: false,
@@ -431,6 +440,13 @@ pub(crate) fn emit(event: &str, data: near_sdk::serde_json::Value) {
     let log =
         json!({ "standard": "cleartopay", "version": "0.1.0", "event": event, "data": [data] });
     env::log_str(&format!("EVENT_JSON:{log}"));
+}
+
+/// Implicit NEAR accounts (64 hex characters) and Ethereum-style 0x accounts exist
+/// identically on every network.
+pub(crate) fn is_implicit(id: &str) -> bool {
+    let hex = |s: &str| s.bytes().all(|b| b.is_ascii_hexdigit());
+    (id.len() == 64 && hex(id)) || (id.len() == 42 && id.starts_with("0x") && hex(&id[2..]))
 }
 
 pub mod inspection;

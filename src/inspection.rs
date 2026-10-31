@@ -155,6 +155,8 @@ pub struct Limits {
 
 /// Used when no limits are set yet.
 pub const DEFAULT_SUBMISSIONS_PER_DAY: u32 = 100;
+/// NEAR the contract keeps free for writes that must always succeed (0.05 NEAR).
+pub const MIN_FREE_BALANCE_YOCTO: u128 = 50_000_000_000_000_000_000_000;
 const DAY_NS: u64 = 24 * 3_600_000_000_000;
 
 #[near(serializers = [borsh])]
@@ -310,6 +312,18 @@ impl Contract {
             "only the buyer's agent can submit invoices"
         );
         self.assert_not_paused();
+        // Storage protection: keep a reserve of NEAR so the contract can always
+        // record cancellations, withdrawals and payout results.
+        let storage_cost = env::storage_byte_cost()
+            .as_yoctonear()
+            .saturating_mul(env::storage_usage() as u128);
+        require!(
+            env::account_balance()
+                .as_yoctonear()
+                .saturating_sub(storage_cost)
+                >= MIN_FREE_BALANCE_YOCTO,
+            "contract storage budget is low; the buyer must top up NEAR before more submissions"
+        );
         let doc: [u8; 32] = document_hash
             .0
             .clone()

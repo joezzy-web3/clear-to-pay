@@ -16,10 +16,16 @@
 //! Any other transition is refused. A payment that is not SUBMITTED can never be
 //! settled, and a settled payment can never be paid again.
 //!
+//! Every payout result names the attempt it belongs to; a result for an earlier
+//! attempt can never change the current one.
+//!
 //! If a transfer's callback never runs (for example it ran out of gas), the
 //! payment stays SUBMITTED with its funds reserved: never retried blindly. After
-//! 24 hours the buyer can resolve it, stating whether the supplier was paid; the
-//! decision is logged publicly.
+//! 24 hours the buyer can ask the contract to resolve it. The contract does not
+//! take the buyer's word: it reads its own token balance on chain. If the balance
+//! shows the money never left, the payment is FAILED and the money returns to the
+//! pool; if it shows the money left, the payment is SETTLED; if the balance is
+//! anything else, nothing changes and the money stays reserved.
 
 use crate::*;
 use near_sdk::json_types::U128;
@@ -29,6 +35,7 @@ use near_sdk::{Gas, NearToken, Promise, PromiseOrValue, ext_contract};
 pub const PAYMENT_TTL_NS: u64 = 7 * 24 * 3_600_000_000_000;
 const GAS_FT_TRANSFER: Gas = Gas::from_tgas(15);
 const GAS_CALLBACK: Gas = Gas::from_tgas(20);
+const GAS_BALANCE_QUERY: Gas = Gas::from_tgas(10);
 /// How long a SUBMITTED payment must wait before the buyer may resolve it by hand.
 pub const STUCK_AFTER_NS: u64 = 24 * 3_600_000_000_000;
 /// Gas that must remain for a payout to be sent in the same call.
@@ -75,6 +82,36 @@ pub struct Funds {
 #[allow(dead_code)]
 trait FungibleToken {
     fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);
+    fn ft_balance_of(&self, account_id: AccountId) -> U128;
+}
+
+/// Transfers this contract has started and not yet seen the result of, per token.
+/// Kept under its own storage key (not a field of `Contract`), so adding it did not
+/// change the contract's stored layout.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InFlight {
+    pub payouts: u32,
+    pub withdrawing: U128,
+}
+
+fn in_flight_key(token: &AccountId) -> Vec<u8> {
+    let mut k = b"inflight:".to_vec();
+    k.extend_from_slice(token.as_bytes());
+    k
+}
+
+pub(crate) fn in_flight(token: &AccountId) -> InFlight {
+    env::storage_read(&in_flight_key(token))
+        .map(|b| near_sdk::borsh::from_slice(&b).expect("in-flight record is valid"))
+        .unwrap_or_default()
+}
+
+fn set_in_flight(token: &AccountId, f: &InFlight) {
+    env::storage_write(
+        &in_flight_key(token),
+        &near_sdk::borsh::to_vec(f).expect("encodes"),
+    );
 }
 
 #[near]
@@ -194,15 +231,11 @@ impl Contract {
     }
 
     /// Resolve a payment whose transfer result was never recorded (its callback
-    /// failed). Only the buyer, only for SUBMITTED payments, only after 24 hours.
-    /// `supplier_was_paid` must reflect the token contract's own records (e.g. the
-    /// transfer on NearBlocks). The decision is logged publicly with the receipt.
+    /// failed). Only the buyer, only for SUBMITTED payments, only after 24 hours,
+    /// and only when no withdrawal is in flight. The buyer states nothing: the
+    /// contract asks the token for its own balance and decides from that.
     #[payable]
-    pub fn resolve_stuck_payment(
-        &mut self,
-        receipt_id: u32,
-        supplier_was_paid: bool,
-    ) -> PaymentStatus {
+    pub fn resolve_stuck_payment(&mut self, receipt_id: u32) -> Promise {
         self.assert_owner_with_yocto();
         let p = self
             .payments
@@ -217,18 +250,23 @@ impl Contract {
             now() >= p.updated_at.0 + STUCK_AFTER_NS,
             "a submitted payment can only be resolved 24 hours after it was sent"
         );
-        let to = if supplier_was_paid {
-            PaymentStatus::Settled
-        } else {
-            PaymentStatus::Failed
-        };
-        self.set_status(receipt_id, to);
-        self.release_reserved(&p, supplier_was_paid);
-        emit(
-            "payment_resolved_by_buyer",
-            json!({ "receipt_id": receipt_id, "supplier_was_paid": supplier_was_paid }),
+        let token: AccountId = p.token.parse().expect("token was valid when paid");
+        require!(
+            in_flight(&token).withdrawing.0 == 0,
+            "a withdrawal is in flight; resolve after it finishes"
         );
-        to
+        emit(
+            "payment_resolution_started",
+            json!({ "receipt_id": receipt_id, "attempt": p.attempt }),
+        );
+        ext_ft::ext(token)
+            .with_static_gas(GAS_BALANCE_QUERY)
+            .ft_balance_of(env::current_account_id())
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CALLBACK)
+                    .on_balance_checked(receipt_id, p.attempt),
+            )
     }
 
     /// Return unreserved funds to the buyer. Only ever pays the owner, and never
@@ -243,6 +281,9 @@ impl Contract {
         );
         f.available = U128(f.available.0 - amount.0);
         self.funds.insert(token.clone(), f);
+        let mut fl = in_flight(&token);
+        fl.withdrawing = U128(fl.withdrawing.0.checked_add(amount.0).expect("overflow"));
+        set_in_flight(&token, &fl);
         emit(
             "withdraw_started",
             json!({ "token": token, "amount": amount }),
@@ -265,8 +306,17 @@ impl Contract {
     // ------------------------------------------------------------------ callbacks
 
     #[private]
-    pub fn on_payout(&mut self, receipt_id: u32) -> PaymentStatus {
+    pub fn on_payout(&mut self, receipt_id: u32, attempt: u32) -> PaymentStatus {
         assert_self_callback();
+        let current = self
+            .payments
+            .get(&receipt_id)
+            .map(|p| p.attempt)
+            .unwrap_or_else(|| env::panic_str("no payment for this receipt"));
+        require!(
+            current == attempt,
+            "payout result belongs to an earlier attempt"
+        );
         let ok = promise_succeeded();
         // State first: a payment that is not SUBMITTED aborts here, before any balance moves.
         let to = if ok {
@@ -281,6 +331,70 @@ impl Contract {
             .cloned()
             .expect("payment exists");
         self.release_reserved(&p, ok);
+        self.payout_finished(&p);
+        to
+    }
+
+    /// Result of the balance check started by `resolve_stuck_payment`.
+    #[private]
+    pub fn on_balance_checked(&mut self, receipt_id: u32, attempt: u32) -> PaymentStatus {
+        assert_self_callback();
+        let p = self
+            .payments
+            .get(&receipt_id)
+            .cloned()
+            .unwrap_or_else(|| env::panic_str("no payment for this receipt"));
+        if p.status != PaymentStatus::Submitted || p.attempt != attempt {
+            emit(
+                "payment_resolution_skipped",
+                json!({ "receipt_id": receipt_id, "reason": "payment changed meanwhile" }),
+            );
+            return p.status;
+        }
+        let token: AccountId = p.token.parse().expect("token was valid when paid");
+        let balance = env::promise_result_checked(0, 128)
+            .ok()
+            .and_then(|b| near_sdk::serde_json::from_slice::<U128>(&b).ok());
+        let f = self.funds.get(&token).cloned().unwrap_or_default();
+        let fl = in_flight(&token);
+        // What the token contract should hold for us if this transfer never happened.
+        let unpaid = f
+            .available
+            .0
+            .checked_add(f.reserved.0)
+            .and_then(|x| x.checked_add(fl.withdrawing.0))
+            .expect("overflow");
+        let outcome = match balance {
+            _ if fl.withdrawing.0 != 0 => None,
+            Some(b) if b.0 == unpaid => Some(false),
+            Some(b) if fl.payouts == 1 && Some(b.0) == unpaid.checked_sub(p.amount.0) => Some(true),
+            _ => None,
+        };
+        let Some(paid) = outcome else {
+            emit(
+                "payment_unresolved",
+                json!({
+                    "receipt_id": receipt_id,
+                    "balance": balance,
+                    "expected_if_unpaid": U128(unpaid),
+                    "expected_if_paid": U128(unpaid.saturating_sub(p.amount.0)),
+                    "payouts_in_flight": fl.payouts,
+                }),
+            );
+            return PaymentStatus::Submitted;
+        };
+        let to = if paid {
+            PaymentStatus::Settled
+        } else {
+            PaymentStatus::Failed
+        };
+        self.set_status(receipt_id, to);
+        self.release_reserved(&p, paid);
+        self.payout_finished(&p);
+        emit(
+            "payment_resolved_from_balance",
+            json!({ "receipt_id": receipt_id, "attempt": attempt, "supplier_was_paid": paid, "balance": balance }),
+        );
         to
     }
 
@@ -288,6 +402,14 @@ impl Contract {
     pub fn on_withdraw(&mut self, token: AccountId, amount: U128) -> bool {
         assert_self_callback();
         let ok = promise_succeeded();
+        let mut fl = in_flight(&token);
+        fl.withdrawing = U128(
+            fl.withdrawing
+                .0
+                .checked_sub(amount.0)
+                .expect("withdrawal was in flight"),
+        );
+        set_in_flight(&token, &fl);
         if !ok {
             let mut f = self.funds.get(&token).cloned().unwrap_or_default();
             f.available = U128(
@@ -318,9 +440,20 @@ impl Contract {
     pub fn get_allowed_tokens(&self) -> Vec<AccountId> {
         self.allowed_tokens.clone()
     }
+
+    pub fn get_in_flight(&self, token: AccountId) -> InFlight {
+        in_flight(&token)
+    }
 }
 
 impl Contract {
+    fn payout_finished(&mut self, p: &Payment) {
+        let token: AccountId = p.token.parse().expect("token was valid when paid");
+        let mut fl = in_flight(&token);
+        fl.payouts = fl.payouts.checked_sub(1).expect("payout was in flight");
+        set_in_flight(&token, &fl);
+    }
+
     /// Release a payment's reservation: gone for good if the supplier was paid,
     /// back to the available pool if not.
     fn release_reserved(&mut self, p: &Payment, supplier_was_paid: bool) {
@@ -411,9 +544,17 @@ impl Contract {
         }
 
         f.available = U128(f.available.0 - p.amount.0);
-        f.reserved = U128(f.reserved.0 + p.amount.0);
+        f.reserved = U128(
+            f.reserved
+                .0
+                .checked_add(p.amount.0)
+                .expect("balance overflow"),
+        );
         self.funds.insert(token.clone(), f);
         self.set_status(receipt_id, PaymentStatus::Reserved);
+        let mut fl = in_flight(&token);
+        fl.payouts = fl.payouts.checked_add(1).expect("overflow");
+        set_in_flight(&token, &fl);
 
         let _ = ext_ft::ext(token)
             .with_attached_deposit(NearToken::from_yoctonear(1))
@@ -426,7 +567,7 @@ impl Contract {
             .then(
                 Self::ext(env::current_account_id())
                     .with_static_gas(GAS_CALLBACK)
-                    .on_payout(receipt_id),
+                    .on_payout(receipt_id, p.attempt),
             );
         self.set_status(receipt_id, PaymentStatus::Submitted);
         PaymentStatus::Submitted

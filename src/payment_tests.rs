@@ -241,7 +241,7 @@ fn successful_transfer_settles_the_payment() {
     deposit(&mut c, owner(), usdc(), 100_000 * UNIT);
     let r = clear_invoice(&mut c, "INV-2208", 100, near_route(), LIVE);
     callback_ctx(LIVE, PromiseResult::Successful(vec![]));
-    assert_eq!(c.on_payout(r.receipt_id), PaymentStatus::Settled);
+    assert_eq!(c.on_payout(r.receipt_id, 1), PaymentStatus::Settled);
     let f = c.get_funds(usdc());
     assert_eq!((f.available, f.reserved), (U128(22_000 * UNIT), U128(0)));
     assert_eq!(
@@ -256,7 +256,7 @@ fn failed_transfer_returns_the_money_to_the_pool() {
     deposit(&mut c, owner(), usdc(), 100_000 * UNIT);
     let r = clear_invoice(&mut c, "INV-2208", 100, near_route(), LIVE);
     callback_ctx(LIVE, PromiseResult::Failed);
-    assert_eq!(c.on_payout(r.receipt_id), PaymentStatus::Failed);
+    assert_eq!(c.on_payout(r.receipt_id, 1), PaymentStatus::Failed);
     let f = c.get_funds(usdc());
     assert_eq!((f.available, f.reserved), (U128(100_000 * UNIT), U128(0)));
 }
@@ -355,7 +355,7 @@ fn a_settled_payment_can_never_be_paid_again() {
     deposit(&mut c, owner(), usdc(), 200_000 * UNIT);
     let r = clear_invoice(&mut c, "INV-2208", 100, near_route(), LIVE);
     callback_ctx(LIVE, PromiseResult::Successful(vec![]));
-    c.on_payout(r.receipt_id);
+    c.on_payout(r.receipt_id, 1);
     ctx(owner(), LIVE, 0);
     c.execute_payment(r.receipt_id);
 }
@@ -367,9 +367,9 @@ fn a_callback_cannot_settle_the_same_payment_twice() {
     deposit(&mut c, owner(), usdc(), 100_000 * UNIT);
     let r = clear_invoice(&mut c, "INV-2208", 100, near_route(), LIVE);
     callback_ctx(LIVE, PromiseResult::Successful(vec![]));
-    c.on_payout(r.receipt_id);
+    c.on_payout(r.receipt_id, 1);
     callback_ctx(LIVE, PromiseResult::Successful(vec![]));
-    c.on_payout(r.receipt_id);
+    c.on_payout(r.receipt_id, 1);
 }
 
 #[test]
@@ -379,7 +379,7 @@ fn strangers_cannot_fake_a_payout_callback() {
     deposit(&mut c, owner(), usdc(), 100_000 * UNIT);
     let r = clear_invoice(&mut c, "INV-2208", 100, near_route(), LIVE);
     ctx("stranger.testnet".parse().unwrap(), LIVE, 0);
-    c.on_payout(r.receipt_id);
+    c.on_payout(r.receipt_id, 1);
 }
 
 #[test]

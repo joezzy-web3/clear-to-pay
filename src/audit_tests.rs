@@ -304,7 +304,7 @@ fn failed_payment_can_be_reauthorized_and_is_sent_once() {
     let r = honest(&mut c, "INV-1", 100, 1, LIVE);
     assert_eq!(r.payment, Some(PaymentStatus::Submitted));
     callback_ctx(LIVE, PromiseResult::Failed);
-    assert_eq!(c.on_payout(r.receipt_id), PaymentStatus::Failed);
+    assert_eq!(c.on_payout(r.receipt_id, 1), PaymentStatus::Failed);
     assert_eq!(c.get_funds(usdc()).reserved, U128(0));
 
     ctx(owner(), LIVE + HOUR, 1);
@@ -353,7 +353,7 @@ fn a_settled_payment_can_never_be_reauthorized() {
     deposit(&mut c, 100_000 * UNIT);
     let r = honest(&mut c, "INV-1", 10, 1, LIVE);
     callback_ctx(LIVE, PromiseResult::Successful(vec![]));
-    c.on_payout(r.receipt_id);
+    c.on_payout(r.receipt_id, 1);
     ctx(owner(), LIVE, 1);
     c.reauthorize_payment(r.receipt_id);
 }
@@ -396,54 +396,150 @@ fn attack_direct_call_with_the_contracts_own_key_cannot_fake_a_payout_result() {
     let r = honest(&mut c, "INV-1", 10, 1, LIVE);
     // Signed by the contract account itself, but not following any transfer.
     ctx(contract_id(), LIVE, 0);
-    c.on_payout(r.receipt_id);
+    c.on_payout(r.receipt_id, 1);
+}
+
+// ------------------------------------------------------------------ second audit (31 Oct)
+
+fn balance_result(units: u128) -> PromiseResult {
+    PromiseResult::Successful(format!("\"{units}\"").into_bytes())
+}
+
+/// A cleared 7.8 USDC payment sent from a 100,000 USDC pool, its callback lost.
+fn stuck() -> (Contract, u32) {
+    let mut c = setup();
+    deposit(&mut c, 100_000 * UNIT);
+    let r = honest(&mut c, "INV-1", 10, 1, LIVE);
+    assert_eq!(r.payment, Some(PaymentStatus::Submitted));
+    (c, r.receipt_id)
 }
 
 #[test]
 #[should_panic(expected = "a submitted payment can only be resolved 24 hours after it was sent")]
 fn stuck_payment_cannot_be_resolved_early() {
-    let mut c = setup();
-    deposit(&mut c, 100_000 * UNIT);
-    let r = honest(&mut c, "INV-1", 10, 1, LIVE);
+    let (mut c, id) = stuck();
     ctx(owner(), LIVE + 23 * HOUR, 1);
-    c.resolve_stuck_payment(r.receipt_id, false);
+    let _ = c.resolve_stuck_payment(id);
 }
 
 #[test]
-fn stuck_payment_resolved_as_unpaid_returns_the_money_once() {
-    let mut c = setup();
-    deposit(&mut c, 100_000 * UNIT);
-    let r = honest(&mut c, "INV-1", 10, 1, LIVE);
+fn resolution_reads_the_balance_and_refunds_only_if_the_money_never_left() {
+    let (mut c, id) = stuck();
     ctx(owner(), LIVE + DAY, 1);
-    assert_eq!(
-        c.resolve_stuck_payment(r.receipt_id, false),
-        PaymentStatus::Failed
-    );
+    let _ = c.resolve_stuck_payment(id);
+    // The token says we still hold everything: the transfer never happened.
+    callback_ctx(LIVE + DAY, balance_result(100_000 * UNIT));
+    assert_eq!(c.on_balance_checked(id, 1), PaymentStatus::Failed);
     let f = c.get_funds(usdc());
     assert_eq!((f.available, f.reserved), (U128(100_000 * UNIT), U128(0)));
-    assert!(
-        get_logs()
-            .iter()
-            .any(|l| l.contains("payment_resolved_by_buyer"))
-    );
-    // A late callback cannot then move the money a second time.
+    assert_eq!(c.get_in_flight(usdc()).payouts, 0);
+    // A late result for the same attempt cannot move the money again.
     callback_ctx(LIVE + DAY, PromiseResult::Successful(vec![]));
-    let late = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.on_payout(r.receipt_id)));
+    let late = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.on_payout(id, 1)));
     assert!(late.is_err());
 }
 
 #[test]
-fn stuck_payment_resolved_as_paid_releases_the_reservation() {
+fn resolution_settles_when_the_balance_shows_the_money_left() {
+    let (mut c, id) = stuck();
+    ctx(owner(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(id);
+    callback_ctx(LIVE + DAY, balance_result(100_000 * UNIT - 7_800 * UNIT));
+    assert_eq!(c.on_balance_checked(id, 1), PaymentStatus::Settled);
+    let f = c.get_funds(usdc());
+    assert_eq!(
+        (f.available, f.reserved),
+        (U128(100_000 * UNIT - 7_800 * UNIT), U128(0))
+    );
+}
+
+#[test]
+fn attack_unknown_outcome_is_never_treated_as_failure() {
+    // Each case in a fresh thread: a fresh mock chain.
+    let cases: Vec<Option<u128>> = vec![
+        Some(100_000 * UNIT + 1), // someone sent us extra tokens
+        Some(100_000 * UNIT - 1), // a balance neither outcome explains
+        Some(0),
+        None, // the balance query itself failed
+    ];
+    for case in cases {
+        std::thread::spawn(move || {
+            let (mut c, id) = stuck();
+            ctx(owner(), LIVE + DAY, 1);
+            let _ = c.resolve_stuck_payment(id);
+            let result = match case {
+                Some(units) => balance_result(units),
+                None => PromiseResult::Failed,
+            };
+            callback_ctx(LIVE + DAY, result);
+            assert_eq!(c.on_balance_checked(id, 1), PaymentStatus::Submitted);
+            assert_eq!(
+                c.get_funds(usdc()).reserved,
+                U128(7_800 * UNIT),
+                "money must stay reserved"
+            );
+            assert!(get_logs().iter().any(|l| l.contains("payment_unresolved")));
+        })
+        .join()
+        .expect("case passed");
+    }
+}
+
+#[test]
+fn with_two_payouts_in_flight_a_lower_balance_proves_nothing() {
     let mut c = setup();
     deposit(&mut c, 100_000 * UNIT);
-    let r = honest(&mut c, "INV-1", 10, 1, LIVE);
+    let a = honest(&mut c, "INV-1", 10, 1, LIVE).receipt_id;
+    honest(&mut c, "INV-2", 10, 2, LIVE);
+    assert_eq!(c.get_in_flight(usdc()).payouts, 2);
     ctx(owner(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(a);
+    // One of the two transfers left; the balance alone cannot say which.
+    callback_ctx(LIVE + DAY, balance_result(100_000 * UNIT - 7_800 * UNIT));
+    assert_eq!(c.on_balance_checked(a, 1), PaymentStatus::Submitted);
+}
+
+#[test]
+#[should_panic(expected = "a withdrawal is in flight")]
+fn resolution_waits_for_withdrawals_in_flight() {
+    let (mut c, id) = stuck();
+    ctx(owner(), LIVE + DAY, 1);
+    let _ = c.withdraw(usdc(), U128(UNIT));
+    ctx(owner(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(id);
+}
+
+#[test]
+fn attack_stale_payout_result_from_an_earlier_attempt_cannot_touch_the_current_one() {
+    let (mut c, id) = stuck();
+    callback_ctx(LIVE, PromiseResult::Failed);
+    assert_eq!(c.on_payout(id, 1), PaymentStatus::Failed);
+    ctx(owner(), LIVE + HOUR, 1);
+    assert_eq!(c.reauthorize_payment(id), PaymentStatus::Submitted);
+    assert_eq!(c.get_payment(id).unwrap().attempt, 2);
+    // A (replayed or delayed) result tagged with attempt 1 is refused.
+    callback_ctx(LIVE + HOUR, PromiseResult::Successful(vec![]));
+    let stale = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.on_payout(id, 1)));
+    assert!(stale.is_err());
+    assert_eq!(c.get_payment(id).unwrap().status, PaymentStatus::Submitted);
+    // The real result for attempt 2 settles it, once.
+    callback_ctx(LIVE + HOUR, PromiseResult::Successful(vec![]));
+    assert_eq!(c.on_payout(id, 2), PaymentStatus::Settled);
+}
+
+#[test]
+fn a_balance_check_that_arrives_after_the_real_result_changes_nothing() {
+    let (mut c, id) = stuck();
+    ctx(owner(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(id);
+    callback_ctx(LIVE + DAY, PromiseResult::Successful(vec![]));
+    assert_eq!(c.on_payout(id, 1), PaymentStatus::Settled);
+    callback_ctx(LIVE + DAY, balance_result(100_000 * UNIT));
+    assert_eq!(c.on_balance_checked(id, 1), PaymentStatus::Settled);
     assert_eq!(
-        c.resolve_stuck_payment(r.receipt_id, true),
-        PaymentStatus::Settled
+        c.get_funds(usdc()).available,
+        U128(100_000 * UNIT - 7_800 * UNIT)
     );
-    let f = c.get_funds(usdc());
-    assert_eq!((f.available, f.reserved), (U128(92_200 * UNIT), U128(0)));
 }
 
 #[test]
@@ -452,5 +548,77 @@ fn only_submitted_payments_can_be_resolved() {
     let mut c = setup();
     let r = honest(&mut c, "INV-1", 10, 1, LIVE); // no funds: AUTHORIZED
     ctx(owner(), LIVE + 2 * DAY, 1);
-    c.resolve_stuck_payment(r.receipt_id, true);
+    let _ = c.resolve_stuck_payment(r.receipt_id);
+}
+
+#[test]
+#[should_panic(expected = "only the owner can do this")]
+fn strangers_cannot_start_a_resolution() {
+    let (mut c, id) = stuck();
+    ctx("stranger.testnet".parse().unwrap(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(id);
+}
+
+#[test]
+#[should_panic(expected = "deploy under a named account")]
+fn contract_refuses_an_implicit_account_that_exists_on_every_network() {
+    let mut b = VMContextBuilder::new();
+    b.current_account_id("a".repeat(64).parse().unwrap())
+        .predecessor_account_id(owner());
+    testing_env!(b.build());
+    let _ = Contract::new(owner());
+}
+
+#[test]
+#[should_panic(expected = "storage budget is low")]
+fn submissions_stop_before_the_contract_runs_out_of_storage_money() {
+    let mut c = setup();
+    // A first submission works with the normal balance.
+    honest(&mut c, "INV-0", 1, 9, LIVE);
+    // Same submission, but the contract's free NEAR is nearly gone.
+    let inv = Invoice {
+        supplier_id: "qingmar-steel".into(),
+        invoice_number: "INV-1".into(),
+        order_id: "PO-1184".into(),
+        token: "usdc.testnet".into(),
+        lines: vec![InvoiceLine {
+            sku: "AH36-12mm".into(),
+            qty: U64(1),
+            unit_price: U128(780 * UNIT),
+        }],
+        total: U128(780 * UNIT),
+        payee: route("qingmar.testnet"),
+    };
+    let note = DeliveryNote {
+        order_id: "PO-1184".into(),
+        note_id: "DN-low".into(),
+        lines: vec![DeliveredLine {
+            sku: "AH36-12mm".into(),
+            qty: U64(1),
+        }],
+    };
+    let d1 = InvoiceMessage {
+        domain: INVOICE_DOMAIN.into(),
+        contract: contract_id(),
+        invoice: inv.clone(),
+        document_hash: [8; 32],
+    }
+    .digest();
+    let d2 = DeliveryMessage {
+        domain: DELIVERY_DOMAIN.into(),
+        contract: contract_id(),
+        note: note.clone(),
+    }
+    .digest();
+    let mut b = builder(owner(), LIVE, 0);
+    b.account_balance(NearToken::from_millinear(1));
+    testing_env!(b.build());
+    c.submit_invoice(
+        inv,
+        Base64VecU8(key(SUPPLIER).sign(&d1).to_bytes().to_vec()),
+        note,
+        pk(&key(STOREKEEPER)),
+        Base64VecU8(key(STOREKEEPER).sign(&d2).to_bytes().to_vec()),
+        Base64VecU8(vec![8; 32]),
+    );
 }

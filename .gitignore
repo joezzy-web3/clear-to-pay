@@ -8,3 +8,7 @@
 # build output
 target/
 node_modules/
+# python
+__pycache__/
+.venv/
+.pytest_cache/
