@@ -78,6 +78,10 @@ section.s{padding-block:clamp(56px,8vw,104px)}
 .night .kick{background:var(--signal);color:var(--navy)}
 h2{font:800 clamp(40px,5vw,72px)/1.04 var(--display);margin:18px 0 0;max-width:18ch;text-wrap:balance}
 h2 mark{background:var(--signal);color:var(--navy);padding:0 .12em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+/* highlight starts below the line above, so g, y, p never touch it */
+h2{line-height:1.12}
+h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 14% 94%,transparent 94%)}
+
 .lead{font:400 18px/1.55 var(--body);color:var(--mute);max-width:58ch;margin:14px 0 0}
 .night .lead{color:var(--nmute)}
 .head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
@@ -371,31 +375,43 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   const short = (s, a = 10, b = 6) => (s && s.length > a + b + 1 ? s.slice(0, a) + "…" + s.slice(-b) : s);
   const b64 = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
 
-  async function view(method, args = {}) {
-    let last;
-    for (let n = 0; n < RPCS.length; n++) {
-      const url = RPCS[(rpcIndex + n) % RPCS.length];
-      try {
-        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
-        const r = await fetch(url, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: b64(args) } }) });
-        clearTimeout(t);
-        const j = await r.json();
-        if (j.error) throw new Error(j.error.cause?.name || j.error.message || "RPC error");
-        if (j.result?.error) throw new Error(j.result.error);
-        rpcIndex = (rpcIndex + n) % RPCS.length;
-        $("rpc").innerHTML = "Reading from <b>" + esc(new URL(url).host) + "</b> · refreshes every 30 s";
-        return JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result)));
-      } catch (e) { last = e; if (/MethodNotFound|CodeDoesNotExist|wasm/i.test(String(e))) throw e; }
-    }
-    const err = new Error("unreachable"); err.network = true; err.cause = last; throw err;
+  // Ask the fastest-known server first; if it has not answered in 1.2 s, ask the next one too,
+  // and so on. The first good answer wins and the others are cancelled. Slow links (5 s per
+  // answer) still work: nothing is cut off before 20 s.
+  function view(method, args = {}) {
+    const body = JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: b64(args) } });
+    return new Promise((resolve, reject) => {
+      const ctls = []; const timers = []; let failed = 0, done = false, last;
+      const finish = () => { done = true; timers.forEach(clearTimeout); ctls.forEach((c) => c.abort()); };
+      const order = RPCS.map((_, n) => (rpcIndex + n) % RPCS.length);
+      order.forEach((k, n) => timers.push(setTimeout(async () => {
+        if (done) return;
+        const url = RPCS[k], ctl = new AbortController(); ctls.push(ctl);
+        const t = setTimeout(() => ctl.abort(), 20000);
+        try {
+          const r = await fetch(url, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" }, body });
+          const j = await r.json(); clearTimeout(t);
+          if (done) return;
+          const err = j.error ? (j.error.cause?.name || j.error.message || "RPC error") : j.result?.error;
+          if (err && /MethodNotFound|CodeDoesNotExist|wasm|panicked/i.test(String(err))) { finish(); return reject(new Error(err)); }
+          if (err) throw new Error(err);
+          finish(); rpcIndex = k;
+          $("rpc").innerHTML = "Reading from <b>" + esc(new URL(url).host) + "</b> · refreshes every 30 s";
+          resolve(JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result))));
+        } catch (e) {
+          clearTimeout(t); last = e;
+          if (!done && ++failed === RPCS.length) { done = true; const x = new Error("unreachable"); x.network = true; x.cause = last; reject(x); }
+        }
+      }, n * 1200)));
+    });
   }
   const opt = (m, a) => view(m, a).catch((e) => { if (e.network) throw e; return null; });
 
-  async function loadLive() {
+  async function loadLive(early) {
     const [funds, flight, limits, count, supplier] = await Promise.all([
       view("get_funds", { token: USDC }), opt("get_in_flight", { token: USDC }), opt("get_limits"), view("receipt_count"), opt("get_supplier", { supplier_id: SUPPLIER }),
     ]);
+    if (early) early({ funds, flight, limits, count, supplier });
     const ids = []; for (let i = count - 1; i >= Math.max(0, count - 200); i--) ids.push(i);
     const rs = (await Promise.all(ids.map((i) => opt("get_receipt", { receipt_id: i })))).filter(Boolean);
     const pays = {};
@@ -413,6 +429,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     $("t-avail").innerHTML = usdc(d.funds.available) + "<small>USDC</small>";
     $("t-res").innerHTML = usdc(d.funds.reserved) + "<small>USDC</small>";
     $("t-res-l").textContent = d.flight ? `Reserved · ${d.flight.payouts} transfer${d.flight.payouts === 1 ? "" : "s"} in flight` : "Reserved for payments on their way";
+    if (!d.receipts) { $("t-count").textContent = d.count; $("limits").textContent = d.limits ? `Limit ${usdc(d.limits.per_invoice)} per invoice · ${usdc(d.limits.per_supplier_per_period)} per ${Math.round(Number(d.limits.period_hours) / 24)} days` : ""; renderSupplier(d.supplier); return; }
     receipts = d.receipts; payments = d.payments;
     const c = (v) => receipts.filter((r) => r.verdict === v).length;
     $("t-count").textContent = receipts.length;
@@ -551,7 +568,11 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
       if (c) { setLive("sample", `<b>Last read ${esc(new Date(c.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</b> · updating from NEAR testnet…`); render(c.d); }
     }
     try {
-      const d = await loadLive();
+      const d = await loadLive((first) => {
+        if (asked !== contract || mode === "live") return;
+        setLive("on", `<b>Live on NEAR testnet</b> · ${esc(contract)} · loading receipts…`);
+        render(first);
+      });
       if (asked !== contract) return;
       mode = "live";
       setLive("on", `<b>Live on NEAR testnet</b> · ${esc(contract)}`);

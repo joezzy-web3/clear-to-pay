@@ -242,9 +242,13 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
 .t-checks li.wait::before{background:var(--signal) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M9 5v5' stroke='%2310264A' stroke-width='2.2' stroke-linecap='round'/%3E%3Ccircle cx='9' cy='13' r='1.3' fill='%2310264A'/%3E%3C/svg%3E")}
 .t-seal.held{color:#B98A00}.t-seal.seize{color:var(--seize)}
 #record .t-f a{color:var(--navy)}
-#c-qty{white-space:normal;word-break:break-all;font-size:13px;line-height:1.3}
+#c-qty.addr{white-space:normal;word-break:break-all;font-size:13px;line-height:1.3}
 .live.sample i{background:var(--signal);box-shadow:0 0 0 4px rgba(244,194,13,.25)}
 .live a{color:var(--navy)}
+/* highlight starts below the line above, so g, y, p never touch it */
+h2{line-height:1.12}
+h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 14% 94%,transparent 94%)}
+.night h2 mark{--hl:var(--paper);background:linear-gradient(transparent 14%,var(--hl) 14% 94%,transparent 94%)}
 </style>
 
 </head>
@@ -266,7 +270,7 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
       <header class="h-head"><span><svg width="14" height="16" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="#EEF1EC"/><circle cx="15" cy="9" r="8" fill="#EEF1EC"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/></svg>Inspection</span><span id="c-time">receipt #0</span></header>
       <div class="h-body">
         <b class="h-ref" id="c-ref">INV-2209 · Qingmar Steel Co.</b>
-        <div class="h-grid"><div><small>Order</small><b id="c-ord">PO-1184</b></div><div><small>Amount</small><b id="c-del">9.36 USDC</b></div><div><small>Asked to pay</small><b id="c-qty">qingmar.cleartopay.testnet</b></div></div>
+        <div class="h-grid"><div><small id="l-ord">Order</small><b id="c-ord">PO-1184</b></div><div><small id="l-del">Amount</small><b id="c-del">9.36 USDC</b></div><div><small id="l-qty">Asked to pay</small><b id="c-qty" class="addr">qingmar.cleartopay.testnet</b></div></div>
         <p class="h-why" id="c-why">Bills for more than the storekeeper signed as delivered, and the supplier's address is still inside its 72-hour wait.</p>
       </div>
     </div>
@@ -363,34 +367,39 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
   const RPCS = ["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org", "https://archival-rpc.testnet.fastnear.com"];
   const CONTRACTS = ["guard.cleartopay.testnet", "cleartopay.testnet"];
   const b64 = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
-  async function view(contract, method, args = {}) {
-    let last;
-    for (const url of RPCS) {
-      try {
-        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
-        const r = await fetch(url, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: b64(args) } }) });
-        clearTimeout(t);
-        const j = await r.json();
-        if (j.error || j.result?.error) throw new Error("rpc");
-        return JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result)));
-      } catch (e) { last = e; }
-    }
-    throw last;
+  // Fastest server first; if no answer in 1.2 s ask the next as well; first good answer wins.
+  function view(contract, method, args = {}) {
+    const body = JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: b64(args) } });
+    return new Promise((resolve, reject) => {
+      const ctls = [], timers = []; let failed = 0, done = false;
+      const finish = () => { done = true; timers.forEach(clearTimeout); ctls.forEach((c) => c.abort()); };
+      RPCS.forEach((url, n) => timers.push(setTimeout(async () => {
+        if (done) return;
+        const ctl = new AbortController(); ctls.push(ctl); const t = setTimeout(() => ctl.abort(), 20000);
+        try {
+          const r = await fetch(url, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" }, body });
+          const j = await r.json(); clearTimeout(t);
+          if (done) return;
+          if (j.error || j.result?.error) { if (++failed === RPCS.length) { done = true; reject(new Error("rpc")); } return; }
+          finish(); resolve(JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result))));
+        } catch (e) { clearTimeout(t); if (!done && ++failed === RPCS.length) { done = true; reject(e); } }
+      }, n * 1200)));
+    });
   }
   async function live() {
     const out = [];
-    for (const c of CONTRACTS) {
+    const fundsP = view(CONTRACTS[0], "get_funds", { token: USDC }).catch(() => null);
+    await Promise.all(CONTRACTS.map(async (c) => {
       const n = await view(c, "receipt_count");
       const ids = []; for (let i = n - 1; i >= Math.max(0, n - 40); i--) ids.push(i);
       const rs = await Promise.all(ids.map((i) => view(c, "get_receipt", { receipt_id: i }).catch(() => null)));
-      for (const r of rs) if (r) {
+      await Promise.all(rs.filter(Boolean).map(async (r) => {
         r.contract = c;
         if (r.verdict === "Cleared") r.payment = await view(c, "get_payment", { receipt_id: r.id }).catch(() => null);
         out.push(r);
-      }
-    }
-    const funds = await view(CONTRACTS[0], "get_funds", { token: USDC }).catch(() => null);
+      }));
+    }));
+    const funds = await fundsP;
     return { source: "live", receipts: out, funds };
   }
   // The same three v1 receipts, as recorded on 30 Oct, for views that cannot reach NEAR.
@@ -660,6 +669,18 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const $ = (id) => document.getElementById(id);
   const PILL = { clear: ["clear", "CLEARED"], held: ["held", "HELD"], seize: ["seize", "SEIZED"] };
+  const EXAMPLES = [
+    { ref: "INV-2208", who: "Qingmar Steel Co., Ningbo", ord: "100 t", del: "100 t", time: "arrived 09:12", qty: "100 t", verdict: "clear", why: "Order, delivery note and invoice agree. 78,000 USDC paid to the registered address.",
+      steps: [["info","Read","by the AI, checked by code"],["ok","Order PO-1184","matched"],["ok","Delivery DN-552","100 t received"],["ok","Signed","by Qingmar's registered key"],["ok","Payee","registered address"],["ok","78,000 USDC","paid on NEAR"],["info","Receipt","written on NEAR"]] },
+    { ref: "INV-2209", who: "Qingmar Steel Co., Ningbo", ord: "100 t", del: "100 t", time: "arrived 09:41", qty: "<em>120</em> t", verdict: "held", why: "Billed 120 t, delivered 100 t. The agent asked the supplier to reissue. Nothing is paid until they do.",
+      steps: [["ok","Order PO-1184","matched"],["warn","Delivery DN-552","100 t, billed 120 t"],["ok","Payee","registered address"],["info","Query sent","citing weighbridge WB-7781"],["warn","Payment","on hold"]] },
+    { ref: "INV-2210", who: "Qingmar Steel Co., Ningbo", ord: "100 t", del: "100 t", time: "arrived 10:05", qty: "100 t", verdict: "seize", why: "\u201cOur bank details have changed\u201d to an address the supplier never signed. Seized. No money moved.",
+      steps: [["ok","Order PO-1184","matched"],["ok","Delivery DN-552","100 t received"],["bad","New payee","not signed by the current key"],["bad","Hidden instruction","in the PDF ignored"],["bad","Payment","refused by the contract"]] },
+    { ref: "LC-0931", who: "Lumen Cloud GmbH, Berlin", ord: "12 mo", del: "12 mo", time: "arrived 11:20", qty: "12 mo", verdict: "seize", why: "A renumbered copy of LC-0918, already paid on 3 Oct. Duplicates are never paid twice.",
+      steps: [["info","Read","by the AI, checked by code"],["ok","Contract CT-77","cloud hosting, 12 months"],["ok","Usage log","12 months delivered"],["bad","Duplicate","of LC-0918, paid 3 Oct"],["bad","Payment","refused by the contract"]] },
+    { ref: "AO-118", who: "Ada Okon Design, Lagos", ord: "1 pack", del: "1 pack", time: "arrived 11:48", qty: "1 pack", verdict: "clear", why: "Brand pack signed off by the client. 2,400 USDC paid to the designer's registered address.",
+      steps: [["ok","Order PO-1207","brand identity pack"],["ok","Sign-off","approved by the marketing lead"],["ok","Signed","by the designer's registered key"],["ok","2,400 USDC","paid on NEAR"],["info","Receipt","written on NEAR"]] },
+  ];
   const SEIZE = ["payee_mismatch", "invalid_supplier_signature", "duplicate_invoice", "duplicate_document", "delivery_note_reused"];
   const TOAST = {
     payee_mismatch: ["bad", "Payee", "not the registered address"], payee_not_yet_payable: ["warn", "Payee", "inside its 72-hour wait"],
@@ -685,7 +706,7 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
     else steps.push([verdict === "seize" ? "bad" : "warn", "Payment", verdict === "seize" ? "refused by the contract" : "on hold"]);
     steps.push(["info", "Receipt #" + r.id, "written on NEAR"]);
     const when = window.CTP.when(r.decided_at).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
-    return { ref: r.invoice_number, who: "Qingmar Steel Co.", ord: r.order_id, del: amt, time: `#${r.id} · ${when}`,
+    return { real: true, ref: r.invoice_number, who: "Qingmar Steel Co.", ord: r.order_id, del: amt, time: `on chain · #${r.id} · ${when}`,
       qty: r.reasons.includes("payee_mismatch") ? `<em>${r.payee.address}</em>` : r.payee.address, verdict,
       why: verdict === "clear" ? `Every check passed. ${amt} authorised to the supplier's registered address.` : codes.map((c) => WHY[c] || c.replace(/_/g, " ")).slice(0, 2).join(" ") + (verdict === "seize" ? " No money moved." : " Nothing is paid until it clears."),
       steps };
@@ -709,7 +730,7 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
   const run = async (r) => {
     await clear();
     $("c-ref").textContent = r.ref + " \u00b7 " + r.who;
-    $("c-ord").textContent = r.ord; $("c-del").textContent = r.del;
+    $("c-ord").textContent = r.ord; $("c-del").textContent = r.del; [["l-ord", "Order", "Ordered"], ["l-del", "Amount", "Delivered"], ["l-qty", "Asked to pay", "Invoiced"]].forEach(([id, a, b]) => ($(id).textContent = r.real ? a : b)); $("c-qty").classList.toggle("addr", !!r.real);
     $("c-time").textContent = r.time;
     $("c-qty").innerHTML = r.qty;
     const pill = $("c-pill"), seal = $("c-seal");
@@ -724,8 +745,8 @@ canvas.dith{display:block;width:100%;cursor:default;pointer-events:none}
   };
   (async () => {
     const d = await window.CTP.data;
-    const RUNS = d.receipts.slice(0, 6).map(toRun);
-    if (!RUNS.length) return;
+    // Real receipts first, then the worked examples, clearly labelled.
+    const RUNS = d.receipts.slice(0, 3).map(toRun).concat(EXAMPLES.map((e) => ({ ...e, time: "example · " + e.time })));
     await wait(2500); let k = 0; for (;;) { await run(RUNS[k % RUNS.length]); k++; }
   })();
 })();
