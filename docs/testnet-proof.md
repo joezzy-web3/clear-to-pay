@@ -86,3 +86,7 @@ Signed with the agent's function-call key (the GVTR1Dmh… key above):
 - The full reading (request and response bytes, signature, whole attestation report): `docs/proof/reading-INV-2208.json`. Re-check it yourself, offline: `python3 reader/tools/read_invoice.py --verify docs/proof/reading-INV-2208.json`
 - First attempt the same evening: the cloud quietly served a different model under the old name (an alias). That model spent its whole token budget thinking and returned no answer. The reader refused to guess and HELD the invoice. Now the exact model is pinned, aliasing is refused, and a swapped model or a cut-off answer is HELD.
 - The poisoned invoice (`corpus/02-white-text-payee.pdf`) was HELD before any model call; it cost nothing.
+
+## Pool top-up (1 Nov 2026)
+
+The buyer moved 20 faucet USDC into the pool with `ft_transfer_call`, signed with its full-access key (the agent's key cannot attach the 1 yoctoNEAR this needs). Tx `HPPW2HfPvVKFoAJNeDyKuN9o55vqp26GbFKdox7qGGFL`; event `deposit` 20000000; pool `available` 40 → 60 USDC.
