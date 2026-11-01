@@ -377,7 +377,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   // each step names the rule and points only to steps the buyer controls, never to a
   // shortcut the submitter could take alone, and never says how close a submission came.
   const NEXT = {
-    payee_mismatch: "If the supplier's payout details really changed, they never go on an invoice. The supplier contacts the buyer through a channel both already use; the buyer starts an address change, the supplier signs it, and it takes effect after its waiting period. Buyer: do not pay this outside the system.",
+    payee_mismatch: "If the supplier's payout details really changed, they never go on an invoice. The supplier proposes the new address, signed with its registered key; the buyer approves it only after confirming on a channel both already use; it takes effect after its waiting period. Buyer: do not pay this outside the system.",
     invalid_supplier_signature: "The supplier issues a new invoice signed with its registered key. Buyer: if the supplier says it sent this one, check with them on a channel you already use; someone may be posing as them.",
     duplicate_invoice: "This invoice was already paid. A different bill needs its own invoice number.",
     duplicate_document: "This exact document was already paid or refused. A new bill needs a new document.",
