@@ -684,3 +684,38 @@ fn a_stuck_payment_can_be_resolved_even_if_its_in_flight_counter_is_missing() {
     assert_eq!(c.on_balance_checked(id, 1), PaymentStatus::Failed);
     assert_eq!(c.get_funds(usdc()).reserved, U128(0));
 }
+
+/// CTP4-05: the transfer DID leave, but the in-flight counter was lost. The payment is the
+/// only money reserved, so the balance proves it: SETTLED, not stuck for ever.
+#[test]
+fn a_paid_transfer_with_a_missing_counter_settles_when_it_is_the_only_reserved_payment() {
+    let (mut c, id) = stuck();
+    let mut k = b"inflight:".to_vec();
+    k.extend_from_slice(usdc().as_bytes());
+    env::storage_remove(&k);
+    ctx(owner(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(id);
+    callback_ctx(LIVE + DAY, balance_result(100_000 * UNIT - 7_800 * UNIT));
+    assert_eq!(c.on_balance_checked(id, 1), PaymentStatus::Settled);
+    let f = c.get_funds(usdc());
+    assert_eq!(
+        (f.available, f.reserved),
+        (U128(100_000 * UNIT - 7_800 * UNIT), U128(0))
+    );
+}
+
+/// ...but with another payment also reserved, a missing counter means the drop proves nothing.
+#[test]
+fn a_missing_counter_with_another_reserved_payment_stays_unresolved() {
+    let mut c = setup();
+    deposit(&mut c, 100_000 * UNIT);
+    let a = honest(&mut c, "INV-1", 10, 1, LIVE).receipt_id;
+    honest(&mut c, "INV-2", 10, 2, LIVE);
+    let mut k = b"inflight:".to_vec();
+    k.extend_from_slice(usdc().as_bytes());
+    env::storage_remove(&k);
+    ctx(owner(), LIVE + DAY, 1);
+    let _ = c.resolve_stuck_payment(a);
+    callback_ctx(LIVE + DAY, balance_result(100_000 * UNIT - 7_800 * UNIT));
+    assert_eq!(c.on_balance_checked(a, 1), PaymentStatus::Submitted);
+}

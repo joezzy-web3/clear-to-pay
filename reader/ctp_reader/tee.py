@@ -145,7 +145,8 @@ def sha256_hex(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
-def check_signed_answer(*, request: bytes, response: bytes, model: str, signed: dict, attested: set[str]) -> list[str]:
+def check_signed_answer(*, request: bytes, response: bytes, model: str, signed: dict, attested: set[str],
+                        kind: str | None = None) -> list[str]:
     """Problems with a signed answer (empty list = it checks out).
 
     request / response: the exact bytes sent and received. signed: the /v1/signature
@@ -155,7 +156,9 @@ def check_signed_answer(*, request: bytes, response: bytes, model: str, signed: 
     problems = []
     req_h, resp_h = sha256_hex(request), sha256_hex(response)
     text = str(signed.get("text", ""))
-    if text not in (f"{model}:{req_h}:{resp_h}", f"{req_h}:{resp_h}"):
+    forms = {"provider_tee": [f"{model}:{req_h}:{resp_h}"], "gateway": [f"{req_h}:{resp_h}"]}
+    allowed = forms.get(kind, forms["provider_tee"] + forms["gateway"]) if kind else forms["provider_tee"] + forms["gateway"]
+    if text not in allowed:
         problems.append("signed hashes do not match the bytes we sent and received")
     if signed.get("signing_algo", "ecdsa") != "ecdsa":
         problems.append("unexpected signing algorithm")

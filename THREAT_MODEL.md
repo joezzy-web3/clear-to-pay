@@ -5,8 +5,8 @@ here runs with `cargo test` (contract, `src/`) or `python3 -m pytest -q` (reader
 Gaps are listed at the end, not hidden.
 
 **What we protect:** the buyer's money in the contract pool. **The rule:** money leaves only to a
-supplier's registered address, for goods that two different people confirmed were delivered, at
-the order's prices, once.
+supplier's registered address, for goods that two registered keys in two different roles signed
+as delivered (two by default; keys are not identities), at the order's prices, once.
 
 **Who might attack:** an outsider who controls an email thread or a PDF; a prompt injection that
 fools the AI; a thief who steals the agent's key; a dishonest supplier; one dishonest insider at
@@ -23,10 +23,12 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 | D5 | The model is fooled anyway and writes the attacker's address | The model's answer has **no payee field**; the payee always comes from the supplier's registered record | `test_a_well_formed_answer_becomes_exactly_the_invoice_the_supplier_signs`; contract `attack_ai_fooled_into_writing_the_attackers_address_is_seized` |
 | D6 | The model answers with extra fields, prose, or numbers that do not add up | Strict schema: unknown, missing or malformed fields rejected, never repaired; totals and amount-in-words checked | `reader/tests/test_reader.py`; `test_a_signed_answer_that_does_not_add_up_is_held` |
 | D7 | The AI provider tampers with an answer | The answer is signed inside the TEE over sha-256 of the exact request and response bytes; we recompute both and recover the signer | `test_tampered_response_is_held`, `test_a_saved_reading_can_be_rechecked_offline` |
-| D8 | A signer outside the attested enclave, or an old attestation report | Signer must be in a report fetched with our own fresh nonce | `test_a_signer_outside_the_attested_tee_is_held`, `test_a_stale_attestation_report_is_held` |
+| D8 | A signer outside the attested enclave, an old or nonce-less report, a quote for another key, or another model | The report part must carry our fresh nonce exactly, its Intel TDX quote must hold the signer's address and our nonce in REPORTDATA, and a model part must name the pinned model; unknown signature kinds are refused | `test_a_signer_outside_the_attested_tee_is_held`, `test_a_stale_attestation_report_is_held`, `test_a_report_without_our_nonce_is_held`, `test_a_quote_that_does_not_bind_the_signer_and_our_nonce_is_held`, `test_an_attestation_for_another_model_does_not_count`, `test_an_unknown_signature_kind_is_refused` |
+| D8b | A saved (cached) answer is planted or edited on disk | Every cached answer is re-verified in full before use; cache files are private, written atomically, never followed through links | `test_a_tampered_cached_answer_is_rechecked_and_held`, `test_a_cache_file_that_is_a_link_is_not_followed`, `test_cache_files_are_private` |
+| D8c | A fabricated report: an invented quote naming the attacker's key, or an emulated GPU | `--hardware`: the TDX quote's signature chain must verify to Intel's root CA (dcap-qvl, Intel PCS collateral) and its verified REPORTDATA must hold the enclave's address and our nonce; the GPU evidence must carry our nonce and NVIDIA's attestation service must answer true | `test_a_quote_that_does_not_verify_fails`, `test_a_quote_whose_verified_report_data_differs_fails`, `test_gpu_evidence_must_carry_our_nonce_and_nvidia_must_say_true`, `test_a_revoked_platform_fails_and_out_of_date_is_recorded_not_hidden` |
 | D9 | The provider silently serves a different model | Exact model pinned, aliasing refused, served model name checked inside the signed bytes | `test_a_silently_swapped_model_is_held`; observed live on 1 Nov 2026 (proof log) |
 | D10 | A cut-off answer is half-parsed | `finish_reason` must be `stop`, else HELD | `test_an_answer_cut_off_by_the_token_limit_is_held_not_parsed` |
-| D11 | The AI's follow-up email to a supplier slips in a payment instruction or a made-up figure | The draft may only restate code-computed facts; extra numbers, addresses, links, wallets or bank words throw it out for a template; SEIZED invoices get no reply at all | `test_a_draft_that_adds_anything_is_replaced_by_the_template`, `test_seized_gets_no_supplier_draft_and_says_do_not_reply` |
+| D11 | The AI's follow-up email slips in a payment instruction, a promise or a made-up figure, or is drafted from the wrong files | The files must reproduce the receipt's fingerprints; the draft may not add numbers, dates, numbers in words, promises, contact routes, addresses, links, wallets, bank words, non-ASCII digits or invisible characters; address-like facts mean no draft; SEIZED gets no reply. A strict filter, not proof of meaning: a person reads every draft | `test_another_invoice_with_the_same_number_is_refused`, `test_promises_dates_and_numbers_in_words_are_refused`, `test_an_address_smuggled_in_as_a_sku_means_no_draft_at_all`, `test_seized_gets_no_supplier_draft_and_says_do_not_reply` |
 
 ## 2. The payee
 
@@ -39,7 +41,7 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 | P5 | A brand-new supplier is registered and paid at once | New suppliers wait 72 hours before they can be paid | `new_supplier_is_not_payable_for_72_hours` |
 | P6 | The route changes between CLEARED and payment | Payment goes to the current route only; the old route is never paid | `if_the_route_changes_before_payment_the_old_one_is_not_paid` |
 | P7 | Lookalike supplier IDs or invisible characters in addresses | Rejected at registration | `supplier_ids_with_lookalike_letters_are_rejected`, `addresses_with_invisible_characters_are_rejected` |
-| P8 | An address change or a new delivery signer slips through because nobody looks during the 72-hour wait | Alerts: a Telegram ALERT the moment a change is proposed or approved, or a signer is added, with the earliest payable time and how to cancel | `test_a_proposed_address_change_is_an_alarm_with_the_earliest_payable_time`, `test_an_added_delivery_signer_is_an_alarm` |
+| P8 | An address change, a new supplier or a new delivery signer slips through because nobody looks during the 72-hour wait | Alerts every 15 s over every supplier the contract lists; the signed-change counter catches a change proposed and cancelled between checks; damaged memory and RPC disagreement are ALERTs | `test_a_proposed_address_change_is_an_alarm_with_the_earliest_payable_time`, `test_a_change_proposed_and_cancelled_between_checks_is_still_an_alarm`, `test_a_supplier_added_later_is_watched_without_editing_any_list`, `test_an_added_delivery_signer_is_an_alarm`, `test_rpc_servers_that_disagree_about_an_address_raise_an_alarm` |
 
 ## 3. Billing and delivery
 
@@ -71,20 +73,24 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 |---|---|---|---|
 | M1 | Paying twice | Fixed payment states; a settled payment can never be paid again | `a_settled_payment_can_never_be_paid_again`, `a_callback_cannot_settle_the_same_payment_twice` |
 | M2 | A lost or late transfer result is misread | Unknown outcomes are never treated as failure; resolved from the balance only when unambiguous | `attack_unknown_outcome_is_never_treated_as_failure`, `with_two_payouts_in_flight_a_lower_balance_proves_nothing`, `attack_stale_payout_result_from_an_earlier_attempt_cannot_touch_the_current_one` |
+| M2b | A payout that really left is stuck for ever because its in-flight counter was lost | If the counter is missing, the balance settles it only when this payment is the only money reserved; otherwise it stays unresolved and visible (`payment_unresolved`) | `a_paid_transfer_with_a_missing_counter_settles_when_it_is_the_only_reserved_payment`, `a_missing_counter_with_another_reserved_payment_stays_unresolved` |
 | M3 | The operator drains reserved money | `withdraw` pays the owner only, never reserved funds | `withdraw_cannot_take_reserved_money`, `property_random_action_sequences_keep_every_money_rule` |
 | M4 | Returned tokens are used to pay twice | A repeat payout can only be funded by the returned tokens | `attack_returned_tokens_can_fund_a_repeat_payout_but_never_the_buyers_money` |
 
 ## 6. Compared with the usual guard
 
-An allowlist plus spending limits stops a brand-new attacker address and oversized payments. On
-the other nine invoice attacks in `src/baseline_tests.rs` it pays; Clear to Pay pays none. Table:
-[docs/baseline.md](docs/baseline.md), regenerated by `scripts/baseline.sh`.
+A global allowlist plus limits stops a brand-new attacker address and oversized payments, and pays
+the other 9 of the 11 invoice attacks in `src/baseline_tests.rs`. A per-supplier allowlist also stops
+paying one supplier's invoice to another's address, and pays 8 of 11. Clear to Pay pays none, and all
+three pay the honest invoice. Table: [docs/baseline.md](docs/baseline.md), regenerated by `scripts/baseline.sh`.
 
 ## 7. Not defended (yet), stated
 
 - **The first address check.** The first registration of a supplier's address relies on the buyer checking it out of band. Planned: proof of control at registration (the payout account signs first).
 - **Two colluding insiders.** If two people in different roles both sign a false delivery, it clears. The policy can require more roles; it cannot stop collusion.
-- **The attestation report down to the hardware.** We check the signer is in a fresh report and keep the whole report, but do not yet verify the Intel TDX quote and NVIDIA evidence ourselves (NEAR's `nearai-cloud-verifier` can).
+- **The hardware check is on demand.** `--hardware` verifies the Intel quote chain and NVIDIA's verdict, but it is not run on every invoice by default (it needs Intel's and NVIDIA's services). An invoice read without it is protected by the signature and REPORTDATA checks only; a compromised gateway able to fabricate a whole report, quote included, would be caught only by `--hardware`.
+- **Keys are not people.** The delivery rule counts distinct registered keys in distinct roles. One person holding two keys, or two colluding people, defeats it; the owner can also set a policy of one role (recorded and versioned).
+- **Alerts between checks.** A delivery signer added and removed within one 15-second interval is not seen (anything it signed would be, as a receipt).
 - **Rendering tricks the reader does not see yet:** clipping paths, transparency, text over photographs. Backstop: the payee rule.
 - **The contract account's full-access key** can deploy new code. Disclosed; planned to be deleted at the end ("final lock").
 - **Not audited.** Hackathon code, testnet and small mainnet amounts only.

@@ -48,14 +48,24 @@ def personal_sign(text: str, d: int) -> str:
 TEE_KEY, GATEWAY_KEY, ATTACKER_KEY = 0xA11CE, 0x6A7E, 0xBAD
 
 
+def quote(address: str, nonce: str) -> str:
+    """A stand-in Intel TDX v4 quote: right header, REPORTDATA = address (padded to 32) + nonce."""
+    q = bytearray(700)
+    q[0:2], q[4:8] = (4).to_bytes(2, "little"), b"\x81\x00\x00\x00"
+    q[568:632] = bytes.fromhex(address[2:]).ljust(32, b"\0") + bytes.fromhex(nonce)
+    return q.hex()
+
+
 class FakeCloud:
     """Answers like NEAR AI Cloud. Each knob breaks one thing the reader must catch."""
 
     def __init__(self, answer=GOOD, *, signer=TEE_KEY, attested=TEE_KEY, tamper=False, echo_nonce=True,
-                 lost_signatures=0, kind="provider_tee", no_report=False, served=None, finish="stop"):
+                 lost_signatures=0, kind="provider_tee", no_report=False, served=None, finish="stop",
+                 drop_nonce=False, unbound_quote=False, attested_model=None):
         self.answer, self.signer, self.attested, self.tamper = answer, signer, attested, tamper
         self.echo_nonce, self.lost, self.kind, self.no_report = echo_nonce, lost_signatures, kind, no_report
         self.served, self.finish = served or M.MODEL, finish
+        self.drop_nonce, self.unbound_quote, self.attested_model = drop_nonce, unbound_quote, attested_model or M.MODEL
         self.calls: list[str] = []
         self.request = self.response = b""
 
@@ -82,11 +92,16 @@ class FakeCloud:
         if path.startswith("/v1/attestation/report"):
             if self.no_report:
                 raise ModelError("HTTP 503")
-            nonce = path.split("nonce=")[1] if self.echo_nonce else "00" * 32
-            return json.dumps({
-                "gateway_attestation": {"request_nonce": nonce, "signing_address": address_of(GATEWAY_KEY)},
-                "model_attestations": [{"signing_address": address_of(self.attested), "intel_quote": "q", "nvidia_payload": "{}"}],
-            }).encode()
+            ours = path.split("nonce=")[1]
+            nonce = ours if self.echo_nonce else "00" * 32
+            gw = {"request_nonce": nonce, "signing_address": address_of(GATEWAY_KEY),
+                  "intel_quote": quote(address_of(GATEWAY_KEY), ours)}
+            md = {"request_nonce": nonce, "signing_address": address_of(self.attested), "model_name": self.attested_model,
+                  "intel_quote": quote(address_of(self.attested), "11" * 32 if self.unbound_quote else ours),
+                  "nvidia_payload": "{}"}
+            if self.drop_nonce:
+                gw.pop("request_nonce"), md.pop("request_nonce")
+            return json.dumps({"gateway_attestation": gw, "model_attestations": [md]}).encode()
         raise AssertionError(path)
 
 
@@ -177,7 +192,7 @@ def test_a_gateway_signature_must_come_from_the_gateway_tee():
 def test_a_stale_attestation_report_is_held():
     r = read(FakeCloud(echo_nonce=False))
     assert r.held == ["model_answer_unverified"]
-    assert "attestation report does not carry our nonce" in r.evidence["problems"]
+    assert "model attestation does not carry our nonce" in r.evidence["problems"]
 
 
 def test_no_attestation_report_is_held():
@@ -268,3 +283,85 @@ def test_the_model_is_asked_to_answer_directly_without_thinking():
     cloud = FakeCloud()
     read(cloud)
     assert json.loads(cloud.request)["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_a_report_without_our_nonce_is_held():
+    r = read(FakeCloud(drop_nonce=True))
+    assert r.held == ["model_answer_unverified"]
+    assert "model attestation does not carry our nonce" in r.evidence["problems"]
+
+
+def test_a_quote_that_does_not_bind_the_signer_and_our_nonce_is_held():
+    r = read(FakeCloud(unbound_quote=True))
+    assert r.held == ["model_answer_unverified"]
+    assert any("Intel TDX quote does not bind" in p for p in r.evidence["problems"])
+
+
+def test_an_attestation_for_another_model_does_not_count():
+    r = read(FakeCloud(attested_model="Qwen/some-other-model"))
+    assert r.held == ["model_answer_unverified"]
+    assert any("model attestation is for" in p for p in r.evidence["problems"])
+
+
+def test_an_unknown_signature_kind_is_refused():
+    p, _, _ = M.verify(request=b"{}", response=json.dumps({"model": M.MODEL}).encode(),
+                       signed={"text": "a:b", "signature": "0x00", "signature_kind": "trust_me"},
+                       report={}, nonce="00" * 32, model=M.MODEL)
+    assert "unknown signature kind 'trust_me'" in p
+
+
+def test_a_model_signature_cannot_use_the_gateway_text_form():
+    cloud = FakeCloud()
+    read(cloud)
+    req_h, resp_h = (hashlib.sha256(b).hexdigest() for b in (cloud.request, cloud.response))
+    text = f"{req_h}:{resp_h}"  # gateway form, but claimed as a model-TEE signature
+    signed = {"text": text, "signature": personal_sign(text, TEE_KEY), "signing_address": address_of(TEE_KEY),
+              "signature_kind": "provider_tee"}
+    from ctp_reader import tee as T
+    probs = T.check_signed_answer(request=cloud.request, response=cloud.response, model=M.MODEL, signed=signed,
+                                  attested={address_of(TEE_KEY)}, kind="provider_tee")
+    assert "signed hashes do not match the bytes we sent and received" in probs
+
+
+def test_the_live_reading_in_the_repository_still_verifies():
+    proof = REPO / "docs" / "proof" / "reading-INV-2208.json"
+    if not proof.exists():
+        pytest.skip("proof file not present")
+    assert M.reverify(json.loads(proof.read_text())) == []
+
+
+def test_a_tampered_cached_answer_is_rechecked_and_held(tmp_path):
+    read(FakeCloud())
+    (saved,) = [f for f in tmp_path.iterdir() if f.name.startswith("reading-")]
+    record = json.loads(saved.read_text())
+    record["answer"] = json.dumps(dict(GOOD, total="70.00"))  # planted after the fact
+    saved.write_text(json.dumps(record))
+    cloud = FakeCloud()
+    r = read(cloud)
+    assert r.held == ["model_answer_unverified"] and cloud.calls == []
+    assert "saved answer is not the one in the signed response" in r.evidence["problems"]
+
+
+def test_a_cache_file_that_is_a_link_is_not_followed(tmp_path):
+    read(FakeCloud())
+    (saved,) = [f for f in tmp_path.iterdir() if f.name.startswith("reading-")]
+    elsewhere = tmp_path / "planted.json"
+    elsewhere.write_text(saved.read_text())
+    saved.unlink()
+    saved.symlink_to(elsewhere)
+    r = read(FakeCloud())
+    assert r.held == ["model_answer_unverified"] and "link" in r.evidence["problems"][0]
+
+
+def test_cache_files_are_private(tmp_path):
+    read(FakeCloud())
+    for f in tmp_path.iterdir():
+        if f.is_file():
+            assert f.stat().st_mode & 0o077 == 0, f.name
+
+
+def test_a_damaged_spend_record_stops_calls_instead_of_resetting_to_zero(tmp_path):
+    import datetime
+    (tmp_path / f"spend-{datetime.date.today().isoformat()}.json").write_text("not json")
+    cloud = FakeCloud()
+    assert read(cloud).held == ["model_daily_cap_reached"] and cloud.calls == []

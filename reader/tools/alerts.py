@@ -28,9 +28,10 @@ USDC = "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af"
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--contract", default=chain.CONTRACT)
-    ap.add_argument("--suppliers", default="qingmar-steel", help="comma-separated supplier ids to watch")
+    ap.add_argument("--suppliers", default="qingmar-steel",
+                    help="extra supplier ids to watch (the contract's own list is always watched)")
     ap.add_argument("--token", default=USDC)
-    ap.add_argument("--every", type=int, default=30, help="seconds between polls")
+    ap.add_argument("--every", type=int, default=15, help="seconds between polls")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="print alerts; do not send")
     ap.add_argument("--replay", action="store_true", help="on the first run, announce what already happened")
@@ -55,7 +56,8 @@ def main() -> int:
     while True:
         try:
             got = alerts.tick(view=alerts.view_for(a.contract), suppliers=suppliers, token=a.token,
-                              state_path=state, send=send, contract=a.contract, replay=a.replay)
+                              state_path=state, send=send, contract=a.contract, replay=a.replay,
+                              cross_check=lambda m, args: chain.view_each(m, args, contract=a.contract))
             stamp = time.strftime("%H:%M:%S")
             if first and not a.replay:
                 print(f"[{stamp}] watching {a.contract}; what already happened is remembered, not announced")

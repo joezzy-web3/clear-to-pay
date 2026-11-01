@@ -24,12 +24,18 @@ import hashlib
 import json
 import os
 import secrets
+import stat
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # Windows: no file locks; the cap is advisory there
+    fcntl = None
 
 from . import Prepared
 from .schema import Rejected, check, parse, to_invoice
@@ -100,20 +106,63 @@ def http(method: str, path: str, key: str, body: bytes | None = None, timeout: i
 # ---------------------------------------------------------------- spend cap and cache
 
 
+def _private_dir() -> Path:
+    d = cache_dir()
+    d.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if d.is_symlink() or not d.is_dir():
+        raise ModelError(f"cache folder {d} is not a plain folder")
+    return d
+
+
+def _read_private(path: Path) -> str | None:
+    """Read a cache file only if it is a regular file (not a link) owned by us."""
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except FileNotFoundError:
+        return None
+    except OSError:
+        raise ModelError(f"cache file {path.name} is a link or unreadable") from None
+    with os.fdopen(fd) as f:
+        st = os.fstat(f.fileno())
+        if not stat.S_ISREG(st.st_mode) or (hasattr(os, "getuid") and st.st_uid != os.getuid()):
+            raise ModelError(f"cache file {path.name} is not a regular file of ours")
+        return f.read()
+
+
+def _write_private(path: Path, text: str) -> None:
+    """Write via a fresh temporary file (exclusive, 0600, no links followed), then rename."""
+    tmp = path.with_name(f".{path.name}.{secrets.token_hex(6)}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
 def _spend_file() -> Path:
-    return cache_dir() / f"spend-{_dt.date.today().isoformat()}.json"
+    return _private_dir() / f"spend-{_dt.date.today().isoformat()}.json"
 
 
 def spent_today() -> float:
+    """Today's estimated spend. A missing file is zero; a damaged one counts as the cap (fail closed)."""
     try:
-        return float(json.loads(_spend_file().read_text())["usd"])
-    except (OSError, ValueError, KeyError, TypeError):
-        return 0.0
+        raw = _read_private(_spend_file())
+        return 0.0 if raw is None else float(json.loads(raw)["usd"])
+    except (ModelError, ValueError, KeyError, TypeError):
+        return float("inf")
 
 
 def _add_spend(usd: float) -> None:
-    cache_dir().mkdir(parents=True, exist_ok=True)
-    _spend_file().write_text(json.dumps({"usd": round(spent_today() + usd, 6)}))
+    """Locked read-modify-write, so two runs at once cannot both start from the old total."""
+    lock = _private_dir() / ".spend.lock"
+    fd = os.open(lock, os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        if fcntl:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        now = spent_today()
+        _write_private(_spend_file(), json.dumps({"usd": round((now if now != float("inf") else 0) + usd, 6),
+                                                  "damaged_before": now == float("inf")}))
+    finally:
+        os.close(fd)
 
 
 def _cache_file(doc_sha: str, model: str) -> Path:
@@ -122,15 +171,18 @@ def _cache_file(doc_sha: str, model: str) -> Path:
 
 
 def _cached(doc_sha: str, model: str) -> dict | None:
-    try:
-        return json.loads(_cache_file(doc_sha, model).read_text())
-    except (OSError, ValueError):
+    raw = _read_private(_cache_file(doc_sha, model))
+    if raw is None:
         return None
+    try:
+        return json.loads(raw)
+    except ValueError:
+        raise ModelError("cached reading is damaged") from None
 
 
 def _store(doc_sha: str, model: str, data: dict) -> None:
-    cache_dir().mkdir(parents=True, exist_ok=True)
-    _cache_file(doc_sha, model).write_text(json.dumps(data, indent=2))
+    _private_dir()
+    _write_private(_cache_file(doc_sha, model), json.dumps(data, indent=2))
 
 
 # ---------------------------------------------------------------- reading an invoice
@@ -144,7 +196,15 @@ def read_invoice(p: Prepared, *, token: str, payee_route: dict, model: str = MOD
     """
     if p.held:
         return Reading(held=list(p.held))  # a held document never reaches the model
-    hit = _cached(p.sha256, model)
+    try:
+        hit = _cached(p.sha256, model)
+    except ModelError as e:
+        return Reading(held=["model_answer_unverified"], evidence={"problems": [str(e)]})
+    if hit is not None:  # a saved answer is re-checked in full, as if it had just arrived
+        again = reverify(hit)
+        if again or hit.get("evidence", {}).get("document_sha256") != p.sha256:
+            return Reading(held=["model_answer_unverified"],
+                           evidence={**hit.get("evidence", {}), "problems": again or ["cached reading is for another document"]})
     if hit is None:
         if spent_today() >= daily_cap():
             return Reading(held=["model_daily_cap_reached"])
@@ -200,8 +260,6 @@ def ask(text: str, doc_sha: str, *, model: str, key: str, send=http, wait: float
     _add_spend(usd)
 
     problems: list[str] = []
-    if served != model:  # covered by the signature: the model name is inside the signed response bytes
-        problems.append(f"served by {served!r}, not the pinned model {model!r}")
     q = urllib.parse.urlencode({"model": model, "signing_algo": "ecdsa"})
     signed = None
     for attempt in range(8):  # the signature lives on the node that served us; retry until we reach it
@@ -218,21 +276,9 @@ def ask(text: str, doc_sha: str, *, model: str, key: str, send=http, wait: float
     except (ModelError, ValueError) as e:
         problems.append(f"no attestation report: {e}")
 
-    model_signers = {a.get("signing_address", "") for a in report.get("model_attestations") or [] if isinstance(a, dict)}
-    gateway = report.get("gateway_attestation") if isinstance(report.get("gateway_attestation"), dict) else {}
-    gateway_signers = {gateway["signing_address"]} if gateway.get("signing_address") else set()
-    for part in [gateway, *(report.get("model_attestations") or [])]:
-        if isinstance(part, dict) and part.get("request_nonce") not in (None, nonce):
-            problems.append("attestation report does not carry our nonce")
-            break
-
-    if signed is None:
-        problems.append("no signature returned")
-    else:
-        # a model-TEE signature must come from a model TEE, a gateway signature from the gateway TEE
-        kind = signed.get("signature_kind") or ("provider_tee" if str(signed.get("text", "")).count(":") >= 2 else "gateway")
-        attested = model_signers if kind == "provider_tee" else gateway_signers
-        problems += check_signed_answer(request=request, response=response, model=model, signed=signed, attested=attested)
+    more, model_signers, gateway_signers = verify(request=request, response=response, signed=signed,
+                                                  report=report, nonce=nonce, model=model)
+    problems += [p for p in more if p not in problems]
 
     return {
         "answer": answer,
@@ -260,17 +306,95 @@ def ask(text: str, doc_sha: str, *, model: str, key: str, send=http, wait: float
     }
 
 
+def report_parts(report: dict) -> list[tuple[str, dict]]:
+    parts = []
+    g = report.get("gateway_attestation")
+    if isinstance(g, dict):
+        parts.append(("gateway", g))
+    for m in report.get("model_attestations") or []:
+        if isinstance(m, dict):
+            parts.append(("model", m))
+    return parts
+
+
+def quote_report_data(intel_quote: str) -> bytes | None:
+    """The 64-byte REPORTDATA inside an Intel TDX quote (version 4): header 48 bytes, then the
+    TD report body, REPORTDATA at body offset 520. NEAR AI Cloud puts the enclave's signing
+    address (20 bytes, zero-padded to 32) and our nonce (32 bytes) there."""
+    try:
+        q = bytes.fromhex(intel_quote)
+    except (TypeError, ValueError):
+        return None
+    if len(q) < 632 or int.from_bytes(q[0:2], "little") != 4 or q[4:8] != b"\x81\x00\x00\x00":
+        return None
+    return q[568:632]
+
+
+def verify(*, request: bytes, response: bytes, signed: dict | None, report: dict, nonce: str, model: str):
+    """Every check on one answer. Returns (problems, model_signers, gateway_signers).
+
+    A report part counts only if it carries our nonce exactly, its Intel TDX quote binds its
+    signing address and our nonce in REPORTDATA, and (for a model part) it names the pinned
+    model. Not checked here: the quote's Intel signature chain and the NVIDIA GPU evidence.
+    """
+    problems: list[str] = []
+    try:
+        data = json.loads(response)
+        if data.get("model") != model:
+            problems.append(f"served by {data.get('model')!r}, not the pinned model {model!r}")
+    except (ValueError, AttributeError):
+        problems.append("response is not JSON")
+    signers = {"model": set(), "gateway": set()}
+    if not report:
+        problems.append("no attestation report")
+    for kind, part in report_parts(report):
+        addr = str(part.get("signing_address", "")).lower()
+        if part.get("request_nonce") != nonce:
+            problems.append(f"{kind} attestation does not carry our nonce")
+            continue
+        rd = quote_report_data(part.get("intel_quote", ""))
+        try:
+            want = bytes.fromhex(addr[2:]).ljust(32, b"\0") + bytes.fromhex(nonce)
+        except ValueError:
+            want = None
+        if rd is None or want is None or rd != want:
+            problems.append(f"{kind} attestation's Intel TDX quote does not bind its signing address and our nonce")
+            continue
+        if kind == "model" and part.get("model_name") != model:
+            problems.append(f"model attestation is for {part.get('model_name')!r}, not {model!r}")
+            continue
+        signers[kind].add(addr)
+    if signed is None:
+        problems.append("no signature returned")
+    else:
+        kind = signed.get("signature_kind")
+        if kind is None:  # older answers: the text form decides
+            kind = "provider_tee" if str(signed.get("text", "")).count(":") >= 2 else "gateway"
+        if kind not in ("provider_tee", "gateway"):
+            problems.append(f"unknown signature kind {kind!r}")
+        else:
+            attested = signers["model"] if kind == "provider_tee" else signers["gateway"]
+            problems += check_signed_answer(request=request, response=response, model=model, signed=signed,
+                                            attested=attested, kind=kind)
+    return problems, signers["model"], signers["gateway"]
+
+
 def reverify(record: dict) -> list[str]:
-    """Re-check a saved reading offline: the signature over the saved bytes, and its signer."""
-    ev, signed = record["evidence"], record["evidence"].get("signature")
-    if not signed:
-        return ["no signature returned"]
+    """Re-check a saved reading offline, from the saved bytes and the saved report alone."""
+    ev = record["evidence"]
     request, response = record["request"].encode(), record["response"].encode()
+    report = record.get("attestation_report") or {}
     problems = []
-    if hashlib.sha256(request).hexdigest() != ev["request_sha256"] or hashlib.sha256(response).hexdigest() != ev["response_sha256"]:
+    if hashlib.sha256(request).hexdigest() != ev.get("request_sha256") or hashlib.sha256(response).hexdigest() != ev.get("response_sha256"):
         problems.append("saved bytes do not match the saved hashes")
-    if json.loads(response)["choices"][0]["message"]["content"] != record["answer"]:
+    if hashlib.sha256(json.dumps(report, sort_keys=True).encode()).hexdigest() != ev.get("attestation_report_sha256"):
+        problems.append("saved attestation report does not match its saved digest")
+    try:
+        content = json.loads(response)["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        content = None
+    if content != record.get("answer"):
         problems.append("saved answer is not the one in the signed response")
-    kind = signed.get("signature_kind") or ("provider_tee" if str(signed.get("text", "")).count(":") >= 2 else "gateway")
-    attested = set(ev["model_signers"] if kind == "provider_tee" else ev["gateway_signers"])
-    return problems + check_signed_answer(request=request, response=response, model=ev["model"], signed=signed, attested=attested)
+    more, _, _ = verify(request=request, response=response, signed=ev.get("signature"), report=report,
+                        nonce=ev.get("attestation_nonce", ""), model=ev.get("model", ""))
+    return problems + more

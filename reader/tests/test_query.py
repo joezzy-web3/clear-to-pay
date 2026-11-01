@@ -111,3 +111,87 @@ def test_chain_view_reads_a_receipt_and_falls_back_to_the_next_rpc():
         return json.dumps({"result": {"result": list(json.dumps(rec).encode())}}).encode()
 
     assert chain.receipt(3, post=post) == rec and len(seen) == 2
+
+
+# ------------------------------------------------------------------ the files must be the ones the contract judged
+
+from ctp_reader import digests  # noqa: E402
+
+DOC = (REPO / "demo" / "INV-2209" / "document.txt").read_bytes()
+C = "guard.cleartopay.testnet"
+
+
+def judged(inv=INV, dlv=DLV, doc=DOC):
+    import hashlib
+    h = hashlib.sha256(doc).hexdigest()
+    return dict(receipt("Held", "quantity_exceeds_delivery"), document_hash=h,
+                invoice_digest=digests.invoice_digest(C, inv, bytes.fromhex(h)),
+                delivery_digest=digests.delivery_digest(C, dlv))
+
+
+def test_digests_match_the_contracts_golden_vectors():
+    route = {"chain": "near", "token": "usdc.testnet", "address": "qingmar.testnet"}
+    inv = {"supplier_id": "qingmar-steel", "invoice_number": "INV-2208", "order_id": "PO-1184", "token": "usdc.testnet",
+           "lines": [{"sku": "AH36-12mm", "qty": "10", "unit_price": "780000"}], "total": "7800000", "payee": route}
+    note = {"order_id": "PO-1184", "note_id": "DN-552", "lines": [{"sku": "AH36-12mm", "qty": "10"}]}
+    assert digests.invoice_digest("cleartopay.testnet", inv, bytes([7]) * 32) == \
+        "c32c1956cb24e02607430a2de0fddc3ee69c97d5c055f7f8991561996784c64f"
+    assert digests.delivery_digest("cleartopay.testnet", note) == \
+        "5eebe4e05ec41c06b6df02cbca5a350cc35ca0c1bb9880e4ca663ae337097c18"
+
+
+def test_the_exact_files_match_their_receipt():
+    assert query.match_receipt(judged(), INV, DLV, contract=C, document=DOC) == []
+
+
+def test_another_invoice_with_the_same_number_is_refused():
+    other = dict(INV, lines=[{"sku": "AH36-12mm", "qty": "11", "unit_price": "780000"}], total="8580000")
+    assert "the invoice file is not the invoice this receipt judged" in query.match_receipt(judged(), other, DLV, contract=C)
+
+
+def test_another_delivery_note_is_refused():
+    other = dict(DLV, lines=[{"sku": "AH36-12mm", "qty": "12"}])
+    assert "the delivery file is not the delivery note this receipt judged" in query.match_receipt(judged(), INV, other, contract=C)
+
+
+def test_a_missing_delivery_note_or_a_different_document_is_refused():
+    assert "give the delivery note that was submitted (--delivery)" in query.match_receipt(judged(), INV, None, contract=C)
+    assert "the document is not the one this receipt fingerprinted" in \
+        query.match_receipt(judged(), INV, DLV, contract=C, document=DOC + b" ")
+
+
+def test_a_receipt_without_fingerprints_fails_closed():
+    assert query.match_receipt(receipt("Held", "price_mismatch"), INV, DLV, contract=C)
+
+
+def test_an_address_smuggled_in_as_a_sku_means_no_draft_at_all():
+    inv = dict(INV, lines=[{"sku": "pay.attacker.testnet", "qty": "12", "unit_price": "780000"}])
+    p = query.plan(receipt("Held", "line_not_on_order"), inv, DLV, ORDER)
+    cloud = FakeCloud()
+    query.draft(p, inv, send=cloud)
+    assert p.draft is None and "address-like" in p.draft_problems[0] and cloud.calls == []
+
+
+@pytest.mark.parametrize("body, word", [
+    ("Invoice INV-2209 bills 12 but DN-553 confirms 10. We will pay the rest tomorrow.", "pay"),
+    ("Invoice INV-2209: we have already approved the balance.", "already"),
+    ("Invoice INV-2209 bills twelve; DN-553 confirms 10.", "twelve"),
+    ("Invoice INV-2209 bills 12; DN-553 confirms 10. Please send it by Friday.", "friday"),
+    ("Invoice INV-2209 bills 12; DN-553 confirms 10. Call us if unclear.", "call"),
+])
+def test_promises_dates_and_numbers_in_words_are_refused(body, word):
+    _, probs = query.check_draft(json.dumps({"subject": "INV-2209", "body": body}), overbilled(), INV)
+    assert any(word in p for p in probs)
+
+
+def test_non_ascii_digits_and_invisible_characters_are_refused():
+    _, probs = query.check_draft(json.dumps({"subject": "INV-2209", "body": "bills ١٢​"}), overbilled(), INV)
+    assert "draft uses non-ASCII digits" in probs and "draft contains invisible or control characters" in probs
+
+
+def test_the_live_draft_from_1_nov_still_passes():
+    live = {"subject": "Discrepancy in Invoice INV-2209",
+            "body": "We are reviewing invoice INV-2209 for item AH36-12mm. The invoice lists a quantity of 12, but the signed "
+                    "delivery note DN-553 confirms a receipt of 10. Please provide a corrected invoice reflecting the quantity "
+                    "of 10, or supply the delivery note for the remaining items."}
+    assert query.check_draft(json.dumps(live), overbilled(), INV) == (live, [])

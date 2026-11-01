@@ -21,10 +21,45 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
-from ctp_reader import model  # noqa: E402
+from ctp_reader import hardware, model  # noqa: E402
 from ctp_reader.isolated import prepare_isolated  # noqa: E402
 
 ROUTE = HERE.parent / "demo" / "route-qingmar.json"
+
+
+def hardware_step(record: dict, path: Path) -> list[str]:
+    """Intel and NVIDIA checks. Online the first time; the full evidence (Intel collateral, NVIDIA
+    token) is kept in a local side file, <reading>.hardware.json, and re-checked offline after
+    that. Only a short summary goes into the reading itself."""
+    side = path.with_name(path.stem + ".hardware.json")
+    saved = json.loads(side.read_text()) if side.exists() else None
+    nonce = record["evidence"]["attestation_nonce"]
+    try:
+        h = hardware.check(record.get("attestation_report") or {}, nonce, saved=saved)
+    except hardware.HardwareError as e:
+        print(f"[hw]     {e}")
+        return [str(e)]
+    how = f"offline, with the evidence saved in {side.name}" if saved else "online, with Intel and NVIDIA"
+    for i in h["intel"]:
+        adv = f", advisories {', '.join(i['advisory_ids'])}" if i["advisory_ids"] else ""
+        print(f"[hw]     Intel TDX quote of the {i['kind']} enclave {i['signing_address']}: {i['status']}{adv}")
+    for n in h["nvidia"]:
+        print(f"[hw]     NVIDIA GPU attestation for {n['signing_address']}: {n['verdict']}")
+    for prob in h["problems"]:
+        print(f"[hw]     PROBLEM: {prob}")
+    if not h["problems"]:
+        print(f"[hw]     hardware checks out ({how})")
+        if not saved:
+            side.write_text(json.dumps(h, indent=1))
+            record["hardware_summary"] = {
+                "checked_at": h["checked_at"],
+                "intel": [{k: i[k] for k in ("kind", "signing_address", "status", "advisory_ids")} for i in h["intel"]],
+                "nvidia": [{k: n[k] for k in ("signing_address", "verdict")} for n in h["nvidia"]],
+                "how": "Intel TDX quote chain verified with dcap-qvl against Intel PCS collateral; GPU evidence verified by NVIDIA NRAS",
+            }
+            path.write_text(json.dumps(record, indent=2))
+            print(f"[saved]  summary added to {path.name}; full evidence in {side.name} (local, not committed)")
+    return h["problems"]
 
 
 def main() -> int:
@@ -36,13 +71,20 @@ def main() -> int:
     ap.add_argument("--write-invoice", help="save the contract invoice JSON here (for ctp-sign)")
     ap.add_argument("--save", default="reading.json", help="save the full signed reading here")
     ap.add_argument("--verify", metavar="READING", help="re-check a saved reading offline and exit")
+    ap.add_argument("--hardware", action="store_true",
+                    help="also check the attestation down to Intel and NVIDIA (needs dcap-qvl and internet the "
+                         "first time; the result is saved in the reading and re-checked offline after that)")
     a = ap.parse_args()
 
     if a.verify:
-        problems = model.reverify(json.loads(Path(a.verify).read_text()))
+        record = json.loads(Path(a.verify).read_text())
+        problems = model.reverify(record)
         for p in problems:
             print(f"[verify] PROBLEM: {p}")
-        print("[verify] signature checks out: signed inside an attested TEE over these exact bytes" if not problems else "[verify] NOT verified")
+        print("[verify] signature checks out: signed inside an enclave over these exact bytes; the enclave's "
+              "Intel TDX quote holds its address and our nonce" if not problems else "[verify] NOT verified")
+        if a.hardware and not problems:
+            problems = hardware_step(record, Path(a.verify))
         return 0 if not problems else 2
     if not a.pdf:
         ap.error("give a PDF, or --verify READING")
@@ -85,6 +127,10 @@ def main() -> int:
         if cached.exists():
             shutil.copyfile(cached, a.save)
             print(f"[saved]  {a.save} (re-check any time: python3 tools/read_invoice.py --verify {a.save})")
+            if a.hardware and not ev.get("problems"):
+                if hardware_step(json.loads(Path(a.save).read_text()), Path(a.save)):
+                    print("[result] HELD: model_hardware_unverified")
+                    return 2
     if r.held:
         if r.evidence.get("rejected"):
             print(f"[model]  answer rejected by the strict schema: {r.evidence['rejected']}")

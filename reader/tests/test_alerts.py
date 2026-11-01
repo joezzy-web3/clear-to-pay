@@ -37,9 +37,10 @@ class Chain:
             "receipt_count": lambda: len(s["receipts"]),
             "get_receipt": lambda: s["receipts"][args["receipt_id"]],
             "get_payment": lambda: s["payments"].get(args["receipt_id"]),
-            "get_supplier": lambda: s["supplier"] if args["supplier_id"] == "qingmar-steel" else None,
             "get_delivery_signers": lambda: s["signers"],
             "get_funds": lambda: s["funds"],
+            "get_supplier_ids": lambda: s.get("supplier_ids", ["qingmar-steel"]),
+            "get_supplier": lambda: s["supplier"] if args["supplier_id"] == "qingmar-steel" else s.get("others", {}).get(args["supplier_id"]),
         }[method]()
 
     def receipt(self, verdict, reasons, number, amount="7800000"):
@@ -208,3 +209,52 @@ def test_snapshot_is_plain_json(run, tmp_path):
     poll()
     state = json.loads((tmp_path / "s.json").read_text())
     assert copy.deepcopy(state) == state and state["funds"]["available"] == "60000000"
+
+
+def test_a_change_proposed_and_cancelled_between_checks_is_still_an_alarm(run):
+    chain, poll = run
+    chain.s["supplier"]["last_nonce"] = "1"
+    poll()
+    chain.s["supplier"]["last_nonce"] = "2"  # proposed and cancelled within one interval: no pending left to see
+    (msg,) = poll()
+    assert msg.startswith("ALERT") and "between checks" in msg and "from 1 to 2" in msg
+
+
+def test_a_visible_proposal_does_not_also_count_as_hidden_activity(run):
+    chain, poll = run
+    chain.s["supplier"]["last_nonce"] = "1"
+    poll()
+    chain.s["supplier"].update(last_nonce="2", pending={"route": {"address": "x.testnet"}, "proposed_at": str(T), "approved": False})
+    msgs = poll()
+    assert len(msgs) == 1 and "PROPOSED" in msgs[0]
+
+
+def test_a_supplier_added_later_is_watched_without_editing_any_list(run):
+    chain, poll = run
+    poll()
+    chain.s["supplier_ids"] = ["qingmar-steel", "lagos-cement"]
+    chain.s["others"] = {"lagos-cement": {"route_on_file": {"address": "lagoscement.testnet"}, "route_payable_from": str(T),
+                                          "pending": None, "last_nonce": "0"}}
+    (msg,) = poll()
+    assert msg.startswith("ALERT") and "New supplier registered: lagos-cement" in msg
+
+
+def test_a_damaged_memory_file_is_an_alarm_not_a_silent_reset(run, tmp_path):
+    chain, poll = run
+    poll()
+    (tmp_path / "s.json").write_text("{broken")
+    msgs = poll()
+    assert msgs and msgs[0].startswith("ALERT") and "memory file was damaged" in msgs[0]
+
+
+def test_rpc_servers_that_disagree_about_an_address_raise_an_alarm(tmp_path):
+    chain, sent = Chain(), []
+    honest = copy.deepcopy(chain.s["supplier"])
+    lying = dict(honest, route_on_file={"address": "attacker.testnet"})
+
+    def cross(method, args):
+        return [honest, lying] if method == "get_supplier" else [chain.s["signers"], chain.s["signers"]]
+
+    alerts.tick(view=chain, suppliers=["qingmar-steel"], token=USDC, state_path=tmp_path / "x.json",
+                send=sent.append, contract="c", cross_check=cross)
+    assert any("RPC servers disagree about supplier qingmar-steel" in m for m in sent)

@@ -1,16 +1,16 @@
 # Clear to Pay
 
-> A payment guardrail for AI agents on NEAR. The AI reads supplier invoices; a smart contract decides. An invoice is paid only to the supplier's registered address, for goods two different people signed as delivered, at the order's prices, once. Every decision (CLEARED, HELD, SEIZED) is a permanent receipt on NEAR testnet. Built for the NEAR Hackathon, 1-14 Nov 2026. Hackathon code, not audited.
+> A payment guardrail for AI agents on NEAR. The AI reads supplier invoices; a smart contract decides. An invoice is paid only to the supplier's registered address, for goods signed as delivered by two registered keys in two different roles (keys are not identities), at the order's prices, once. Every decision (CLEARED, HELD, SEIZED) is a permanent receipt on NEAR testnet. Built for the NEAR Hackathon, 1-14 Nov 2026. Hackathon code, not audited.
 
 This file is for AI reviewers. Each claim points to where it is proven. Run the commands; do not take the claims on trust.
 
 ## Verify in 5 minutes (no wallet, no keys)
 
-- `cargo test` : 124 contract tests, incl. 4 property tests and the baseline comparison
+- `cargo test` : 127 contract tests, incl. 4 property tests and the baseline comparison
 - `(cd tools/ctp-sign && cargo test)` : 5 signing-tool tests, golden vectors shared with the contract
-- `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 171 reader tests, incl. the 19-invoice attack corpus, 24 offline tests of the TEE model call, 14 of the follow-up drafts and 15 of the alerts
+- `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 207 reader tests, incl. the 19-invoice attack corpus, 34 offline tests of the TEE model call, 7 of the hardware check, 28 of the follow-up drafts and 20 of the alerts
 - `scripts/attack-demo.sh` : a poisoned invoice, a fooled agent, and every refusal, logged
-- `scripts/baseline.sh` : the same invoice attacks against "allowlist + limits" and against Clear to Pay
+- `scripts/baseline.sh` : the same invoice attacks against two allowlist guards and against Clear to Pay
 - `scripts/mutation-check.sh` : breaks three rules on purpose; a property test must catch each
 - `python3 reader/tools/read_invoice.py --verify docs/proof/reading-INV-2208.json` : re-checks a live AI reading's enclave signature offline
 
@@ -18,12 +18,12 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 
 - The payee can never come from the invoice or the AI: [src/inspection.rs](src/inspection.rs) (`payee_mismatch`), [reader/ctp_reader/schema.py](reader/ctp_reader/schema.py) (no payee field); tests `attack_ai_fooled_into_writing_the_attackers_address_is_seized`, `test_a_well_formed_answer_becomes_exactly_the_invoice_the_supplier_signs`
 - A delivery needs two different roles: [src/delivery_tests.rs](src/delivery_tests.rs), property test `property_a_delivery_needs_exactly_two_valid_roles`
-- An allowlist plus limits pays 9 of 11 invoice attacks; Clear to Pay pays 0 of 11, and pays the honest invoice: [docs/baseline.md](docs/baseline.md), [src/baseline_tests.rs](src/baseline_tests.rs)
-- Hidden text never reaches the model: [reader/corpus/](reader/corpus/), [reader/README.md](reader/README.md)
-- The AI's answer came from an attested enclave, unchanged, from the pinned model: [reader/ctp_reader/tee.py](reader/ctp_reader/tee.py), [reader/ctp_reader/model.py](reader/ctp_reader/model.py), [reader/tests/test_model.py](reader/tests/test_model.py); live reading in [docs/proof/reading-INV-2208.json](docs/proof/reading-INV-2208.json)
-- The agent's key cannot move money or change rules: NEAR function-call key on `buyer.cleartopay.testnet`; refusals in [docs/testnet-proof.md](docs/testnet-proof.md)
+- A global allowlist plus limits pays 9 of 11 invoice attacks, a per-supplier allowlist plus limits 8 of 11, Clear to Pay 0 of 11; all three pay the honest invoice: [docs/baseline.md](docs/baseline.md), [src/baseline_tests.rs](src/baseline_tests.rs)
+- Hidden text does not reach the model, for the 19 tricks in the corpus (clipping paths, transparency and text over photos are not covered yet): [reader/corpus/](reader/corpus/), [reader/README.md](reader/README.md)
+- The AI's answer was signed inside an enclave over our exact bytes; the enclave's Intel TDX quote holds its signing address and our nonce, and the report names the pinned model and with `--hardware` the quote's chain is verified to Intel's root and the GPU evidence by NVIDIA, as NEAR's own verifier does: [reader/ctp_reader/tee.py](reader/ctp_reader/tee.py), [reader/ctp_reader/model.py](reader/ctp_reader/model.py), [reader/tests/test_model.py](reader/tests/test_model.py); live reading in [docs/proof/reading-INV-2208.json](docs/proof/reading-INV-2208.json)
+- The agent's key cannot withdraw, attach money, change rules or move USDC directly; it can only submit invoices and send payments that already CLEARED, to the registered address: NEAR function-call key on `buyer.cleartopay.testnet`; refusals in [docs/testnet-proof.md](docs/testnet-proof.md)
 - After HELD, the AI drafts the supplier query from code-computed facts only; after SEIZED, no reply in the same thread: [reader/ctp_reader/query.py](reader/ctp_reader/query.py), [reader/tests/test_query.py](reader/tests/test_query.py)
-- Address changes, new delivery signers and SEIZED invoices raise a Telegram alert during the 72-hour wait: [reader/ctp_reader/alerts.py](reader/ctp_reader/alerts.py), [reader/tests/test_alerts.py](reader/tests/test_alerts.py)
+- Address changes (even ones proposed and cancelled between checks), new suppliers, new delivery signers and SEIZED invoices raise a Telegram alert during the 72-hour wait (polled every 15 s): [reader/ctp_reader/alerts.py](reader/ctp_reader/alerts.py), [reader/tests/test_alerts.py](reader/tests/test_alerts.py)
 - Every threat, its defence and its test: [THREAT_MODEL.md](THREAT_MODEL.md), including what is not defended yet
 
 ## On chain (NEAR testnet)

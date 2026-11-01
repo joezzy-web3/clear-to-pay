@@ -367,7 +367,15 @@ impl Contract {
         let outcome = match balance {
             _ if fl.withdrawing.0 != 0 => None,
             Some(b) if b.0 == unpaid => Some(false),
-            Some(b) if fl.payouts == 1 && Some(b.0) == unpaid.checked_sub(p.amount.0) => Some(true),
+            // Paid, provably: the balance fell by exactly this amount and no other payout can
+            // explain it, either because the counter says this is the only one in flight or,
+            // if the counter was lost (CTP4-05), because this payment is the only money reserved.
+            Some(b)
+                if (fl.payouts == 1 || (fl.payouts == 0 && f.reserved.0 == p.amount.0))
+                    && Some(b.0) == unpaid.checked_sub(p.amount.0) =>
+            {
+                Some(true)
+            }
             _ => None,
         };
         let Some(paid) = outcome else {

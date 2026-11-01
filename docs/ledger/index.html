@@ -318,7 +318,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   <span class="kick">How it reads</span><h2>Seven calls. All read-only.</h2>
   <p class="lead">Each section of this page is one view method on the contract, called over NEAR's public JSON-RPC at <code>final</code> finality.</p>
   <ol class="log">
-    <li><i style="background:var(--clear)"></i><div><b>receipt_count · get_receipt</b><span>Every verdict with its reasons, newest first.</span></div></li>
+    <li><i style="background:var(--clear)"></i><div><b>receipt_count · get_receipt</b><span>Each verdict with its reasons, newest first (the latest 200).</span></div></li>
     <li><i style="background:var(--clear)"></i><div><b>get_payment</b><span>For cleared invoices: the payment state and the attempt number.</span></div></li>
     <li><i style="background:var(--signal)"></i><div><b>get_funds</b><span>USDC available and reserved in the pool.</span></div></li>
     <li><i style="background:var(--signal)"></i><div><b>get_in_flight</b><span>Transfers sent and not yet confirmed. Their money stays reserved.</span></div></li>
@@ -364,7 +364,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     duplicate_line: ["warn", "The same item appears twice."],
     unknown_storekeeper: ["warn", "The delivery note was signed by an unregistered key."],
     invalid_delivery_signature: ["warn", "The delivery note signature does not match its contents."],
-    delivery_signatures_missing: ["warn", "Fewer than two different people (e.g. storekeeper and weighbridge) confirmed the delivery."],
+    delivery_signatures_missing: ["warn", "Fewer than the required number of different roles (two by default, e.g. storekeeper and weighbridge) signed the delivery note."],
     duplicate_delivery_signer: ["warn", "The same delivery signer was counted twice."],
     duplicate_delivery_role: ["warn", "Two signatures came from the same role; it takes two different roles."],
     delivery_signer_role_not_allowed: ["warn", "A delivery signer's role does not count for this order."],

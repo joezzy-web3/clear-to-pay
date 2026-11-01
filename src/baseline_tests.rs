@@ -16,7 +16,7 @@ use ed25519_dalek::{Signer, SigningKey};
 use near_sdk::json_types::U128;
 use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::{NearToken, testing_env};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 const HOUR: u64 = 3_600_000_000_000;
 const T0: u64 = 1_800_000_000 * 1_000_000_000;
@@ -32,9 +32,14 @@ const PER_PERIOD: u128 = 250_000 * UNIT;
 
 // ---------------------------------------------------------------------- the baseline
 
+/// Two baselines. `allowlist`: one global list of every supplier's address (common in agent
+/// spending firewalls). `by_supplier`: the stronger version a reviewer asked for, where each
+/// supplier may only be paid at its own approved address. Both have the contract's limits.
 struct Baseline {
     allowlist: HashSet<String>,
+    by_supplier: HashMap<String, String>,
     spent: u128,
+    spent_strict: u128,
 }
 
 impl Baseline {
@@ -44,8 +49,30 @@ impl Baseline {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
+            by_supplier: [
+                ("qingmar-steel", "qingmar.testnet"),
+                ("lagos-cement", "lagoscement.testnet"),
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
             spent: 0,
+            spent_strict: 0,
         }
+    }
+    fn pay_strict(&mut self, inv: &Invoice) -> Result<(), &'static str> {
+        let amount = inv.total.0;
+        if self.by_supplier.get(&inv.supplier_id) != Some(&inv.payee.address) {
+            return Err("not this supplier's approved address");
+        }
+        if amount > PER_INVOICE {
+            return Err("over per-payment limit");
+        }
+        if self.spent_strict + amount > PER_PERIOD {
+            return Err("over period limit");
+        }
+        self.spent_strict += amount;
+        Ok(())
     }
     fn pay(&mut self, inv: &Invoice) -> Result<(), &'static str> {
         let amount = inv.total.0;
@@ -207,6 +234,8 @@ fn step(inv: Invoice, note: DeliveryNote, document: u8) -> Step {
 struct Outcome {
     baseline_paid: bool,
     baseline: String,
+    strict_paid: bool,
+    strict: String,
     ctp_paid: bool,
     ctp: String,
 }
@@ -223,6 +252,7 @@ fn run_here(mut base: Baseline, steps: Vec<Step>) -> Outcome {
     let mut last = None;
     for (i, s) in steps.into_iter().enumerate() {
         let b = base.pay(&s.inv);
+        let st = base.pay_strict(&s.inv);
         let sig = sign_invoice(
             &key(SUPPLIER),
             s.signed.as_ref().unwrap_or(&s.inv),
@@ -236,10 +266,15 @@ fn run_here(mut base: Baseline, steps: Vec<Step>) -> Outcome {
             s.sigs,
             Base64VecU8(vec![s.document; 32]),
         );
-        last = Some((b, r));
+        last = Some((b, st, r));
     }
-    let (b, r) = last.unwrap();
+    let (b, st, r) = last.unwrap();
     Outcome {
+        strict_paid: st.is_ok(),
+        strict: match st {
+            Ok(()) => "**PAID**".into(),
+            Err(e) => format!("blocked ({e})"),
+        },
         baseline_paid: b.is_ok(),
         baseline: match b {
             Ok(()) => "**PAID**".into(),
@@ -293,6 +328,10 @@ fn baseline_comparison_allowlist_and_limits_versus_clear_to_pay() {
     fooled_ops
         .allowlist
         .insert("qingmar-payments.testnet".into()); // ops trusted the email and updated the list
+    fooled_ops.by_supplier.insert(
+        "qingmar-steel".into(),
+        "qingmar-payments.testnet".into(), // ...and the supplier's own approved address
+    );
     rows.push((
         "Same email, and someone adds the new address to the allowlist",
         run(
@@ -420,7 +459,7 @@ fn baseline_comparison_allowlist_and_limits_versus_clear_to_pay() {
     ));
 
     rows.push((
-        "Over the per-payment limit (both have the same limits)",
+        "Over the per-payment limit (all three have the same limits)",
         run(
             Baseline::new(),
             vec![step(
@@ -432,25 +471,39 @@ fn baseline_comparison_allowlist_and_limits_versus_clear_to_pay() {
         false,
     ));
 
-    eprintln!("| Attack | Allowlist + limits | Clear to Pay |");
-    eprintln!("|---|---|---|");
-    let (mut base_paid, mut ctp_paid) = (0, 0);
-    for (name, o, base_expected) in &rows[1..] {
-        eprintln!("| {name} | {} | {} |", o.baseline, o.ctp);
+    // the per-supplier allowlist also blocks "another supplier's address"
+    let strict_expected = [
+        false, true, false, true, true, true, true, true, true, true, false,
+    ];
+    eprintln!(
+        "| Attack | Global allowlist + limits | Per-supplier allowlist + limits | Clear to Pay |"
+    );
+    eprintln!("|---|---|---|---|");
+    let (mut base_paid, mut strict_paid, mut ctp_paid) = (0, 0, 0);
+    for ((name, o, base_expected), strict_exp) in rows[1..].iter().zip(strict_expected) {
+        eprintln!("| {name} | {} | {} | {} |", o.baseline, o.strict, o.ctp);
         assert_eq!(o.baseline_paid, *base_expected, "baseline on: {name}");
+        assert_eq!(
+            o.strict_paid, strict_exp,
+            "per-supplier baseline on: {name}"
+        );
         assert!(!o.ctp_paid, "Clear to Pay paid: {name}");
         base_paid += o.baseline_paid as u32;
+        strict_paid += o.strict_paid as u32;
         ctp_paid += o.ctp_paid as u32;
     }
     let (name, control, _) = &rows[0];
-    eprintln!("| {name} | {} | {} |", control.baseline, control.ctp);
+    eprintln!(
+        "| {name} | {} | {} | {} |",
+        control.baseline, control.strict, control.ctp
+    );
     assert!(
-        control.baseline_paid && control.ctp_paid,
-        "the honest invoice must be paid by both"
+        control.baseline_paid && control.strict_paid && control.ctp_paid,
+        "the honest invoice must be paid by all three"
     );
     let attacks = rows.len() - 1;
     eprintln!();
     eprintln!(
-        "Attacks paid: allowlist + limits {base_paid} of {attacks}; Clear to Pay {ctp_paid} of {attacks}. Honest invoice paid by both."
+        "Attacks paid: global allowlist + limits {base_paid} of {attacks}; per-supplier allowlist + limits {strict_paid} of {attacks}; Clear to Pay {ctp_paid} of {attacks}. Honest invoice paid by all three."
     );
 }

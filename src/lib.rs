@@ -201,10 +201,23 @@ impl Contract {
                 pending: None,
             },
         );
+        add_to_supplier_index(&supplier_id);
         emit(
             "supplier_registered",
             json!({ "supplier_id": supplier_id, "route": route, "payable_from": U64(payable_from) }),
         );
+    }
+
+    /// Adds a supplier registered before the index existed (v2.3) to `get_supplier_ids`,
+    /// so watchers can find every supplier. Changes nothing else.
+    #[payable]
+    pub fn index_supplier(&mut self, supplier_id: String) {
+        self.assert_owner_with_yocto();
+        require!(
+            self.suppliers.contains_key(&supplier_id),
+            "unknown supplier"
+        );
+        add_to_supplier_index(&supplier_id);
     }
 
     /// Approve the supplier's pending, signed change. It still only takes effect
@@ -313,6 +326,11 @@ impl Contract {
 
     pub fn is_paused(&self) -> bool {
         self.paused
+    }
+
+    /// Every registered supplier id, so a watcher never depends on a hand-kept list.
+    pub fn get_supplier_ids(&self) -> Vec<String> {
+        supplier_index()
     }
 
     pub fn get_supplier(&self, supplier_id: String) -> Option<SupplierView> {
@@ -506,6 +524,26 @@ pub(crate) mod test_support {
 }
 #[cfg(test)]
 mod audit_tests;
+// Kept under its own raw storage key, so adding it (v2.3) did not change the stored layout.
+const SUPPLIER_INDEX_KEY: &[u8] = b"supplier_ids";
+
+fn supplier_index() -> Vec<String> {
+    env::storage_read(SUPPLIER_INDEX_KEY)
+        .map(|b| near_sdk::borsh::from_slice(&b).expect("supplier index is valid"))
+        .unwrap_or_default()
+}
+
+fn add_to_supplier_index(id: &str) {
+    let mut ids = supplier_index();
+    if !ids.iter().any(|x| x == id) {
+        ids.push(id.to_string());
+        env::storage_write(
+            SUPPLIER_INDEX_KEY,
+            &near_sdk::borsh::to_vec(&ids).expect("encodes"),
+        );
+    }
+}
+
 #[cfg(test)]
 mod baseline_tests;
 #[cfg(test)]

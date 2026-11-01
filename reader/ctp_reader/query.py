@@ -20,7 +20,10 @@ import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+import unicodedata
+
 from . import model as M
+from .digests import delivery_digest, invoice_digest
 
 DECIMALS = 6
 
@@ -137,21 +140,57 @@ SYSTEM = (
 def template(p: Plan, invoice: dict) -> dict:
     asks = "; ".join(dict.fromkeys(p.supplier_asks))
     body = ("Hello,\n\nWe could not clear invoice {n} yet. What we found:\n- {facts}\n\n"
-            "Please send {asks}. Nothing else is needed from you.\n\nThank you,\nAccounts payable").format(
+            "Please send {asks}. Nothing else is needed from you.\n\nThank you,\nAccounts team").format(
         n=invoice["invoice_number"], facts="\n- ".join(p.facts), asks=asks)
     return {"subject": f"Invoice {invoice['invoice_number']}: correction needed", "body": body}
 
 
+# Words that would turn a draft into a promise, a date, a number in words, or a new contact route.
+COMMITMENTS = re.compile(
+    r"\b(pay|pays|paid|paying|payment|payments|payable|approve[sd]?|approval|accept(ed|s)?|release[sd]?|"
+    r"settle[sd]?|settlement|transfer(red|s)?|refund(ed|s)?|credit(ed|s)?|guarantee[sd]?|promise[sd]?|"
+    r"waive[sd]?|penalt(y|ies)|discount(s|ed)?|already|tomorrow|today|tonight|yesterday|deadline|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|"
+    r"august|september|october|november|december|"
+    r"zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|"
+    r"seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|"
+    r"million|dozen|half|double|twice|"
+    r"phone|call|whatsapp|telegram|signal|sms|reply-to|contact\s+us)\b",
+    re.I,
+)
+
+
+def facts_are_safe(p: Plan) -> list[str]:
+    """The facts come partly from the invoice (SKUs, numbers). If an attacker-chosen field looks
+    like an address or a link, no draft is written at all, not even the template."""
+    text = " ".join(p.facts + p.supplier_asks)
+    bad = FORBIDDEN.search(text)
+    return [f"the facts contain an address-like value {bad.group(0)!r}; write to the supplier by hand"] if bad else []
+
+
 def check_draft(answer: str, p: Plan, invoice: dict) -> tuple[dict | None, list[str]]:
-    """The draft may only restate the facts. Returns (draft, problems)."""
+    """The draft may only restate the facts. Returns (draft, problems).
+
+    This is a strict filter, not proof of meaning: it rejects any number, date, promise or
+    contact route that is not in the facts. A person still reads the draft before sending it."""
     try:
         d = json.loads(answer)
     except (ValueError, TypeError):
         return None, ["draft is not JSON"]
     if not isinstance(d, dict) or set(d) != {"subject", "body"} or not all(isinstance(v, str) for v in d.values()):
         return None, ["draft must have exactly a subject and a body"]
-    text = d["subject"] + "\n" + d["body"]
+    raw = d["subject"] + "\n" + d["body"]
+    text = unicodedata.normalize("NFKC", raw)
     problems = []
+    if any(unicodedata.category(c) == "Nd" and not c.isascii() for c in text):
+        problems.append("draft uses non-ASCII digits")
+    if any(unicodedata.category(c) in ("Cf", "Co", "Cs") for c in raw):
+        problems.append("draft contains invisible or control characters")
+    facts_text = " ".join(p.facts + p.supplier_asks)
+    said = {m.group(0).lower() for m in COMMITMENTS.finditer(re.sub(r"(?i)accounts\s+(payable|team)", "", text))}
+    said -= {m.group(0).lower() for m in COMMITMENTS.finditer(facts_text)}  # words the facts themselves use
+    if said:
+        problems.append(f"draft adds a promise, date, number in words or contact route: {', '.join(sorted(said))}")
     if len(text) > 1500:
         problems.append("draft is too long")
     allowed = set(re.findall(r"\d+(?:\.\d+)?", " ".join(p.facts + p.supplier_asks) + " " + invoice["invoice_number"]))
@@ -169,6 +208,10 @@ def draft(p: Plan, invoice: dict, *, use_model: bool = True, send=M.http, model:
     """Fill p.draft: the attested model's wording if it passes every check, else the template."""
     if p.seized or not p.supplier_asks:
         return p  # no supplier message for SEIZED or buyer-side holds
+    unsafe = facts_are_safe(p)
+    if unsafe:
+        p.draft_problems, p.drafted_by = unsafe, "none"
+        return p
     if use_model and M.spent_today() < M.daily_cap():
         user = "Facts:\n- " + "\n- ".join(p.facts) + "\n\nAsk the supplier for:\n- " + "\n- ".join(dict.fromkeys(p.supplier_asks)) \
             + f"\n\nInvoice number: {invoice['invoice_number']}"
@@ -191,3 +234,34 @@ def draft(p: Plan, invoice: dict, *, use_model: bool = True, send=M.http, model:
                 p.draft_problems = probs
     p.draft, p.drafted_by = template(p, invoice), "template"
     return p
+
+
+def match_receipt(receipt: dict, invoice: dict, delivery: dict | None, *, contract: str,
+                  document: bytes | None = None) -> list[str]:
+    """Problems if the local files are not exactly the ones the contract judged (empty = they are).
+
+    Recomputes the receipt's invoice and delivery fingerprints from the files, so a different
+    file that only shares the invoice number is refused."""
+    problems = []
+    for k in ("invoice_digest", "delivery_digest", "document_hash"):
+        if not receipt.get(k):
+            problems.append(f"receipt has no {k}; cannot match the files")
+    if problems:
+        return problems
+    try:
+        doc = bytes.fromhex(receipt["document_hash"])
+        if invoice_digest(contract, invoice, doc) != receipt["invoice_digest"]:
+            problems.append("the invoice file is not the invoice this receipt judged")
+    except (KeyError, ValueError, TypeError):
+        problems.append("the invoice file is not in the contract's invoice format")
+    if delivery is None:
+        problems.append("give the delivery note that was submitted (--delivery)")
+    else:
+        try:
+            if delivery_digest(contract, delivery) != receipt["delivery_digest"]:
+                problems.append("the delivery file is not the delivery note this receipt judged")
+        except (KeyError, ValueError, TypeError):
+            problems.append("the delivery file is not in the contract's delivery format")
+    if document is not None and hashlib.sha256(document).hexdigest() != receipt["document_hash"]:
+        problems.append("the document is not the one this receipt fingerprinted")
+    return problems

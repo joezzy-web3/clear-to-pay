@@ -111,3 +111,13 @@ INV-2209 (12 t billed, 10 t on the signed delivery note DN-553), submitted with 
 - HELD INV-2209 (9.36 USDC), `payee_not_yet_payable`, `quantity_exceeds_delivery`: the buyer's step (the 72-hour wait) and the supplier's correction, pointing to `tools/next_step.py 1`.
 
 From now on it sends one message per change: address changes (ALERT when proposed or approved, with the earliest payable time), new delivery signers (ALERT), verdicts, payments, and pool movements.
+
+## The live AI reading, verified down to the hardware (1 Nov 2026)
+
+`python3 reader/tools/read_invoice.py --verify docs/proof/reading-INV-2208.json --hardware`
+
+- Signature over the exact request and response bytes: checks out; the enclave's Intel TDX quote holds its signing address and our nonce in REPORTDATA; the report names the pinned model.
+- Intel TDX quote of the gateway enclave `0xb98a789cdc4817275f5155593ba73ef2a957e779`: **UpToDate** (signature chain to Intel's root CA, verified with dcap-qvl 0.7.0 and collateral from Intel's own certification service).
+- Intel TDX quote of the model enclave `0xfdbd7952498b333206f360d71d97a1e0961e8ddf`: **UpToDate**.
+- NVIDIA GPU attestation for the model enclave (evidence carrying our nonce, sent to NVIDIA's attestation service): **true**.
+- The summary is in `docs/proof/reading-INV-2208.json` (`hardware_summary`). Anyone can repeat the check with the same command after `pip install -r reader/requirements-hardware.txt`.

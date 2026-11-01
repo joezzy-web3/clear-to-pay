@@ -40,6 +40,17 @@ def view(method: str, args: dict, *, contract: str = CONTRACT, post=None) -> obj
     raise ChainError(f"{method}: no RPC answered ({last})")
 
 
+def view_each(method: str, args: dict, *, contract: str = CONTRACT, post=None) -> list:
+    """The same view from every RPC that answers, for cross-checking security-sensitive state."""
+    out = []
+    for url in RPCS:
+        try:
+            out.append(view(method, args, contract=contract, post=(lambda _u, b, url=url: (post or _post)(url, b))))
+        except ChainError:
+            pass
+    return out
+
+
 def _post(url: str, body: bytes) -> bytes:
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=15) as r:

@@ -81,18 +81,33 @@ Then, before the answer is used:
    we recompute both from the exact bytes we sent and received.
 2. The signer is recovered from the signature (`tee.py`: Keccak-256 and secp256k1, standard
    library only, cross-checked against `eth_account`) and must equal the claimed address.
-3. An attestation report is fetched with a fresh 32-byte nonce of ours. The signer must be
-   one of its `signing_address`es (a model-TEE signature must match a model TEE, a gateway
-   signature the gateway TEE), and the report must carry our nonce.
+3. An attestation report is fetched with a fresh 32-byte nonce of ours. A part of it counts
+   only if it carries our nonce exactly (a missing nonce fails), its Intel TDX quote holds
+   that part's signing address and our nonce in REPORTDATA, and, for a model part, it names
+   the pinned model. The signer must be one of those addresses (a model-TEE signature must
+   match a model part, a gateway signature the gateway part, each in its own text form);
+   an unknown signature kind is refused.
 4. The answer goes through the strict schema and arithmetic checks above.
 
+A saved answer is re-checked in full, from its saved bytes and report, before it is reused.
+
 The model name the cloud reports is inside the signed response, so a silently swapped model is caught too; an answer cut off by the token limit is HELD (`model_answer_incomplete`), never half-parsed. Any failure HOLDS the invoice. Answers are cached per document fingerprint, model and prompt
-version, so the same document is never paid for twice, and calls stop at a daily cap
+version, so the same document is never paid for twice, and calls stop at a daily cap (a local estimate from the usage the cloud reports, not a billing limit; a damaged spend record stops calls rather than resetting to zero)
 (`CTP_DAILY_CAP_USD`, default $0.50). Each reading is saved with the exact request and
 response bytes, the signature and the whole attestation report, so anyone can re-check it
 offline (`--verify`) and check the report down to the hardware with NEAR's
-[nearai-cloud-verifier](https://github.com/nearai/nearai-cloud-verifier). That last step,
-verifying the Intel TDX quote and NVIDIA evidence ourselves, is not done yet.
+[nearai-cloud-verifier](https://github.com/nearai/nearai-cloud-verifier). `--hardware` adds the
+last link (`hardware.py`): the TDX quote's signature chain is verified to Intel's root CA with
+`dcap-qvl` and collateral from Intel's own certification service, its verified REPORTDATA must
+hold the enclave's address and our nonce, and the GPU evidence (carrying our nonce) must get a
+`true` verdict from NVIDIA's attestation service. The full evidence is kept in a local
+`<reading>.hardware.json` and re-checked offline after the first run; the reading gets a summary.
+
+```bash
+pip install -r requirements-hardware.txt           # dcap-qvl, pinned
+python3 tools/read_invoice.py --verify ../docs/proof/reading-INV-2208.json --hardware
+```
+
 
 ```bash
 cd reader

@@ -28,6 +28,7 @@ def main() -> int:
     ap.add_argument("receipt_id", nargs="?", type=int)
     ap.add_argument("--invoice", help="the invoice JSON that was submitted")
     ap.add_argument("--delivery", help="the delivery note JSON that was submitted")
+    ap.add_argument("--document", help="the original document (its fingerprint must match the receipt)")
     ap.add_argument("--contract", default=chain.CONTRACT)
     ap.add_argument("--case", help="offline: one JSON file with receipt, invoice, delivery, order")
     ap.add_argument("--no-model", action="store_true", help="use the template; do not call the AI")
@@ -49,10 +50,17 @@ def main() -> int:
             return 1
         inv = json.loads(Path(a.invoice).read_text())
         dlv = json.loads(Path(a.delivery).read_text()) if a.delivery else None
-        if inv["invoice_number"] != rec["invoice_number"]:
-            print(f"[check]  this receipt is for {rec['invoice_number']}, not {inv['invoice_number']}; stopping")
-            return 1
         order = chain.order(rec["order_id"], contract=a.contract)
+    contract = case.get("contract", a.contract) if a.case else a.contract
+    doc = Path(a.document).read_bytes() if a.document else None
+    mismatch = query.match_receipt(rec, inv, dlv, contract=contract, document=doc)
+    if mismatch:
+        for m in mismatch:
+            print(f"[check]   {m}")
+        print("[check]   stopping: these files are not the ones the contract judged")
+        return 1
+    print("[check]   the invoice and delivery files match the receipt's fingerprints"
+          + (" (and the document's)" if doc else ""))
 
     print(f"[receipt] #{rec.get('id', a.receipt_id)} {rec['invoice_number']}: {str(rec['verdict']).upper()} {rec.get('reasons')}")
     if str(rec["verdict"]).upper() == "CLEARED":
@@ -70,6 +78,10 @@ def main() -> int:
         print("[draft]   none: nothing for the supplier to fix; the steps above are on the buyer's side.")
         return 0
     query.draft(p, inv, use_model=not a.no_model)
+    if p.draft is None:
+        for prob in p.draft_problems:
+            print(f"[draft]   none: {prob}")
+        return 0
     for prob in p.draft_problems:
         print(f"[check]   model draft not used: {prob}")
     if p.evidence:

@@ -39,8 +39,16 @@ def when(ns: int | str) -> str:
 
 
 def snapshot(view, *, suppliers: list[str], token: str, known: dict | None = None) -> dict:
-    """What the contract says now. Receipts already seen are not fetched again."""
+    """What the contract says now. Receipts already seen are not fetched again.
+
+    Suppliers come from the contract's own list (`get_supplier_ids`, v2.3) plus any given
+    by hand, so a supplier added later is watched without anyone remembering to add it."""
     known = known or {}
+    try:
+        listed = view("get_supplier_ids", {}) or []
+    except Exception:  # older contract without the list: the hand-kept list only
+        listed = []
+    suppliers = list(dict.fromkeys([*suppliers, *listed]))
     receipts = dict(known.get("receipts", {}))
     count = int(view("receipt_count", {}))
     for i in range(len(receipts), count):
@@ -58,6 +66,7 @@ def snapshot(view, *, suppliers: list[str], token: str, known: dict | None = Non
         v = view("get_supplier", {"supplier_id": s})
         if v:
             sup[s] = {"route": v["route_on_file"]["address"], "payable_from": str(v["route_payable_from"]),
+                      "nonce": str(v.get("last_nonce", "0")),
                       "pending": v.get("pending") and {"route": v["pending"]["route"]["address"],
                                                        "proposed_at": str(v["pending"]["proposed_at"]),
                                                        "approved": bool(v["pending"]["approved"])}}
@@ -74,6 +83,15 @@ def changes(old: dict, new: dict) -> list[Alert]:
     for s, now in new["suppliers"].items():
         before = old.get("suppliers", {}).get(s, {})
         p, q = now.get("pending"), before.get("pending")
+        if before and int(now.get("nonce", 0)) > int(before.get("nonce", 0)) + (1 if p and p != q else 0):
+            # the supplier's signed-change counter moved more than the change we can see:
+            # a change was proposed (and maybe cancelled or replaced) between two checks
+            out.append(Alert("ALARM", f"Payout address activity for {s} between checks: the signed-change counter went "
+                                      f"from {before.get('nonce')} to {now.get('nonce')}. Check the ledger and the supplier's "
+                                      f"address now."))
+        if not before and old.get("suppliers") is not None and s not in old.get("suppliers", {}):
+            out.append(Alert("ALARM", f"New supplier registered: {s}, payout address {now['route']}. "
+                                      f"Not expected? It cannot be paid for 72 hours; tell the buyer now."))
         if p and (not q or q["route"] != p["route"] or q["proposed_at"] != p["proposed_at"]):
             eta = int(p["proposed_at"]) + 72 * 3600 * 10**9
             out.append(Alert("ALARM",
@@ -182,15 +200,34 @@ def save(path: Path, state: dict) -> None:
     tmp.replace(path)
 
 
-def tick(*, view, suppliers, token, state_path: Path, send, contract: str, replay: bool = False) -> list[Alert]:
-    """One poll: fetch, compare, send, then remember. State is saved only after every message went out."""
+def tick(*, view, suppliers, token, state_path: Path, send, contract: str, replay: bool = False,
+         cross_check=None) -> list[Alert]:
+    """One poll: fetch, compare, send, then remember. State is saved only after every message went out.
+
+    A state file that exists but cannot be read is never silently replaced: it raises an
+    ALERT first. `cross_check(method, args)` returns the same view from several RPC servers;
+    if they disagree about suppliers or delivery signers, that is an ALERT too."""
+    damaged = state_path.exists() and load(state_path) is None
     old = load(state_path)
     first = old is None
     new = snapshot(view, suppliers=suppliers, token=token, known=None if first else old)
+    early: list[Alert] = []
+    if damaged:
+        early.append(Alert("ALARM", "The alert watcher's memory file was damaged and has been rebuilt. Changes made "
+                                    "while it was damaged may not have been announced: check the ledger now."))
+    if cross_check:
+        for s in new["suppliers"]:
+            answers = cross_check("get_supplier", {"supplier_id": s})
+            if len({json.dumps(a, sort_keys=True) for a in answers}) > 1:
+                early.append(Alert("ALARM", f"RPC servers disagree about supplier {s}'s payout address record. "
+                                            f"Check it on NearBlocks before approving or paying anything."))
+        answers = cross_check("get_delivery_signers", {})
+        if len({json.dumps(sorted(a or [], key=lambda x: x.get("key", "")), sort_keys=True) for a in answers}) > 1:
+            early.append(Alert("ALARM", "RPC servers disagree about the delivery signers. Check them on NearBlocks."))
     base = old or new
     if first and replay:  # announce past verdicts and payments, not the setup (signers, addresses, pool)
         base = dict(new, receipts={}, payments={})
-    alerts = changes(base, new)
+    alerts = early + changes(base, new)
     for a in alerts:
         send(format_alert(a, contract))
     save(state_path, new)

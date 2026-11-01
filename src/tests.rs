@@ -394,3 +394,13 @@ fn view_shows_route_on_file_pending_change_and_nonce() {
     assert!(!v.pending.unwrap().approved);
     assert_eq!(v.last_nonce, U64(5));
 }
+
+/// Watchers read every supplier from the contract; suppliers from before the index can be added.
+#[test]
+fn every_registered_supplier_is_listed_once() {
+    let mut c = setup();
+    assert_eq!(c.get_supplier_ids(), vec!["delta-pumps".to_string()]);
+    ctx(owner(), T0, 1);
+    c.index_supplier("delta-pumps".into());
+    assert_eq!(c.get_supplier_ids(), vec!["delta-pumps".to_string()]);
+}
