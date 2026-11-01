@@ -76,3 +76,13 @@ Signed with the agent's function-call key (the GVTR1Dmh… key above):
 - USDC `ft_transfer` with 1 yoctoNEAR: refused (same rule)
 - `allow_token` with 0 deposit: refused ("Transaction method name <allow_token> isn't allowed by the access key")
 - USDC `storage_withdraw` with 0 deposit: refused ("Transaction for <3e2210…afcb8af> doesn't match the access key for <cleartopay.testnet>")
+
+## The AI reading, signed inside a hardware enclave (1 Nov 2026)
+
+`reader/tools/read_invoice.py corpus/01-clean.pdf` on NEAR AI Cloud, private model `Qwen/Qwen3.6-35B-A3B-FP8`, chat `ec930b3925bf45b29fcffae0efc24497`, cost $0.000096.
+
+- Signed by the model enclave `0xfdbd7952498b333206f360d71d97a1e0961e8ddf`, over sha-256 of the exact request and response bytes; that key is listed in the attestation report fetched with our own fresh nonce.
+- Result: exactly `demo/INV-2208/invoice.json`. The payee comes from the registered route, not from the model.
+- The full reading (request and response bytes, signature, whole attestation report): `docs/proof/reading-INV-2208.json`. Re-check it yourself, offline: `python3 reader/tools/read_invoice.py --verify docs/proof/reading-INV-2208.json`
+- First attempt the same evening: the cloud quietly served a different model under the old name (an alias). That model spent its whole token budget thinking and returned no answer. The reader refused to guess and HELD the invoice. Now the exact model is pinned, aliasing is refused, and a swapped model or a cut-off answer is HELD.
+- The poisoned invoice (`corpus/02-white-text-payee.pdf`) was HELD before any model call; it cost nothing.

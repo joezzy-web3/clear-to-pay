@@ -8,7 +8,9 @@ invoice.pdf
                  HELD: hidden_text (dropped text mentions payment), scanned_document
   -> normalize   Unicode clean-up: NFKC, any-script digits -> 0-9
                  HELD: zero_width, bidi_control, mixed_script
-  -> [model]     reads the clean visible text, answers in a fixed JSON shape (part 2)
+  -> model       a private model on NEAR AI Cloud (inside a TEE) reads the clean text
+                 as data and answers in a fixed JSON shape; its signature is checked
+                 HELD: model_answer_unverified, model_answer_rejected, model_daily_cap_reached
   -> schema      strict validation: unknown, missing or malformed fields are rejected,
                  never repaired; there is no payee field
                  HELD: total_mismatch, amount_in_words_mismatch / _unreadable
@@ -66,6 +68,40 @@ that try to read the environment, write a file, open a socket and flood the outp
 Not enforced here: the child runs as the same OS user and can read what that user
 can read. In production, run the reader as a dedicated low-privilege user or in a
 container with no network and only the runtime mounted.
+
+## The model call (NEAR AI Cloud, attested)
+
+`model.read_invoice()` sends only the cleaned visible text, wrapped as `<invoice>...</invoice>`,
+to a "Private" model on NEAR AI Cloud (`Qwen/Qwen3.6-35B-A3B-FP8`, pinned by its canonical name with aliasing refused, thinking off, temperature 0).
+The system prompt says the text is data, never instructions, and does not ask for a payee.
+Then, before the answer is used:
+
+1. The TEE's signature is fetched (`/v1/signature/{chat id}`, retried, since it lives on the
+   node that served the call). It covers `sha256(request bytes)` and `sha256(response bytes)`;
+   we recompute both from the exact bytes we sent and received.
+2. The signer is recovered from the signature (`tee.py`: Keccak-256 and secp256k1, standard
+   library only, cross-checked against `eth_account`) and must equal the claimed address.
+3. An attestation report is fetched with a fresh 32-byte nonce of ours. The signer must be
+   one of its `signing_address`es (a model-TEE signature must match a model TEE, a gateway
+   signature the gateway TEE), and the report must carry our nonce.
+4. The answer goes through the strict schema and arithmetic checks above.
+
+The model name the cloud reports is inside the signed response, so a silently swapped model is caught too; an answer cut off by the token limit is HELD (`model_answer_incomplete`), never half-parsed. Any failure HOLDS the invoice. Answers are cached per document fingerprint, model and prompt
+version, so the same document is never paid for twice, and calls stop at a daily cap
+(`CTP_DAILY_CAP_USD`, default $0.50). Each reading is saved with the exact request and
+response bytes, the signature and the whole attestation report, so anyone can re-check it
+offline (`--verify`) and check the report down to the hardware with NEAR's
+[nearai-cloud-verifier](https://github.com/nearai/nearai-cloud-verifier). That last step,
+verifying the Intel TDX quote and NVIDIA evidence ourselves, is not done yet.
+
+```bash
+cd reader
+set -a; . ../.env; set +a          # NEAR_AI_API_KEY (or NEAR_AI_BUILDERS_API_KEY); never printed
+python3 tools/read_invoice.py corpus/01-clean.pdf --dry-run      # what would be sent; no call
+python3 tools/read_invoice.py corpus/01-clean.pdf                # real call, about $0.0001
+python3 tools/read_invoice.py --verify reading.json              # re-check offline
+python3 tools/read_invoice.py corpus/02-white-text-payee.pdf     # HELD; the model is never called
+```
 
 ## Not covered yet (stated, not claimed)
 

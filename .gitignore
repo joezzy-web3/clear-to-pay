@@ -13,3 +13,4 @@ __pycache__/
 .venv/
 .pytest_cache/
 attack-demo.log
+reader/reading.json
