@@ -428,3 +428,54 @@ fn existing_storekeepers_keep_their_role_without_migration() {
     let p = c.get_delivery_policy("PO-1184".into());
     assert_eq!((p.required, p.version), (2, 0));
 }
+
+/// Attack demo, part 2 (run with --nocapture to see the log): the AI was fooled anyway
+/// and wrote the attacker's address into the invoice. The contract decides, not the AI.
+#[test]
+fn demo_a_fooled_agent_is_stopped_by_the_contract() {
+    let mut c = setup();
+    let attacker = "qingmar-payments.testnet";
+    let n = note("PO-1184", "DN-552");
+    eprintln!("[agent]    read the poisoned invoice and believed it: pay {attacker}");
+    let mut inv = Invoice {
+        supplier_id: "qingmar-steel".into(),
+        invoice_number: "INV-2210".into(),
+        order_id: "PO-1184".into(),
+        token: "usdc.testnet".into(),
+        lines: vec![InvoiceLine {
+            sku: "AH36-12mm".into(),
+            qty: U64(10),
+            unit_price: U128(780 * UNIT),
+        }],
+        total: U128(7_800 * UNIT),
+        payee: route(),
+    };
+    inv.payee.address = attacker.into();
+    let doc = env::sha256_array(b"INV-2210 poisoned");
+    let d = InvoiceMessage {
+        domain: INVOICE_DOMAIN.into(),
+        contract: contract_id(),
+        invoice: inv.clone(),
+        document_hash: doc,
+    }
+    .digest();
+    let sig = SigningKey::from_bytes(&[SUPPLIER; 32]).sign(&d);
+    eprintln!(
+        "[agent]    submit_invoice(INV-2210, payee = {attacker}), signed by the supplier, delivery signed by two roles"
+    );
+    ctx(owner(), LIVE, 0);
+    let r = c.submit_invoice(
+        inv,
+        Base64VecU8(sig.to_bytes().to_vec()),
+        n.clone(),
+        two_signatures(&n, &contract_id()),
+        Base64VecU8(doc.to_vec()),
+    );
+    eprintln!("[contract] registered address for qingmar-steel: qingmar.testnet");
+    eprintln!("[contract] verdict: {:?} {:?}", r.verdict, r.reasons);
+    eprintln!("[contract] payment created: {:?}", r.payment);
+    assert_eq!(r.verdict, Verdict::Seized);
+    assert!(has(&r, "payee_mismatch"));
+    assert_eq!(r.payment, None);
+    eprintln!("[result]   STOPPED by the contract: nothing paid, the document can never be paid");
+}

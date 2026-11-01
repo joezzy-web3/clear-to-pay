@@ -38,6 +38,18 @@ A delivery now needs signatures from two different roles. The stored layout did 
 A function-call key's permissions cannot be edited on NEAR: a change of scope means deleting one key and adding another, both on chain. The v1 agent key (`GVTR1Dmh…`, scoped to the retired cleartopay.testnet) was deleted. The buyer account now holds exactly two keys: the live agent key (guard.cleartopay.testnet only, `submit_invoice` and `execute_payment`, 0.25 NEAR allowance) and the owner's full-access key.
 - Deletion: [2i74Uq7P…](https://testnet.nearblocks.io/txns/2i74Uq7PvdszbYUTzXNrfjPLCY8MPwkxZ6La15xobVwj)
 
+## 1 Nov 2026, refusals: the agent's key tries what it must not (`scripts/attack-demo.sh --onchain`)
+Signed with the agent's function-call key (`6ZnC3JFu…`: guard.cleartopay.testnet only, `submit_invoice` and `execute_payment` only). Refused by NEAR before reaching the chain, so no transaction exists for these:
+- `withdraw` (an owner method): "Transaction method name <withdraw> isn't allowed by the access key"
+- `submit_invoice` with 1 yoctoNEAR attached (the token every owner action requires): "Having a deposit with a function call action is not allowed with a function call access key"
+- `set_limits` with 1 yoctoNEAR: refused by the same deposit rule
+- USDC `ft_transfer` to qingmar-payments.testnet: refused by the same deposit rule (and the key only works on guard.cleartopay.testnet)
+
+Reached the contract and was refused there:
+- `execute_payment` for a receipt that does not exist: "Smart contract panicked: no payment for this receipt"
+
+The attack itself, live: INV-2210 asking to be paid to qingmar-payments.testnet, with a valid supplier signature and valid storekeeper and weighbridge signatures. **SEIZED** (`payee_mismatch`), no payment created, receipt 0 of the live contract: [HeYfLda3…](https://testnet.nearblocks.io/txns/HeYfLda3nXYoFLEkFY5ocJkpgst9unhz3HWoH8AYefYw)
+
 # v1 history (cleartopay.testnet)
 
 ## 30 Oct 2026, setup
