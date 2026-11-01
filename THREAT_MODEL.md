@@ -26,6 +26,7 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 | D8 | A signer outside the attested enclave, or an old attestation report | Signer must be in a report fetched with our own fresh nonce | `test_a_signer_outside_the_attested_tee_is_held`, `test_a_stale_attestation_report_is_held` |
 | D9 | The provider silently serves a different model | Exact model pinned, aliasing refused, served model name checked inside the signed bytes | `test_a_silently_swapped_model_is_held`; observed live on 1 Nov 2026 (proof log) |
 | D10 | A cut-off answer is half-parsed | `finish_reason` must be `stop`, else HELD | `test_an_answer_cut_off_by_the_token_limit_is_held_not_parsed` |
+| D11 | The AI's follow-up email to a supplier slips in a payment instruction or a made-up figure | The draft may only restate code-computed facts; extra numbers, addresses, links, wallets or bank words throw it out for a template; SEIZED invoices get no reply at all | `test_a_draft_that_adds_anything_is_replaced_by_the_template`, `test_seized_gets_no_supplier_draft_and_says_do_not_reply` |
 
 ## 2. The payee
 

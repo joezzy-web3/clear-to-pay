@@ -103,6 +103,27 @@ python3 tools/read_invoice.py --verify reading.json              # re-check offl
 python3 tools/read_invoice.py corpus/02-white-text-payee.pdf     # HELD; the model is never called
 ```
 
+## After HELD or SEIZED: the next step, drafted
+
+`tools/next_step.py <receipt id> --invoice ... --delivery ...` reads the receipt and the order
+from the contract and states what did not match, from the signed records only (for example
+"invoice INV-2209 bills 12; signed delivery note DN-553 confirms 10"). Then it says who acts:
+
+- **Supplier fixes** (quantity, price, total, lines): the attested model words the facts as a
+  short email (`query.py`). Code checks the draft: it may not add a number that is not in the
+  facts, or mention an account, address, link, wallet or bank details. A draft that fails, or
+  an unverified model answer, is replaced by a plain template. The draft is never sent
+  automatically.
+- **Buyer actions** (a missing second delivery signature, limits, the 72-hour wait): no message
+  to the supplier; the steps are listed for the buyer.
+- **SEIZED:** no draft at all. The message the invoice came with may be in an attacker's hands,
+  so the next step is to contact the supplier on a number already on file, never to reply.
+
+```bash
+python3 tools/next_step.py 1 --invoice ../demo/INV-2209/invoice.json --delivery ../demo/INV-2209/delivery.json
+python3 tools/next_step.py 1 --invoice ... --delivery ... --no-model    # template only, no AI call
+```
+
 ## Not covered yet (stated, not claimed)
 
 Clipping paths, transparency (fill opacity, soft masks), and text over photographs

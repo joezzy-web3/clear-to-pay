@@ -165,17 +165,21 @@ def read_invoice(p: Prepared, *, token: str, payee_route: dict, model: str = MOD
     return Reading(held=[], invoice=to_invoice(e, token=token, payee_route=payee_route), evidence=ev)
 
 
-def ask(text: str, doc_sha: str, *, model: str, key: str, send=http, wait: float = 1.5) -> dict:
-    """One verified model call. Returns {"answer": str, "evidence": {...}}; never raises on a bad signature."""
+def ask(text: str, doc_sha: str, *, model: str, key: str, send=http, wait: float = 1.5,
+        system: str = SYSTEM, user: str | None = None, max_tokens: int = 1200) -> dict:
+    """One verified model call. Returns {"answer": str, "evidence": {...}}; never raises on a bad signature.
+
+    By default it reads an invoice (`text`); other callers pass their own `system` and `user`.
+    """
     nonce = secrets.token_hex(32)
     body = {
         "model": model,
         "messages": [
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": "<invoice>\n" + text + "\n</invoice>"},
+            {"role": "system", "content": system},
+            {"role": "user", "content": user if user is not None else "<invoice>\n" + text + "\n</invoice>"},
         ],
         "temperature": 0,
-        "max_tokens": 1200,
+        "max_tokens": max_tokens,
         "stream": False,
         "chat_template_kwargs": {"enable_thinking": False},  # answer directly; no hidden reasoning to pay for
     }

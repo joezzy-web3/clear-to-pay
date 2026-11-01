@@ -8,7 +8,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 
 - `cargo test` : 124 contract tests, incl. 4 property tests and the baseline comparison
 - `(cd tools/ctp-sign && cargo test)` : 5 signing-tool tests, golden vectors shared with the contract
-- `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 142 reader tests, incl. the 19-invoice attack corpus and 24 offline tests of the TEE model call
+- `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 156 reader tests, incl. the 19-invoice attack corpus, 24 offline tests of the TEE model call and 14 of the follow-up drafts
 - `scripts/attack-demo.sh` : a poisoned invoice, a fooled agent, and every refusal, logged
 - `scripts/baseline.sh` : the same invoice attacks against "allowlist + limits" and against Clear to Pay
 - `scripts/mutation-check.sh` : breaks three rules on purpose; a property test must catch each
@@ -22,6 +22,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - Hidden text never reaches the model: [reader/corpus/](reader/corpus/), [reader/README.md](reader/README.md)
 - The AI's answer came from an attested enclave, unchanged, from the pinned model: [reader/ctp_reader/tee.py](reader/ctp_reader/tee.py), [reader/ctp_reader/model.py](reader/ctp_reader/model.py), [reader/tests/test_model.py](reader/tests/test_model.py); live reading in [docs/proof/reading-INV-2208.json](docs/proof/reading-INV-2208.json)
 - The agent's key cannot move money or change rules: NEAR function-call key on `buyer.cleartopay.testnet`; refusals in [docs/testnet-proof.md](docs/testnet-proof.md)
+- After HELD, the AI drafts the supplier query from code-computed facts only; after SEIZED, no reply in the same thread: [reader/ctp_reader/query.py](reader/ctp_reader/query.py), [reader/tests/test_query.py](reader/tests/test_query.py)
 - Every threat, its defence and its test: [THREAT_MODEL.md](THREAT_MODEL.md), including what is not defended yet
 
 ## On chain (NEAR testnet)

@@ -90,3 +90,15 @@ Signed with the agent's function-call key (the GVTR1Dmh… key above):
 ## Pool top-up (1 Nov 2026)
 
 The buyer moved 20 faucet USDC into the pool with `ft_transfer_call`, signed with its full-access key (the agent's key cannot attach the 1 yoctoNEAR this needs). Tx `HPPW2HfPvVKFoAJNeDyKuN9o55vqp26GbFKdox7qGGFL`; event `deposit` 20000000; pool `available` 40 → 60 USDC.
+
+## A HELD invoice and its next step, drafted by the attested AI (1 Nov 2026)
+
+INV-2209 (12 t billed, 10 t on the signed delivery note DN-553), submitted with the agent's key: tx `4WjgwSR4Pvx8QTfpwjcaGAKHc4s5h7in6D4L82aTQA8L`, receipt 1, **HELD** `payee_not_yet_payable`, `quantity_exceeds_delivery`. Nothing paid; the invoice number and delivery note stay usable for a corrected invoice.
+
+`reader/tools/next_step.py 1` read the receipt and the order from the contract and split the reasons:
+
+- Supplier fix (fact from the signed records): "AH36-12mm: invoice INV-2209 bills 12; signed delivery note DN-553 confirms 10."
+- Buyer step: the supplier's address is still in its 72-hour wait.
+- Draft to the supplier, written by the attested model (chat `763c1ebe235e46be8b199df685c739f4`, model `Qwen/Qwen3.6-35B-A3B-FP8`, signed by the model enclave `0xfdbd7952498b333206f360d71d97a1e0961e8ddf`, $0.000084), passed every check (no number outside the facts, no address, link, wallet or bank words): "The invoice lists a quantity of 12, but the signed delivery note DN-553 confirms a receipt of 10. Please provide a corrected invoice reflecting the quantity of 10, or supply the delivery note for the remaining items." Not sent automatically.
+
+`next_step.py 0` on the SEIZED INV-2210: no draft. "Do not reply to the message this invoice came with … contact the supplier by a phone number or address already on file."
