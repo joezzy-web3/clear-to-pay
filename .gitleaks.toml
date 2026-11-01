@@ -20,6 +20,12 @@ regexes = [
   '''^BzrpxezSnTwF2EkdRarHKo4fMZeFCeKtjGHwLDWfknrC$''',
   # A testnet transaction ID in an early commit of the proof log
   '''^9Y6MwfP5P91v7cDaJzByLTQXUz9vbSa1bopHn9m3UvzE$''',
+  # NEAR AI Cloud enclave PUBLIC keys in the attestation report of docs/proof/reading-INV-2208.json:
+  # the enclaves' ed25519 public signing keys and their OHTTP (HPKE) public key configs
+  '''^89fb781a9530473a6d3bddd6bb0a0536c8d155058798edae88b19153bd8f4350$''',
+  '''^40599fb284f43953bb356b09080fd803c960fc10285ad90eca462ca711ad4acb$''',
+  '''^0100209952f70411906bda19c396b7cf08371a6b94207628438c0df7c1a68daae27e5400080001000100010003$''',
+  '''^010020e4e354364111f2295e2d2ed97ce1103c9fdcb261459ec626d9bd8a6e15f0d11600080001000100010003$''',
 ]
 
 [[rules]]

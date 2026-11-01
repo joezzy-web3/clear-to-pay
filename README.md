@@ -14,7 +14,7 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 
 ```bash
 git clone https://github.com/joezzy-web3/clear-to-pay && cd clear-to-pay
-cargo test                                   # 123 contract tests
+cargo test                                   # 124 contract tests
 (cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)   # 142 reader tests (use a virtualenv, or add --user --break-system-packages)
 ```
 
@@ -40,10 +40,11 @@ cargo test                                   # 123 contract tests
 **Run it yourself:**
 
 ```bash
-cargo test                        # 123 contract tests, incl. 4 property tests (~2,300 random cases)
+cargo test                        # 124 contract tests, incl. 4 property tests (~2,300 random cases)
 (cd tools/ctp-sign && cargo test) # 5 signing-tool tests, incl. golden vectors shared with the contract
 (cd reader && python3 -m pytest -q) # 142 reader tests, incl. the 19-invoice attack corpus
 scripts/attack-demo.sh            # a poisoned invoice, a fooled agent, and every "no", logged
+scripts/baseline.sh               # the same attacks against "allowlist + limits" and against Clear to Pay
 scripts/mutation-check.sh         # breaks the contract on purpose; the property test must catch it
 cargo near build non-reproducible-wasm
 ```
@@ -76,6 +77,29 @@ Every testnet transaction mentioned below is listed in [docs/testnet-proof.md](d
 | The AI's answer provably came from a model in a hardware enclave, unchanged | `reader/ctp_reader/model.py`, `tee.py` (NEAR AI Cloud, private model `Qwen/Qwen3.6-35B-A3B-FP8`, pinned: the served model name is inside the signed bytes) | Every answer is signed inside the TEE over sha-256 of the exact request and response bytes; we recompute both, recover the signer (secp256k1, our own code, cross-checked against eth_account) and require it to be a signer in an attestation report fetched with our own fresh nonce. A changed response, an outside signer, a stale report or a missing signature HOLDS the invoice (`model_answer_unverified`). Answers cached per document, daily spend cap. 24 offline tests in `reader/tests/test_model.py` against a fake cloud that signs with test keys; any saved reading re-checks offline with `tools/read_invoice.py --verify` |
 | Signatures are bound to this contract and message type | Domain-separated sha-256 digests | Golden vectors in `src/vector_tests.rs` and `tools/ctp-sign`; test `attack_signature_made_for_another_contract_is_rejected` |
 | Invisible characters and lookalike letters are rejected in ids and addresses | `lib.rs` (validation) | Tests `addresses_with_invisible_characters_are_rejected`, `supplier_ids_with_lookalike_letters_are_rejected` |
+
+## Why not just an allowlist?
+
+Most agent-payment guards let the agent pay any address on an allowlist, within spending limits. We ran every invoice attack against that guard and against Clear to Pay, with the same limits, on a fresh contract each time (`scripts/baseline.sh`, test `src/baseline_tests.rs`, which fails if any row changes):
+
+| Attack | Allowlist + limits | Clear to Pay |
+|---|---|---|
+| "Bank details changed": pay the attacker's new address | blocked (payee not on allowlist) | SEIZED (`payee_mismatch`) |
+| Same email, and someone adds the new address to the allowlist | **PAID** | SEIZED (`payee_mismatch`) |
+| AI fooled into paying another supplier's address (on the allowlist) | **PAID** | SEIZED (`payee_mismatch`) |
+| Over-billing: 10 t delivered, 12 t billed | **PAID** | HELD (`quantity_exceeds_delivery`) |
+| Price raised above the order: 900 instead of 780 per t | **PAID** | HELD (`price_mismatch`) |
+| Delivery confirmed by one insider only (no second role) | **PAID** | HELD (`delivery_signatures_missing`) |
+| Same invoice paid twice | **PAID** | SEIZED (`duplicate_invoice`) |
+| Same document, new invoice number | **PAID** | SEIZED (`duplicate_document`) |
+| One delivery note used for two invoices | **PAID** | SEIZED (`delivery_note_reused`) |
+| Invoice edited after the supplier signed it | **PAID** | SEIZED (`invalid_supplier_signature`) |
+| Over the per-payment limit (both have the same limits) | blocked (over per-payment limit) | HELD (`quantity_exceeds_order`, `over_invoice_limit`) |
+| Honest invoice: 10 t delivered, 10 t billed (control) | **PAID** | **PAID** |
+
+Attacks paid: allowlist + limits 9 of 11; Clear to Pay 0 of 11. Honest invoice paid by both.
+
+The allowlist is right about one thing: an address nobody has seen before. It cannot tell **whose** address an invoice should pay, whether the goods arrived, whether the price is the order's, or whether the invoice was paid already. What the baseline does better: it needs no supplier keys and no delivery signers, so it is cheaper to set up. Every threat and its defence: [THREAT_MODEL.md](THREAT_MODEL.md). For AI reviewers: [llms.txt](llms.txt).
 
 ## The agent's key, and its limits
 

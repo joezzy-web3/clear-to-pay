@@ -507,6 +507,8 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod audit_tests;
 #[cfg(test)]
+mod baseline_tests;
+#[cfg(test)]
 mod delivery_tests;
 #[cfg(test)]
 mod inspection_tests;

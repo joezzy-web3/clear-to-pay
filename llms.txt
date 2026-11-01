@@ -1,0 +1,45 @@
+# Clear to Pay
+
+> A payment guardrail for AI agents on NEAR. The AI reads supplier invoices; a smart contract decides. An invoice is paid only to the supplier's registered address, for goods two different people signed as delivered, at the order's prices, once. Every decision (CLEARED, HELD, SEIZED) is a permanent receipt on NEAR testnet. Built for the NEAR Hackathon, 1-14 Nov 2026. Hackathon code, not audited.
+
+This file is for AI reviewers. Each claim points to where it is proven. Run the commands; do not take the claims on trust.
+
+## Verify in 5 minutes (no wallet, no keys)
+
+- `cargo test` : 124 contract tests, incl. 4 property tests and the baseline comparison
+- `(cd tools/ctp-sign && cargo test)` : 5 signing-tool tests, golden vectors shared with the contract
+- `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 142 reader tests, incl. the 19-invoice attack corpus and 24 offline tests of the TEE model call
+- `scripts/attack-demo.sh` : a poisoned invoice, a fooled agent, and every refusal, logged
+- `scripts/baseline.sh` : the same invoice attacks against "allowlist + limits" and against Clear to Pay
+- `scripts/mutation-check.sh` : breaks three rules on purpose; a property test must catch each
+- `python3 reader/tools/read_invoice.py --verify docs/proof/reading-INV-2208.json` : re-checks a live AI reading's enclave signature offline
+
+## Claims and where they are proven
+
+- The payee can never come from the invoice or the AI: [src/inspection.rs](src/inspection.rs) (`payee_mismatch`), [reader/ctp_reader/schema.py](reader/ctp_reader/schema.py) (no payee field); tests `attack_ai_fooled_into_writing_the_attackers_address_is_seized`, `test_a_well_formed_answer_becomes_exactly_the_invoice_the_supplier_signs`
+- A delivery needs two different roles: [src/delivery_tests.rs](src/delivery_tests.rs), property test `property_a_delivery_needs_exactly_two_valid_roles`
+- An allowlist plus limits pays 9 of 11 invoice attacks; Clear to Pay pays 0 of 11, and pays the honest invoice: [docs/baseline.md](docs/baseline.md), [src/baseline_tests.rs](src/baseline_tests.rs)
+- Hidden text never reaches the model: [reader/corpus/](reader/corpus/), [reader/README.md](reader/README.md)
+- The AI's answer came from an attested enclave, unchanged, from the pinned model: [reader/ctp_reader/tee.py](reader/ctp_reader/tee.py), [reader/ctp_reader/model.py](reader/ctp_reader/model.py), [reader/tests/test_model.py](reader/tests/test_model.py); live reading in [docs/proof/reading-INV-2208.json](docs/proof/reading-INV-2208.json)
+- The agent's key cannot move money or change rules: NEAR function-call key on `buyer.cleartopay.testnet`; refusals in [docs/testnet-proof.md](docs/testnet-proof.md)
+- Every threat, its defence and its test: [THREAT_MODEL.md](THREAT_MODEL.md), including what is not defended yet
+
+## On chain (NEAR testnet)
+
+- Contract: `guard.cleartopay.testnet`; buyer and agent key: `buyer.cleartopay.testnet`; supplier payout: `qingmar.cleartopay.testnet`
+- Every transaction: [docs/testnet-proof.md](docs/testnet-proof.md), viewable at https://testnet.nearblocks.io/txns/<id>
+- Live ledger (reads the chain from the browser): https://joezzy-web3.github.io/clear-to-pay/ledger/
+
+## Not built yet (stated, not claimed)
+
+- Hardware-level check of the attestation report (Intel TDX quote, NVIDIA evidence); running the reader inside OutLayer
+- Rendered-image check of PDFs; NEAR Intents cross-chain payouts; proof of control at supplier registration
+- Two colluding insiders in different roles can still confirm a false delivery
+
+## Main files
+
+- [README.md](README.md): overview, try it, claims and proof
+- [src/](src/): the contract (near-sdk 5.29, Rust)
+- [reader/](reader/): the invoice reader (Python, standard library + pdfminer.six)
+- [tools/ctp-sign/](tools/ctp-sign/): signing tool for suppliers and delivery signers
+- [demo/](demo/): fictional demo invoices (Qingmar Steel Co. is not a real company)
