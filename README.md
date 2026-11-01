@@ -139,6 +139,27 @@ The demo is a steel order, so its delivery signers are a storekeeper and a weigh
 
 The rule is the same everywhere: whoever benefits from saying "delivered" is never the only one who can say it.
 
+## How a company would use it
+
+**A week at a Lagos fabrication yard** (the demo: Qingmar Steel supplies 100 t of steel plate on order PO-1184).
+
+| When | Who | What they do | What runs today |
+|---|---|---|---|
+| Once | Buyer (finance) | Registers the supplier: its signing key and payout address, checked by a call to a number already on file. Creates the order, names the delivery roles (storekeeper, weighbridge), sets limits, puts USDC in the pool, and gives the agent a key that can only submit and pay. | Contract calls with the NEAR CLI; the supplier's address waits 72 hours before it can be paid |
+| Delivery day | Storekeeper and weighbridge operator | Each confirms what actually arrived (10 t) by signing the delivery note. Neither can do it alone. | `tools/ctp-sign` |
+| Invoice day | Supplier | Signs the invoice and sends the PDF as usual. | `tools/ctp-sign` |
+| Minutes later | The agent | Reads the PDF: hidden text cut, the attested AI pulls out the fields (never the payee), and submits. | `reader/tools/read_invoice.py`, then `submit_invoice` with the fenced key |
+| Instantly | The contract | **CLEARED**: pays the registered address. **HELD**: says what to fix, and the AI drafts the supplier query from the facts. **SEIZED**: nothing paid; call the supplier on the number on file, never reply. | Live on testnet; `reader/tools/next_step.py` |
+| Any time | Anyone (finance, the supplier, an auditor) | Opens the ledger: every receipt, its reasons and transaction; drops a document to find its receipt. | [Live ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/) |
+
+**Honestly, today:** the rules, the payments, the reader and the ledger run, but setting up and signing use a terminal. A finance team would not.
+
+**Next, so nobody needs a terminal** (planned, not claimed):
+- **Console:** a web app. The buyer signs in with a wallet to manage suppliers, orders, limits and address approvals; delivery signers confirm from a phone page; suppliers sign invoices and request address changes in the browser. Wallet message signing (NEP-413) replaces the key files.
+- **Alerts:** Telegram messages to the right person when an address change is proposed, an invoice is HELD or SEIZED, or a payment is sent. An address change becomes an alarm, not a surprise.
+- **"Inspect an invoice":** a guided walk-through on the site, with no wallet: pick an attack and watch each check stop it.
+- **Proof of control:** the supplier's payout account signs once at registration, so a mistyped or swapped address cannot even be registered.
+
 ## NEAR stack used
 
 | Piece | Where |
