@@ -34,6 +34,10 @@ A delivery now needs signatures from two different roles. The stored layout did 
 - Weighbridge key ed25519:BzrpxezSnTwF2EkdRarHKo4fMZeFCeKtjGHwLDWfknrC registered with role `weighbridge`: [D2vDAVji…](https://testnet.nearblocks.io/txns/D2vDAVjigBminnfsWd9a7SiM5DtdfvvyHZjxCVBYpBTj)
 - After the upgrade: `get_funds` 40 USDC available, 0 reserved; supplier unchanged, payable from Mon 2 Nov 2026 23:29 Lagos; `get_delivery_signers`: the storekeeper registered on 30 Oct (role `storekeeper`, carried over without migration) and the weighbridge; `get_delivery_policy("PO-1184")`: 2 roles required, version 0.
 
+## 1 Nov 2026, the retired v1 agent key deleted
+A function-call key's permissions cannot be edited on NEAR: a change of scope means deleting one key and adding another, both on chain. The v1 agent key (`GVTR1Dmh…`, scoped to the retired cleartopay.testnet) was deleted. The buyer account now holds exactly two keys: the live agent key (guard.cleartopay.testnet only, `submit_invoice` and `execute_payment`, 0.25 NEAR allowance) and the owner's full-access key.
+- Deletion: [2i74Uq7P…](https://testnet.nearblocks.io/txns/2i74Uq7PvdszbYUTzXNrfjPLCY8MPwkxZ6La15xobVwj)
+
 # v1 history (cleartopay.testnet)
 
 ## 30 Oct 2026, setup
