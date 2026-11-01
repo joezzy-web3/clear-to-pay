@@ -176,6 +176,11 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
 .log li i{width:12px;height:9px;margin-top:5px}
 .log b{display:block;font:500 14px/1.35 var(--mono)}
 .log span{display:block;font:400 15px/1.45 var(--body);color:var(--nmute);margin-top:3px}
+.next{margin:14px 0 0;background:#F6F8F5;border-left:4px solid var(--navy);padding:12px 16px;font-size:14.5px;line-height:1.5;color:var(--navy)}
+.next b{display:block;font:500 12.5px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:6px}
+.next ul{margin:0;padding-left:18px}.next li+li{margin-top:4px}
+.next span{display:block;margin-top:8px;color:var(--mute);font-size:13.5px}
+.hcard[data-v="Seized"] .next{border-left-color:var(--seize)}.hcard[data-v="Held"] .next{border-left-color:var(--signal)}
 .src{margin:14px 0 0;font:400 13px/1.5 var(--body);color:var(--mute)}.src a{color:var(--navy)}
 .rpc{margin-top:22px;font:400 13px var(--mono);color:var(--nmute)}
 .rpc b{color:var(--paper);font-weight:500}
@@ -368,6 +373,47 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     zero_amount: ["warn", "The amount is zero."],
     arithmetic_overflow: ["warn", "Numbers too large to check safely."],
   };
+  // What to do next, per reason. Written for the honest party, without helping an attacker:
+  // each step names the rule and points only to steps the buyer controls, never to a
+  // shortcut the submitter could take alone, and never says how close a submission came.
+  const NEXT = {
+    payee_mismatch: "If the supplier's payout details really changed, they never go on an invoice. The supplier contacts the buyer through a channel both already use; the buyer starts an address change, the supplier signs it, and it takes effect after its waiting period. Buyer: do not pay this outside the system.",
+    invalid_supplier_signature: "The supplier issues a new invoice signed with its registered key. Buyer: if the supplier says it sent this one, check with them on a channel you already use; someone may be posing as them.",
+    duplicate_invoice: "This invoice was already paid. A different bill needs its own invoice number.",
+    duplicate_document: "This exact document was already paid or refused. A new bill needs a new document.",
+    delivery_note_reused: "Each delivery note backs one invoice. A new delivery gets a new note, signed again by its signers.",
+    payee_not_yet_payable: "This part needs no fix: the address becomes payable when its waiting period ends. Submit again after that.",
+    quantity_exceeds_delivery: "Invoice only what the delivery signers confirmed, or the buyer checks the delivery record with the warehouse.",
+    quantity_exceeds_order: "Invoice within the order, or the buyer raises the order first.",
+    price_mismatch: "Use the order's unit price, or the buyer amends the order first.",
+    total_mismatch: "Reissue the invoice with a total equal to the sum of its lines.",
+    token_mismatch: "Invoice in the token named on the order.",
+    over_invoice_limit: "The buyer decides whether to raise the per-invoice limit. Splitting the invoice still counts against the period limit.",
+    over_period_limit: "Wait for the next period, or the buyer decides whether to raise the limit.",
+    limits_not_set: "The buyer sets limits before anything can be paid.",
+    unknown_supplier: "The buyer registers the supplier after verifying them through a channel they already trust.",
+    unknown_order: "Check the order number. The buyer creates the order before invoices against it can clear.",
+    order_supplier_mismatch: "Invoice against an order issued to this supplier.",
+    line_not_on_order: "Invoice only items on the order, or the buyer amends the order first.",
+    duplicate_line: "Put each item on one line.",
+    unknown_storekeeper: "Deliveries are confirmed only by signers the buyer registered.",
+    invalid_delivery_signature: "The delivery signers sign again, over the exact delivery note.",
+    delivery_signatures_missing: "A second person in a different role (for example the weighbridge, if the storekeeper signed) confirms the delivery.",
+    duplicate_delivery_signer: "A second, different person confirms the delivery.",
+    duplicate_delivery_role: "The second confirmation comes from a different role, not a second person in the same job.",
+    delivery_signer_role_not_allowed: "Use signers in the roles the buyer accepts for this order.",
+    delivery_order_mismatch: "Use the delivery note for this order.",
+    storekeeper_is_supplier: "A supplier cannot confirm its own delivery; the buyer's signers do.",
+    zero_amount: "There is nothing to pay.",
+    arithmetic_overflow: "Check the amounts; they are far outside any normal range.",
+  };
+  function nextSteps(r) {
+    if (r.verdict === "Cleared") return "";
+    const steps = [...new Set(r.reasons.map((c) => NEXT[c]).filter(Boolean))];
+    if (!steps.length) return "";
+    return `<div class="next"><b>What to do next</b><ul>${steps.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>${r.verdict === "Held" ? "<span>A corrected invoice is checked again from scratch.</span>" : "<span>This document will never be paid. Nothing moved, and no one is blacklisted.</span>"}</div>`;
+  }
+
   // Shown only when NEAR cannot be reached from this page (for example inside a preview frame).
   const SAMPLE = {
     "guard.cleartopay.testnet": { funds: { available: "40000000", reserved: "0" }, flight: { payouts: 0, withdrawing: "0" },
@@ -531,6 +577,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
               <div><small>Address on file</small><b>${ok === null ? "–" : ok ? "<em>matches</em>" : esc(onFile)}</b></div>
             </div>
             <ul class="why">${reasons}</ul>
+            ${nextSteps(r)}
             ${pay}
             <p class="src">${mode === "sample" ? "Sample copy of this receipt, recorded on 30 October. The hosted ledger reads it live." : rpcHost ? `Reported by ${esc(rpcHost)}, a public NEAR RPC server.` : "Shown from this browser's last read while it refreshes from a public NEAR RPC server."} <a data-ts="${esc(r.decided_at)}" data-rid="${r.id}" href="${txHref(r)}" target="_blank" rel="noopener">${KNOWN_TX[contract + "#" + r.id] ? "View the transaction on NearBlocks" : "Check it on NearBlocks"}</a></p>
             <details class="raw"><summary>${r.document_hash ? "fingerprint " + esc(short(r.document_hash)) + " · " : ""}raw receipt from the contract</summary><pre>${esc(JSON.stringify(p ? { receipt: r, payment: p } : r, null, 2))}</pre></details>
