@@ -39,6 +39,7 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 | P5 | A brand-new supplier is registered and paid at once | New suppliers wait 72 hours before they can be paid | `new_supplier_is_not_payable_for_72_hours` |
 | P6 | The route changes between CLEARED and payment | Payment goes to the current route only; the old route is never paid | `if_the_route_changes_before_payment_the_old_one_is_not_paid` |
 | P7 | Lookalike supplier IDs or invisible characters in addresses | Rejected at registration | `supplier_ids_with_lookalike_letters_are_rejected`, `addresses_with_invisible_characters_are_rejected` |
+| P8 | An address change or a new delivery signer slips through because nobody looks during the 72-hour wait | Alerts: a Telegram ALERT the moment a change is proposed or approved, or a signer is added, with the earliest payable time and how to cancel | `test_a_proposed_address_change_is_an_alarm_with_the_earliest_payable_time`, `test_an_added_delivery_signer_is_an_alarm` |
 
 ## 3. Billing and delivery
 

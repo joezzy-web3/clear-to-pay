@@ -102,3 +102,12 @@ INV-2209 (12 t billed, 10 t on the signed delivery note DN-553), submitted with 
 - Draft to the supplier, written by the attested model (chat `763c1ebe235e46be8b199df685c739f4`, model `Qwen/Qwen3.6-35B-A3B-FP8`, signed by the model enclave `0xfdbd7952498b333206f360d71d97a1e0961e8ddf`, $0.000084), passed every check (no number outside the facts, no address, link, wallet or bank words): "The invoice lists a quantity of 12, but the signed delivery note DN-553 confirms a receipt of 10. Please provide a corrected invoice reflecting the quantity of 10, or supply the delivery note for the remaining items." Not sent automatically.
 
 `next_step.py 0` on the SEIZED INV-2210: no draft. "Do not reply to the message this invoice came with … contact the supplier by a phone number or address already on file."
+
+## Telegram alerts, live (1 Nov 2026)
+
+`reader/tools/alerts.py` (read-only, no keys) connected to a Telegram bot and, with `--replay`, announced the verdicts already on `guard.cleartopay.testnet` within seconds:
+
+- ALERT: SEIZED INV-2210 (7.80 USDC), `payee_mismatch`, with "do not reply … contact the supplier by a phone number or address already on file".
+- HELD INV-2209 (9.36 USDC), `payee_not_yet_payable`, `quantity_exceeds_delivery`: the buyer's step (the 72-hour wait) and the supplier's correction, pointing to `tools/next_step.py 1`.
+
+From now on it sends one message per change: address changes (ALERT when proposed or approved, with the earliest payable time), new delivery signers (ALERT), verdicts, payments, and pool movements.

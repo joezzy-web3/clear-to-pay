@@ -124,6 +124,31 @@ python3 tools/next_step.py 1 --invoice ../demo/INV-2209/invoice.json --delivery 
 python3 tools/next_step.py 1 --invoice ... --delivery ... --no-model    # template only, no AI call
 ```
 
+## Alerts on Telegram
+
+`tools/alerts.py` watches the contract's public views (no keys) and sends one message per change:
+
+| Change | Level |
+|---|---|
+| A payout address change is proposed, approved, cancelled or takes effect | ALERT when proposed or approved, with the earliest time it could be paid and how to cancel |
+| A delivery signer is added (or removed) | ALERT when added: that is how a false delivery would get in |
+| An invoice is SEIZED | ALERT, with "do not reply, call the number on file" |
+| An invoice is HELD | the reasons, split into the buyer's steps and what the supplier must correct |
+| CLEARED, payment sent, PAID; payment failed or expired | failed or expired is an ALERT |
+| Money into the pool; money out that no payment explains | money out is an ALERT |
+
+The 72-hour wait on address changes only protects anyone if someone notices the change. This
+makes it an alarm. The first run remembers what already happened without announcing it
+(`--replay` to announce past verdicts); if a message cannot be sent, nothing is marked as seen.
+
+```bash
+# once: create a bot with @BotFather, send it a message, then put both values in .env
+#   TELEGRAM_BOT_TOKEN=...   TELEGRAM_CHAT_ID=...
+python3 tools/alerts.py --dry-run --once --replay   # print what it would send
+python3 tools/alerts.py --test                      # one test message to your phone
+python3 tools/alerts.py                             # watch every 30 s
+```
+
 ## Not covered yet (stated, not claimed)
 
 Clipping paths, transparency (fill opacity, soft masks), and text over photographs
