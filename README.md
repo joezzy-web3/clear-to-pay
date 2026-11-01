@@ -8,7 +8,7 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 
 ## Try it
 
-**30 seconds, nothing to install.** Open the [live ledger, first verdicts](https://joezzy-web3.github.io/clear-to-pay/ledger/#v1). Download [`demo/INV-2210/document.txt`](demo/INV-2210/document.txt) (a fake invoice asking to be paid to a new address) and drop it on **Verify a document**. Your browser fingerprints the file and finds its receipt on NEAR testnet: **SEIZED**, `payee_mismatch`, with a link to the transaction. Switch to **Live contract** to see the pool, the limits, the two delivery signers and the supplier's locked address, read straight from the chain.
+**30 seconds, nothing to install.** Open the [live ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/#verify) and, under **Verify a document**, click **Fake invoice, new bank details**. Your browser fingerprints the exact document that was submitted on 30 October (a fake invoice asking to be paid to a new address) and finds its receipt on NEAR testnet: **SEIZED**, `payee_mismatch`, with a link to the transaction. You can also download it there, or take [`demo/INV-2210/document.txt`](demo/INV-2210/document.txt) from this repo, and drop the file yourself. Switch to **Live contract** to see the pool, the limits, the two delivery signers and the supplier's locked address, read straight from the chain.
 
 **5 minutes, clone and test.** No wallet, no keys:
 

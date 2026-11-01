@@ -157,6 +157,12 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
 .drop:hover,.drop.over{border-color:var(--navy);background:#F6F8F5}
 .drop input{position:absolute;opacity:0;width:1px;height:1px}
 .drop canvas{width:96px;height:120px;display:block}
+.samples{margin-top:16px;font-size:14.5px;line-height:1.45;color:var(--mute)}
+.sbtns{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+.sbtns button{font:600 15px var(--body);color:var(--navy);background:var(--paper);border:2px solid var(--navy);border-radius:0;padding:10px 14px;cursor:pointer;text-align:left}
+.sbtns button:hover{background:var(--signal)}
+.sbtns small{display:block;font:400 12px var(--mono);letter-spacing:.06em;color:var(--mute);margin-top:2px}
+.samples .dl a{color:var(--navy)}
 .drop b{display:block;font:800 24px/1 var(--display)}
 .drop span{display:block;margin-top:6px;color:var(--mute);font-size:14.5px;line-height:1.45}
 .vout{margin-top:16px;font-size:15px;line-height:1.45;min-height:3em}
@@ -287,9 +293,17 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
       <p class="lead" style="font-size:16px;margin-top:10px">Drop an invoice. Your browser computes its SHA-256 fingerprint (the file never leaves your device) and looks for the receipt that carries it.</p>
       <label class="drop" id="drop" for="file">
         <canvas id="doc" width="96" height="120" aria-hidden="true"></canvas>
-        <div><b>Drop an invoice here</b><span>or choose a file. Try <code>demo/INV-2210/document.txt</code> from the repo.</span></div>
+        <div><b>Drop an invoice here</b><span>or choose a file from your device.</span></div>
         <input type="file" id="file">
       </label>
+      <div class="samples">
+        <span>No invoice handy? Try the demo documents, byte for byte the files submitted on 30 October:</span>
+        <div class="sbtns">
+          <button type="button" data-sample="INV-2210">Fake invoice, new bank details<small>INV-2210</small></button>
+          <button type="button" data-sample="INV-2209">Billed 12 t, 10 t delivered<small>INV-2209</small></button>
+        </div>
+        <span class="dl">Or download one and drop it yourself: <a download="INV-2210-document.txt" href="data:text/plain;base64,U0FNUExFIERPQ1VNRU5UIC0gRklDVElPTkFMIENPTVBBTlkgLSBOT1QgQSBSRUFMIElOVk9JQ0UKClFpbmdtYXIgU3RlZWwgQ28uIChmaWN0aW9uYWwpLCBpbnZvaWNlIElOVi0yMjEwCk9yZGVyIFBPLTExODQsIEFIMzYgc3RlZWwgcGxhdGUgMTIgbW0KUXVhbnRpdHkgYmlsbGVkOiAxMCB0IGF0IDAuNzggVVNEQyBwZXIgdApUb3RhbDogNy44MCBVU0RDClBheSB0bzogcWluZ21hci1wYXltZW50cy50ZXN0bmV0IChORUFSIHRlc3RuZXQgVVNEQykKCk5ldyBiYW5rIGRldGFpbHM6IHNhbWUgc3VwcGxpZXIsIHBheWVlIGNoYW5nZWQgdG8gYW4gYWRkcmVzcyB0aGF0IGlzIG5vdCBvbiBmaWxlLiBFeHBlY3RlZDogU0VJWkVEIChwYXllZV9taXNtYXRjaCkuCg==">INV-2210</a> · <a download="INV-2209-document.txt" href="data:text/plain;base64,U0FNUExFIERPQ1VNRU5UIC0gRklDVElPTkFMIENPTVBBTlkgLSBOT1QgQSBSRUFMIElOVk9JQ0UKClFpbmdtYXIgU3RlZWwgQ28uIChmaWN0aW9uYWwpLCBpbnZvaWNlIElOVi0yMjA5Ck9yZGVyIFBPLTExODQsIEFIMzYgc3RlZWwgcGxhdGUgMTIgbW0KUXVhbnRpdHkgYmlsbGVkOiAxMiB0IGF0IDAuNzggVVNEQyBwZXIgdApUb3RhbDogOS4zNiBVU0RDClBheSB0bzogcWluZ21hci5jbGVhcnRvcGF5LnRlc3RuZXQgKE5FQVIgdGVzdG5ldCBVU0RDKQoKT3ZlcmJpbGxlZDogd2VpZ2hicmlkZ2Ugc2F5cyAxMCB0LCBpbnZvaWNlIHNheXMgMTIgdC4gRXhwZWN0ZWQ6IEhFTEQgKHF1YW50aXR5X2V4Y2VlZHNfZGVsaXZlcnkpLgo=">INV-2209</a></span>
+      </div>
       <div class="vout" id="vout" aria-live="polite"></div>
     </article>
   </div>
@@ -594,6 +608,15 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     });
   }
 
+  // The demo documents, embedded exactly as submitted (their receipts are on the v1 contract).
+  const SAMPLES = { "INV-2210": "U0FNUExFIERPQ1VNRU5UIC0gRklDVElPTkFMIENPTVBBTlkgLSBOT1QgQSBSRUFMIElOVk9JQ0UKClFpbmdtYXIgU3RlZWwgQ28uIChmaWN0aW9uYWwpLCBpbnZvaWNlIElOVi0yMjEwCk9yZGVyIFBPLTExODQsIEFIMzYgc3RlZWwgcGxhdGUgMTIgbW0KUXVhbnRpdHkgYmlsbGVkOiAxMCB0IGF0IDAuNzggVVNEQyBwZXIgdApUb3RhbDogNy44MCBVU0RDClBheSB0bzogcWluZ21hci1wYXltZW50cy50ZXN0bmV0IChORUFSIHRlc3RuZXQgVVNEQykKCk5ldyBiYW5rIGRldGFpbHM6IHNhbWUgc3VwcGxpZXIsIHBheWVlIGNoYW5nZWQgdG8gYW4gYWRkcmVzcyB0aGF0IGlzIG5vdCBvbiBmaWxlLiBFeHBlY3RlZDogU0VJWkVEIChwYXllZV9taXNtYXRjaCkuCg==", "INV-2209": "U0FNUExFIERPQ1VNRU5UIC0gRklDVElPTkFMIENPTVBBTlkgLSBOT1QgQSBSRUFMIElOVk9JQ0UKClFpbmdtYXIgU3RlZWwgQ28uIChmaWN0aW9uYWwpLCBpbnZvaWNlIElOVi0yMjA5Ck9yZGVyIFBPLTExODQsIEFIMzYgc3RlZWwgcGxhdGUgMTIgbW0KUXVhbnRpdHkgYmlsbGVkOiAxMiB0IGF0IDAuNzggVVNEQyBwZXIgdApUb3RhbDogOS4zNiBVU0RDClBheSB0bzogcWluZ21hci5jbGVhcnRvcGF5LnRlc3RuZXQgKE5FQVIgdGVzdG5ldCBVU0RDKQoKT3ZlcmJpbGxlZDogd2VpZ2hicmlkZ2Ugc2F5cyAxMCB0LCBpbnZvaWNlIHNheXMgMTIgdC4gRXhwZWN0ZWQ6IEhFTEQgKHF1YW50aXR5X2V4Y2VlZHNfZGVsaXZlcnkpLgo=" };
+  async function trySample(name) {
+    const bytes = Uint8Array.from(atob(SAMPLES[name]), (c) => c.charCodeAt(0));
+    if (contract !== "cleartopay.testnet") await select("cleartopay.testnet");
+    await verify(new File([bytes], name + "-document.txt", { type: "text/plain" }));
+  }
+  document.querySelectorAll("[data-sample]").forEach((b) => b.addEventListener("click", () => trySample(b.dataset.sample)));
+
   async function sha(buf) { const d = await crypto.subtle.digest("SHA-256", buf); return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join(""); }
   async function verify(file) {
     const out = $("vout"); out.textContent = "Computing the fingerprint…";
@@ -665,7 +688,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     $("nb").href = "https://testnet.nearblocks.io/address/" + id;
     $("vout").textContent = ""; drawDoc(null);
     skeleton();
-    refresh();
+    return refresh();
   }
 
   document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => select(b.dataset.net)));
