@@ -121,3 +121,20 @@ From now on it sends one message per change: address changes (ALERT when propose
 - Intel TDX quote of the model enclave `0xfdbd7952498b333206f360d71d97a1e0961e8ddf`: **UpToDate**.
 - NVIDIA GPU attestation for the model enclave (evidence carrying our nonce, sent to NVIDIA's attestation service): **true**.
 - The summary is in `docs/proof/reading-INV-2208.json` (`hardware_summary`). Anyone can repeat the check with the same command after `pip install -r reader/requirements-hardware.txt`.
+
+## Which software the enclave ran, pinned (2 Nov 2026)
+
+Prompted by a reply on X: "attestation proves the hardware, not that the pinned model weights were loaded". `reader/ctp_reader/software.py` now checks, from evidence the same Intel quotes cover, what the machines ran:
+
+- Gateway and model enclaves: the event log replays to each quote's RTMR3, which measures the OS image hash and the exact container setup; both match the report.
+- Model enclave: the compose manager's launch log has its own Intel quote from the same machine, carrying sha256 of the log and our nonce. It shows the pinned model's container `model-sg-qwen36-35b-a3b-fp8-tp1-r1` launched by NEAR's `prod/small-models.yaml` (sha256 `dfac2898…41ac`), release `v0.0.513`.
+- These fingerprints are pinned in `reader/software-pins.json`. An answer from software that is not pinned is HELD (`model_software_unpinned`) until a person reviews and pins it.
+
+`python3 reader/tools/read_invoice.py --verify docs/proof/reading-INV-2208.json --hardware`, re-run online:
+
+- Intel TDX quote, gateway enclave `0xb98a789cdc4817275f5155593ba73ef2a957e779`: **UpToDate**
+- Intel TDX quote, model enclave `0xfdbd7952498b333206f360d71d97a1e0961e8ddf`: **UpToDate**
+- Intel TDX quote, the model enclave's launch log: **UpToDate**
+- NVIDIA GPU attestation: **true**
+
+Not proven: a hash of the model weights themselves. They are loaded by the pinned deployment file and NEAR's downloader. A misread invoice still fails the supplier's signature and is SEIZED.

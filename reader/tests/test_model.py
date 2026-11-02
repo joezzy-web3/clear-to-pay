@@ -111,6 +111,7 @@ def isolated_cache(tmp_path, monkeypatch):
     monkeypatch.setenv("NEAR_AI_API_KEY", "test-key")
     monkeypatch.delenv("NEAR_AI_BUILDERS_API_KEY", raising=False)
     monkeypatch.setattr(M.time, "sleep", lambda s: None)
+    monkeypatch.setenv("CTP_SOFTWARE_CHECK", "0")  # the fake cloud has no software log; tests/test_software.py covers it
 
 
 def doc(text=TEXT, held=()):
@@ -323,7 +324,8 @@ def test_a_model_signature_cannot_use_the_gateway_text_form():
     assert "signed hashes do not match the bytes we sent and received" in probs
 
 
-def test_the_live_reading_in_the_repository_still_verifies():
+def test_the_live_reading_in_the_repository_still_verifies(monkeypatch):
+    monkeypatch.setenv("CTP_SOFTWARE_CHECK", "1")
     proof = REPO / "docs" / "proof" / "reading-INV-2208.json"
     if not proof.exists():
         pytest.skip("proof file not present")

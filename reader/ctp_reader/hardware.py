@@ -132,6 +132,22 @@ def check(report: dict, nonce: str, *, saved: dict | None = None, fetch=fetch_co
         out["intel"].append({"kind": kind, "signing_address": part.get("signing_address"), **got, "collateral": coll})
         if kind != "model":
             continue
+        # The compose manager's launch log has its own quote from the same machine: check it too.
+        cm = part.get("compose_manager_attestation")
+        cm = json.loads(cm) if isinstance(cm, str) else (cm or {})
+        if cm.get("quote"):
+            try:
+                cq = bytes.fromhex(cm["quote"])
+                done = [e for e in out.setdefault("intel_launch_log", [])]
+                ccoll = saved["intel_launch_log"][len(done)]["collateral"] if saved else fetch(cq)
+                cgot = verify(cq, ccoll, out["checked_at"])
+                if cgot["status"] not in ACCEPTED:
+                    out["problems"].append(f"{label}: launch log quote, Intel TCB status {cgot['status']}")
+                if str(cgot["report_data"]).lower().removeprefix("0x") != (str(cm.get("actions_hash", "")) + nonce).lower():
+                    out["problems"].append(f"{label}: the launch log's verified quote does not hold its hash and our nonce")
+                out["intel_launch_log"].append({"signing_address": part.get("signing_address"), **cgot, "collateral": ccoll})
+            except (HardwareError, KeyError, IndexError, TypeError, ValueError) as e:
+                out["problems"].append(f"{label}: launch log quote: {e}")
         try:
             payload = json.loads(part.get("nvidia_payload") or "{}")
         except ValueError:

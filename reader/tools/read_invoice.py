@@ -21,7 +21,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
-from ctp_reader import hardware, model  # noqa: E402
+from ctp_reader import hardware, model, software  # noqa: E402
 from ctp_reader.isolated import prepare_isolated  # noqa: E402
 
 ROUTE = HERE.parent / "demo" / "route-qingmar.json"
@@ -43,6 +43,8 @@ def hardware_step(record: dict, path: Path) -> list[str]:
     for i in h["intel"]:
         adv = f", advisories {', '.join(i['advisory_ids'])}" if i["advisory_ids"] else ""
         print(f"[hw]     Intel TDX quote of the {i['kind']} enclave {i['signing_address']}: {i['status']}{adv}")
+    for i in h.get("intel_launch_log", []):
+        print(f"[hw]     Intel TDX quote of the model enclave's launch log: {i['status']}")
     for n in h["nvidia"]:
         print(f"[hw]     NVIDIA GPU attestation for {n['signing_address']}: {n['verdict']}")
     for prob in h["problems"]:
@@ -54,6 +56,8 @@ def hardware_step(record: dict, path: Path) -> list[str]:
             record["hardware_summary"] = {
                 "checked_at": h["checked_at"],
                 "intel": [{k: i[k] for k in ("kind", "signing_address", "status", "advisory_ids")} for i in h["intel"]],
+                "intel_launch_log": [{k: i[k] for k in ("signing_address", "status", "advisory_ids")}
+                                     for i in h.get("intel_launch_log", [])],
                 "nvidia": [{k: n[k] for k in ("signing_address", "verdict")} for n in h["nvidia"]],
                 "how": "Intel TDX quote chain verified with dcap-qvl against Intel PCS collateral; GPU evidence verified by NVIDIA NRAS",
             }
@@ -71,10 +75,30 @@ def main() -> int:
     ap.add_argument("--write-invoice", help="save the contract invoice JSON here (for ctp-sign)")
     ap.add_argument("--save", default="reading.json", help="save the full signed reading here")
     ap.add_argument("--verify", metavar="READING", help="re-check a saved reading offline and exit")
+    ap.add_argument("--pin-software", metavar="READING",
+                    help="add the software fingerprints of a verified reading to software-pins.json (review, then commit)")
     ap.add_argument("--hardware", action="store_true",
                     help="also check the attestation down to Intel and NVIDIA (needs dcap-qvl and internet the "
                          "first time; the result is saved in the reading and re-checked offline after that)")
     a = ap.parse_args()
+
+    if a.pin_software:
+        record = json.loads(Path(a.pin_software).read_text())
+        problems = model.reverify(record)
+        if problems:
+            for p in problems:
+                print(f"[pin]    PROBLEM: {p}")
+            print("[pin]    not pinned: the reading does not verify")
+            return 2
+        fps, _ = software.fingerprints(record["attestation_report"], record["evidence"]["attestation_nonce"],
+                                       record["evidence"]["model"])
+        for fp in fps:
+            launch = fp.get("launch") or {}
+            extra = f", launched by {launch.get('file')} {launch.get('tag')} (sha256 {launch.get('file_sha256', '')[:12]}...)" if launch else ""
+            print(f"[pin]    {fp['kind']} enclave: OS image {fp['os_image_hash'][:12]}..., containers {fp['compose_hash'][:12]}...{extra}")
+        n = software.pin(fps, record["evidence"]["model"])
+        print(f"[pin]    {n} new fingerprint(s) added to {software.PINS.name}. Review the file, then commit it.")
+        return 0
 
     if a.verify:
         record = json.loads(Path(a.verify).read_text())
@@ -132,6 +156,11 @@ def main() -> int:
                     print("[result] HELD: model_hardware_unverified")
                     return 2
     if r.held:
+        for fp in r.evidence.get("unpinned_software") or []:
+            print(f"[soft]   not pinned: {fp['kind']} enclave, OS image {fp.get('os_image_hash', '')[:12]}..., "
+                  f"containers {fp.get('compose_hash', '')[:12]}...")
+        if r.evidence.get("unpinned_software"):
+            print(f"[soft]   if NEAR changed its software on purpose: python3 tools/read_invoice.py --pin-software {a.save}")
         if r.evidence.get("rejected"):
             print(f"[model]  answer rejected by the strict schema: {r.evidence['rejected']}")
         print(f"[result] HELD: {', '.join(r.held)}")

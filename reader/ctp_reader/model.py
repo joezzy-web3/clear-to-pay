@@ -213,6 +213,14 @@ def read_invoice(p: Prepared, *, token: str, payee_route: dict, model: str = MOD
     ev = dict(hit["evidence"])
     if ev.get("problems"):
         return Reading(held=["model_answer_unverified"], evidence=ev)
+    if software_check_on():  # which software the enclave ran must be pinned (software-pins.json)
+        from . import software  # noqa: PLC0415
+        fps, probs = software.fingerprints(hit.get("attestation_report") or {}, ev["attestation_nonce"], model)
+        if probs:
+            return Reading(held=["model_answer_unverified"], evidence={**ev, "problems": probs})
+        new = software.unpinned(fps, model, software.load_pins())
+        if new:
+            return Reading(held=["model_software_unpinned"], evidence={**ev, "unpinned_software": new})
     if ev.get("finish_reason") not in (None, "stop"):
         return Reading(held=["model_answer_incomplete"], evidence=ev)  # cut off: never parse half an answer
     try:
@@ -379,6 +387,10 @@ def verify(*, request: bytes, response: bytes, signed: dict | None, report: dict
     return problems, signers["model"], signers["gateway"]
 
 
+def software_check_on() -> bool:
+    return os.environ.get("CTP_SOFTWARE_CHECK", "1") != "0"
+
+
 def reverify(record: dict) -> list[str]:
     """Re-check a saved reading offline, from the saved bytes and the saved report alone."""
     ev = record["evidence"]
@@ -397,4 +409,7 @@ def reverify(record: dict) -> list[str]:
         problems.append("saved answer is not the one in the signed response")
     more, _, _ = verify(request=request, response=response, signed=ev.get("signature"), report=report,
                         nonce=ev.get("attestation_nonce", ""), model=ev.get("model", ""))
+    if software_check_on():
+        from . import software  # noqa: PLC0415
+        more += software.fingerprints(report, ev.get("attestation_nonce", ""), ev.get("model", ""))[1]
     return problems + more

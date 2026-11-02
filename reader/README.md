@@ -108,6 +108,22 @@ pip install -r requirements-hardware.txt           # dcap-qvl, pinned
 python3 tools/read_invoice.py --verify ../docs/proof/reading-INV-2208.json --hardware
 ```
 
+**Which software the enclave ran** (`software.py`). The quote proves genuine hardware; this checks
+what ran on it, from evidence the same quote covers. The event log must replay to the quote's
+RTMR3, which measures the OS image hash and the hash of the exact container setup; both must
+match the report's own copies. For the model enclave, the compose manager keeps a launch log
+with its own Intel quote from the same machine, carrying sha256 of the log and our nonce; from it
+we take the deployment that launched the pinned model's container (NEAR's config file, its
+sha256, release tag and commit). These fingerprints are pinned in `software-pins.json`, in the
+repository so anyone can review them. An answer from software that is not pinned is HELD
+(`model_software_unpinned`); a person pins new software on purpose:
+
+```bash
+python3 tools/read_invoice.py --pin-software reading.json   # prints what it pins; review, then commit
+```
+
+Not proven: the weights' own hash. They come from the pinned deployment file and NEAR's downloader.
+
 
 ```bash
 cd reader
