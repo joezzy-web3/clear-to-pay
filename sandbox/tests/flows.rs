@@ -2,13 +2,19 @@
 //!
 //! The unit tests run the contract on a mock chain. These deploy the real wasm next to a
 //! real NEP-141 token and run the flows that depend on cross-contract calls and on NEAR
-//! itself: the deposit hook, a payout and its callback, a payout that fails, the 72-hour
+//! itself: the deposit hook, a payout and its callback, a payout that fails, the supplier
 //! wait in block time, and the agent's function-call key being refused by NEAR.
+//!
+//! One difference from the deployed wasm, on purpose: built with `sandbox-short-wait`, the
+//! supplier's wait is 2 minutes instead of 72 hours (a local node moves only about 0.3 s of
+//! block time per fast-forwarded block, so 72 hours would take hours). That build refuses to
+//! work outside the sandbox's test.near accounts. The 72-hour rule itself is covered by the
+//! unit tests and is live on testnet.
 //!
 //! Signatures come from the real signing tool (tools/ctp-sign), with its keys in a
 //! temporary home folder. Build first, from the repository root:
 //!
-//!   cargo near build non-reproducible-wasm
+//!   cargo near build non-reproducible-wasm --features sandbox-short-wait --out-dir target/near-sandbox
 //!   (cd sandbox/token && cargo near build non-reproducible-wasm --no-abi)
 //!   cargo build --manifest-path tools/ctp-sign/Cargo.toml
 //!   (cd sandbox && cargo test -- --test-threads=1)
@@ -196,7 +202,7 @@ async fn world(tag: &str, supplier_on_token: bool) -> Result<World> {
     let qingmar = mk("qingmar", 5).await?;
     let guard = mk("guard", 30)
         .await?
-        .deploy(&wasm("target/near/clear_to_pay.wasm")?)
+        .deploy(&wasm("target/near-sandbox/clear_to_pay.wasm")?)
         .await?
         .into_result()?;
     let usdc = mk("usdc", 10)
@@ -314,7 +320,8 @@ async fn world(tag: &str, supplier_on_token: bool) -> Result<World> {
             AccessKey::function_call_access(
                 g,
                 &["submit_invoice", "execute_payment"],
-                Some(NearToken::from_near(1)),
+                // A gas allowance, not money: 300 Tgas is prepaid at about 1 NEAR on the sandbox.
+                Some(NearToken::from_near(10)),
             ),
         )
         .transact()
@@ -337,8 +344,8 @@ async fn world(tag: &str, supplier_on_token: bool) -> Result<World> {
     })
 }
 
-/// Move block time past the supplier's 72-hour wait, in chunks, logging how block time moves.
-async fn wait_out_the_72_hours(w: &World, tag: &str) -> Result<()> {
+/// Move block time past the supplier wait (2 minutes in the sandbox build), in chunks, logging how block time moves.
+async fn wait_out_the_supplier_wait(w: &World, tag: &str) -> Result<()> {
     let s = view(
         &w.guard,
         "get_supplier",
@@ -357,7 +364,7 @@ async fn wait_out_the_72_hours(w: &World, tag: &str) -> Result<()> {
             log(
                 tag,
                 &format!(
-                    "72 hours passed in block time after {round} fast-forwards ({:?})",
+                    "the supplier wait passed in block time after {round} fast-forwards ({:?})",
                     started.elapsed()
                 ),
             );
@@ -425,7 +432,7 @@ fn reasons(r: &Value) -> Vec<String> {
 const BOTH: &str = "storekeeper:storekeeper,weighbridge:weighbridge";
 
 #[tokio::test]
-async fn an_honest_invoice_waits_72_hours_then_clears_and_pays_the_registered_address() -> Result<()>
+async fn an_honest_invoice_is_held_until_the_supplier_wait_ends_then_clears_and_pays() -> Result<()>
 {
     let w = world("honest", true).await?;
     let (g, t, q) = (
@@ -453,7 +460,7 @@ async fn an_honest_invoice_waits_72_hours_then_clears_and_pays_the_registered_ad
     );
     assert_eq!(balance(&w, &q).await?, 0);
 
-    wait_out_the_72_hours(&w, "honest").await?;
+    wait_out_the_supplier_wait(&w, "honest").await?;
     let r = submit(
         &w,
         w.sign
@@ -570,7 +577,7 @@ async fn a_payout_that_fails_returns_the_money_to_the_pool_and_can_be_retried() 
         w.usdc.id().clone(),
         w.qingmar.id().clone(),
     );
-    wait_out_the_72_hours(&w, "fail").await?;
+    wait_out_the_supplier_wait(&w, "fail").await?;
     let r = submit(
         &w,
         w.sign

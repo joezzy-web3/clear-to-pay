@@ -27,6 +27,22 @@ use near_sdk::{AccountId, CurveType, PanicOnDefault, PublicKey, env, near, requi
 /// How long a new or changed payout route waits before it can receive funds.
 pub const COOL_OFF_NS: u64 = 72 * 60 * 60 * 1_000_000_000;
 
+/// The wait actually applied. Always COOL_OFF_NS, except in the build made only for the
+/// near-sandbox tests (feature `sandbox-short-wait`), where it is two minutes so the payment
+/// flows can run on a local node. That build refuses to work on any account outside the
+/// sandbox's own `test.near`, so it can never run on testnet or mainnet by mistake.
+pub(crate) fn cool_off_ns() -> u64 {
+    if cfg!(feature = "sandbox-short-wait") {
+        require!(
+            env::current_account_id().as_str().ends_with(".test.near"),
+            "this build is for near-sandbox tests only"
+        );
+        120 * 1_000_000_000
+    } else {
+        COOL_OFF_NS
+    }
+}
+
 /// Domain tag mixed into every signed payout change, so a signature made for
 /// anything else (another contract, another message type) can never be reused here.
 pub const PAYOUT_CHANGE_DOMAIN: &str = "clear-to-pay/payout-change/v1";
@@ -190,7 +206,7 @@ impl Contract {
         self.supplier_keys
             .insert(signing_key.as_bytes().to_vec(), supplier_id.clone());
 
-        let payable_from = now() + COOL_OFF_NS;
+        let payable_from = now() + cool_off_ns();
         self.suppliers.insert(
             supplier_id.clone(),
             SupplierRecord {
@@ -234,7 +250,7 @@ impl Contract {
             .unwrap_or_else(|| env::panic_str("no pending change"));
         require!(!pending.approved, "change already approved");
         pending.approved = true;
-        let effective_at = pending.proposed_at.0 + COOL_OFF_NS;
+        let effective_at = pending.proposed_at.0 + cool_off_ns();
         let route = pending.route.clone();
         emit(
             "payout_change_approved",
@@ -314,7 +330,7 @@ impl Contract {
         });
         emit(
             "payout_change_proposed",
-            json!({ "supplier_id": supplier_id, "route": route, "nonce": nonce, "earliest_effective_at": U64(t + COOL_OFF_NS) }),
+            json!({ "supplier_id": supplier_id, "route": route, "nonce": nonce, "earliest_effective_at": U64(t + cool_off_ns()) }),
         );
     }
 
@@ -390,7 +406,7 @@ pub(crate) fn now() -> u64 {
 /// payable from that moment; the old one stops being payable at the same moment.
 pub(crate) fn settle(rec: &mut SupplierRecord, t: u64) {
     if let Some(p) = &rec.pending {
-        let effective_at = p.proposed_at.0 + COOL_OFF_NS;
+        let effective_at = p.proposed_at.0 + cool_off_ns();
         if p.approved && t >= effective_at {
             rec.route = p.route.clone();
             rec.route_payable_from = effective_at;
