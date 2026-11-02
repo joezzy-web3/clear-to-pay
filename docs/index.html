@@ -38,6 +38,12 @@ a{color:inherit}
 .links{display:flex;gap:6px;flex-wrap:wrap}
 .links a{font:500 15px var(--body);color:#fff;text-decoration:none;padding:9px 14px;border-radius:9px;background:rgba(255,255,255,.14);backdrop-filter:blur(6px)}
 .links a:hover{background:rgba(255,255,255,.26)}
+.links a.hot{background:var(--signal);color:var(--navy);backdrop-filter:none}
+.links a.hot:hover{background:#FFD43B}
+.logo{white-space:nowrap}.links a{white-space:nowrap}
+@media (max-width:1240px) and (min-width:901px){.links a[href="#sea"],.links a[href="#proof"]{display:none}.near{white-space:nowrap}}
+@media (max-width:1060px) and (min-width:901px){.links a[href="#how"]{display:none}.nav .btn{white-space:nowrap}}
+@media (max-width:980px) and (min-width:901px){.links a[href="#checks"]{display:none}}
 .htext{position:relative;text-align:center;margin-top:clamp(16px,4vh,60px);margin-bottom:clamp(28px,4.5vh,48px)}
 .live{display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.86);backdrop-filter:blur(10px);border-radius:999px;padding:8px 16px 8px 12px;font:500 14.5px var(--body);box-shadow:0 10px 30px -18px rgba(16,38,74,.6)}
 .live i{width:9px;height:9px;border-radius:50%;background:var(--clear);box-shadow:0 0 0 4px rgba(18,122,74,.18);animation:beat 2s infinite}
@@ -255,7 +261,7 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
 <body>
 <header class="hero gut"><div class="in" style="width:100%;display:flex;flex-direction:column;flex:1">
   <nav class="nav"><a class="logo" id="logo" href="#top"><svg width="26" height="30" viewBox="0 0 120 136" aria-hidden="true" overflow="visible"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14C50 14 82 14 112 14L94 50L112 86C82 86 50 86 20 86Z" fill="#F4C20D"><animate class="wave" attributeName="d" dur="2.6s" begin="0.4s;logo.mouseenter" values="M20 14C50 14 82 14 112 14L94 50L112 86C82 86 50 86 20 86Z;M20 14C44 -2 78 30 104 6L88 42L102 78C78 102 44 70 20 86Z;M20 14C44 30 78 -2 103 22L88 58L104 94C78 70 44 102 20 86Z;M20 14C44 -2 78 30 104 6L88 42L102 78C78 102 44 70 20 86Z;M20 14C44 30 78 -2 103 22L88 58L104 94C78 70 44 102 20 86Z;M20 14C44 -2 78 30 104 6L88 42L102 78C78 102 44 70 20 86Z;M20 14C50 14 82 14 112 14L94 50L112 86C82 86 50 86 20 86Z" keyTimes="0;.16;.33;.5;.66;.83;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1" fill="freeze"/></path><g><animateTransform class="wave" attributeName="transform" type="translate" dur="2.6s" begin="0.4s;logo.mouseenter" values="0 0;-4 -6;-5 6;-4 -6;-5 6;-2 -3;0 0" keyTimes="0;.16;.33;.5;.66;.83;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1;.45 0 .55 1" fill="freeze"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></g></svg>Clear to Pay</a>
-    <div class="links"><a href="#how">How it works</a><a href="#sea">At sea</a><a href="#checks">The checks</a><a href="#proof">Proof</a></div>
+    <div class="links"><a href="#how">How it works</a><a href="#sea">At sea</a><a href="#checks">The checks</a><a href="#proof">Proof</a><a class="hot" href="inspect/">Inspect</a></div>
     <span class="navr"><a class="near" href="https://near.org" title="Built on NEAR"><img src="near.png" alt="" width="22" height="22">Built on NEAR</a><a class="xlink" href="https://x.com/cleartopay" target="_blank" rel="noopener" title="Follow the build on X"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M17.75 3h3.07l-6.7 7.66L22 21h-6.17l-4.83-6.32L5.47 21H2.4l7.17-8.2L2 3h6.33l4.37 5.77L17.75 3Zm-1.08 16.2h1.7L7.4 4.7H5.58l11.09 14.5Z"/></svg>@cleartopay</a><a class="btn sec" href="ledger/">Open the live ledger</a></span></nav>
   <div class="htext">
     <span class="live" id="livepill"><i></i><span id="livetext"><b>Reading NEAR testnet</b> · checking the contract</span></span>
@@ -311,6 +317,7 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
     <span class="kick"><i></i>The checks</span>
     <h2>An invoice has to <mark>prove itself.</mark></h2>
     <p class="lead">Three documents must agree, and the money can only go to the supplier's registered address. Changing that address takes the supplier's own signature, the buyer's approval and 72 hours, so an email, an invoice or an AI can never redirect a payment.</p>
+    <p style="margin:22px 0 0"><a class="btn pri" href="inspect/">Watch an invoice go through every check &rarr;</a></p>
   </div>
   <div class="arcwrap"><svg viewBox="0 70 620 380" role="img" aria-label="An invoice container in the centre, connected on an arc to the purchase order, the delivery note and the payee manifest.">
     <path d="M70 330 A260 260 0 0 1 550 330" fill="none" stroke="#9AA9BC" stroke-width="1.5" stroke-dasharray="3 6"/>
