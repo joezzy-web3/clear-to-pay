@@ -1,6 +1,6 @@
 # Clear to Pay on NEAR testnet: proof log
 
-Live contract: **guard.cleartopay.testnet** (v2.2: audit fixes and the two-person delivery rule; owner: buyer.cleartopay.testnet)
+Live contract: **guard.cleartopay.testnet** (v2.3; owner: buyer.cleartopay.testnet)
 Retired contract: cleartopay.testnet (v1; its first verdicts stay below as history)
 USDC (Circle, NEAR testnet): 3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af
 Every transaction below links to NearBlocks.
@@ -138,3 +138,15 @@ Prompted by a reply on X: "attestation proves the hardware, not that the pinned 
 - NVIDIA GPU attestation: **true**
 
 Not proven: a hash of the model weights themselves. They are loaded by the pinned deployment file and NEAR's downloader. A misread invoice still fails the supplier's signature and is SEIZED.
+
+## The first real payment (2 Nov 2026, 23:3x Lagos)
+
+Qingmar became payable at 23:29 Lagos, after its 72-hour wait. `first-payment.sh`, signing with the agent's function-call key (`6ZnC3JFu…`), the Telegram watcher running:
+
+- Pool top-up first: the buyer deposited 20 faucet USDC with `ft_transfer_call` (full-access key; the agent key cannot attach the 1 yoctoNEAR); contract event `deposit` 20000000; pool `available` 60 → 80 USDC: [BuPn9XZb…](https://testnet.nearblocks.io/txns/BuPn9XZbmvWRNydZFU6M8v2xKesKPUkVu1Exa7kqHV5z)
+- Before: pool 80.00 USDC available, 0 reserved; qingmar.cleartopay.testnet held 0 USDC (registered with the token).
+- INV-2208 with the storekeeper's signature only: **HELD** `delivery_signatures_missing`, no payment created, receipt 2: [42ahayWR…](https://testnet.nearblocks.io/txns/42ahayWRnmXHyy1vhmMsQCgtZn5sKpZNd9UKded3DgUm)
+- The same invoice, storekeeper + weighbridge: **CLEARED**, receipt 3, payment `Submitted` in the same transaction: [23MoTFoV…](https://testnet.nearblocks.io/txns/23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn)
+- The USDC transfer and its callback: payment 3 **Settled**, attempt 1, recipient qingmar.cleartopay.testnet, about 1.3 s after it was authorised (`authorized_at` 1793658841693085022, `updated_at` 1793658843033974384).
+- After: pool 72.20 USDC available, 0 reserved; qingmar.cleartopay.testnet holds 7.80 USDC. The pool fell by exactly 7.80 and the supplier rose by exactly 7.80; the script checks both and stops otherwise.
+

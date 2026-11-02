@@ -280,7 +280,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   <ul class="src">
     <li><i></i><div><b>The scan</b><span>The reader's own result on the PDFs in <code>reader/corpus/</code>: fingerprint, hidden text dropped with its reason, the verdict before any AI call. Re-run it with <code>tools/read_invoice.py --dry-run</code>.</span></div></li>
     <li><i></i><div><b>The AI's answer</b><span>The live reading of the honest invoice on NEAR AI Cloud, saved whole in <a href="https://github.com/joezzy-web3/clear-to-pay/blob/main/docs/proof/reading-INV-2208.json" target="_blank" rel="noopener">docs/proof/reading-INV-2208.json</a>: request, response, signature and attestation report. It re-checks offline.</span></div></li>
-    <li><i></i><div><b>The contract's checks</b><span>The reason codes are the contract's own (<code>src/inspection.rs</code>). Two verdicts are live receipts on <code>guard.cleartopay.testnet</code>; the honest invoice's first payment runs after the supplier's 72-hour wait; the one-signer case is a contract test.</span></div></li>
+    <li><i></i><div><b>The contract's checks</b><span>The reason codes are the contract's own (<code>src/inspection.rs</code>). All four contract verdicts are live receipts on <code>guard.cleartopay.testnet</code>: the honest invoice was CLEARED and paid 7.80 USDC on 2 Nov 2026, minutes after the supplier's 72-hour wait ended.</span></div></li>
     <li><i></i><div><b>What happens next</b><span>The follow-up text is what <code>tools/next_step.py</code> printed for the live receipts: facts from the signed records, a draft for a person to read, or "no draft" for a seizure.</span></div></li>
   </ul>
 </div></section>
@@ -383,10 +383,10 @@ Payment: to the account registered with Clear to Pay`;
         ["ok", "clean", `<pre class="txt">${CLEAN_TEXT}</pre><p>Nothing was dropped. The text goes in between <code>&lt;invoice&gt;</code> tags; the instructions around it say it is data and that the model never decides where money goes.</p>`],
         ["ok", "signed", signedReading + `<p>Chat <code>ec930b39…efc24497</code>, verified signature and attestation, then the same fields become the contract's invoice with the payee taken from the register.</p>`],
         ["ok", "all pass", rules(allChecks({ wait: ok("The new supplier's 72-hour wait is over", "", "payable from Mon 2 Nov 2026, 23:29 Lagos") }))],
-        ["ok", "cleared", stamp("Cleared", "INV-2208", [], "Every rule passed, so the payment is authorised, for 7.80 USDC to the address on file and nowhere else. The control case is a contract test; the first live payment runs on Tue 3 Nov, after the supplier's wait.", "INV-2208")],
+        ["ok", "cleared", stamp("Cleared", "INV-2208", [], "Every rule passed, so the payment is authorised, for 7.80 USDC to the address on file and nowhere else. Live: receipt 3, CLEARED on 2 Nov 2026 and settled, 7.80 USDC to qingmar.cleartopay.testnet.", "INV-2208")],
         ["ok", "pay", callout("ok", "The agent pays", `The agent's key calls <code>execute_payment</code>. 7.80 USDC leaves the pool for <b>${ROUTE}</b>. That key can do two things only, submit an invoice and execute a cleared payment; it cannot withdraw, change limits or attach the deposit any owner action needs.`)],
       ],
-      proof: [[GH + "docs/proof/reading-INV-2208.json", "The signed reading", "re-checks offline"], [GH + "src/delivery_tests.rs", "Contract test", "control_storekeeper_and_weighbridge_together_clear"], ["../ledger/", "Ledger", "the live receipt appears here"]],
+      proof: [[GH + "docs/proof/reading-INV-2208.json", "The signed reading", "re-checks offline"], [GH + "src/delivery_tests.rs", "Contract test", "control_storekeeper_and_weighbridge_together_clear"], [TX + "23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn", "The payment on NearBlocks", "23MoTFoV…"]],
     },
     {
       id: "hidden", name: "White-text payee", ref: "INV-2208, poisoned", verdict: "Held", word: "is held before any AI call",
@@ -453,10 +453,10 @@ Payment: to the account registered with Clear to Pay`;
         ["hold", "1 of 2", rules(allChecks({
           roles: warn("Delivery note signed by two different roles", "delivery_signatures_missing", "the storekeeper signed; the weighbridge did not"),
         }))],
-        ["hold", "held", stamp("Held", "TEST", ["delivery_signatures_missing"], "Proved by a contract test rather than a live receipt: one signature alone, from either role, or none, is always held.", "")],
+        ["hold", "held", stamp("Held", "NO. 2", ["delivery_signatures_missing"], "Receipt 2 of the live contract, 2 Nov 2026: the honest invoice with the storekeeper's signature only. No payment. Minutes later the same invoice with both signatures cleared (receipt 3).", "")],
         ["hold", "sign", callout("hold", "Get the second signature", "The weighbridge signs delivery note DN-552, then the agent submits again. Two different roles must confirm the goods arrived; the same key twice does not count as two.")],
       ],
-      proof: [[GH + "src/delivery_tests.rs", "Contract test", "one_signature_alone_is_held"], [GH + "src/delivery_tests.rs", "Contract test", "same_signer_twice_does_not_count_twice"], [GH + "THREAT_MODEL.md", "Threat model", "keys are not people"]],
+      proof: [[TX + "42ahayWRnmXHyy1vhmMsQCgtZn5sKpZNd9UKded3DgUm", "The receipt on NearBlocks", "42ahayWR…"], [GH + "src/delivery_tests.rs", "Contract test", "one_signature_alone_is_held"], [GH + "src/delivery_tests.rs", "Contract test", "same_signer_twice_does_not_count_twice"], [GH + "THREAT_MODEL.md", "Threat model", "keys are not people"]],
     },
   ];
 
@@ -585,7 +585,7 @@ Payment: to the account registered with Clear to Pay`;
     try {
       await load();
       const mine = receipts.filter((r) => r.invoice_number === inv);
-      if (!mine.length) { span.textContent = inv === "INV-2208" ? `Not on ${CONTRACT} yet: the first live payment runs on Tue 3 Nov.` : `No receipt for ${inv} found in the latest 50.`; return; }
+      if (!mine.length) { span.textContent = inv === "INV-2208" ? `No receipt for INV-2208 found in the latest 50; see receipt 3 on the ledger.` : `No receipt for ${inv} found in the latest 50.`; return; }
       const r = mine[0];
       box.classList.add("on");
       span.innerHTML = `Live now: receipt ${r.id} on ${CONTRACT} is <b>${r.verdict.toUpperCase()}</b>${r.reasons.length ? " (" + r.reasons.join(", ") + ")" : ""}. <a href="../ledger/">See it on the ledger</a>.`;
