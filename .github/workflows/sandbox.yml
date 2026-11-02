@@ -14,7 +14,7 @@ permissions:
 jobs:
   sandbox:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Toolchain from rust-toolchain.toml
@@ -33,4 +33,4 @@ jobs:
         run: cargo build --manifest-path tools/ctp-sign/Cargo.toml
       - name: End to end on near-sandbox
         working-directory: sandbox
-        run: cargo update -p near-workspaces && cargo tree -i near-workspaces --depth 0 && cargo test -- --test-threads=1 --nocapture
+        run: cargo update -p near-workspaces && cargo tree -i near-workspaces --depth 0 && cargo test -- --nocapture

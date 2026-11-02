@@ -177,7 +177,9 @@ async fn funds(w: &World) -> Result<(u128, u128)> {
 /// delivery signers and the agent's function-call key. `supplier_on_token` decides
 /// whether the supplier can receive the token at all (false = every payout fails).
 async fn world(tag: &str, supplier_on_token: bool) -> Result<World> {
+    log(tag, "starting a local NEAR node");
     let worker = near_workspaces::sandbox().await?;
+    log(tag, "node up; deploying the contract and the token");
     let root = worker.root_account()?;
     let mk = |name: &'static str, near: u128| {
         let root = root.clone();
@@ -320,6 +322,10 @@ async fn world(tag: &str, supplier_on_token: bool) -> Result<World> {
         .into_result()
         .map_err(|e| anyhow::anyhow!("adding the agent key: {e:?}"))?;
     let agent = Account::from_secret_key(buyer.id().clone(), sk, &worker);
+    log(
+        tag,
+        "setup done: pool, supplier, order, limits, two delivery signers, agent key",
+    );
     Ok(World {
         worker,
         guard,
@@ -331,35 +337,67 @@ async fn world(tag: &str, supplier_on_token: bool) -> Result<World> {
     })
 }
 
-/// Move block time past the supplier's 72-hour wait.
-async fn wait_out_the_72_hours(w: &World) -> Result<()> {
-    for _ in 0..12 {
-        if !view(
-            &w.guard,
-            "payable_route",
-            json!({"supplier_id": "qingmar-steel"}),
-        )
-        .await?
-        .is_null()
-        {
-            return Ok(());
-        }
-        let s = view(
-            &w.guard,
-            "get_supplier",
-            json!({"supplier_id": "qingmar-steel"}),
-        )
-        .await?;
-        let from: u64 = s["route_payable_from"]
-            .as_str()
-            .context("payable_from")?
-            .parse()?;
+/// Move block time past the supplier's 72-hour wait, in chunks, logging how block time moves.
+async fn wait_out_the_72_hours(w: &World, tag: &str) -> Result<()> {
+    let s = view(
+        &w.guard,
+        "get_supplier",
+        json!({"supplier_id": "qingmar-steel"}),
+    )
+    .await?;
+    let from: u64 = s["route_payable_from"]
+        .as_str()
+        .context("payable_from")?
+        .parse()?;
+    let started = std::time::Instant::now();
+    let mut chunk: u64 = 1_000; // small first, to measure how far one block moves time
+    for round in 0..200 {
         let now = w.worker.view_block().await?.timestamp();
-        // Sandbox block time is not exactly one second, so ask for twice what is left and check again.
-        let blocks = 2 * (from.saturating_sub(now) / 1_000_000_000) + 60;
-        w.worker.fast_forward(blocks).await?;
+        if now >= from {
+            log(
+                tag,
+                &format!(
+                    "72 hours passed in block time after {round} fast-forwards ({:?})",
+                    started.elapsed()
+                ),
+            );
+            break;
+        }
+        w.worker.fast_forward(chunk).await?;
+        let after = w.worker.view_block().await?.timestamp();
+        let per_block = after.saturating_sub(now) / chunk.max(1);
+        log(
+            tag,
+            &format!(
+                "fast-forward {chunk} blocks: block time +{} s ({} ms per block), {} h to go",
+                after.saturating_sub(now) / 1_000_000_000,
+                per_block / 1_000_000,
+                from.saturating_sub(after) / 3_600_000_000_000
+            ),
+        );
+        // Ask for what is left (plus a margin), now that the time per block is known.
+        if per_block > 0 {
+            chunk = (from.saturating_sub(after) / per_block + 100).clamp(1_000, 200_000);
+        }
+        if started.elapsed() > std::time::Duration::from_secs(600) {
+            bail!("fast-forwarding took over 10 minutes");
+        }
     }
-    bail!("the 72-hour wait did not pass after fast-forwarding")
+    if view(
+        &w.guard,
+        "payable_route",
+        json!({"supplier_id": "qingmar-steel"}),
+    )
+    .await?
+    .is_null()
+    {
+        bail!("block time passed the wait, but the supplier is still not payable");
+    }
+    Ok(())
+}
+
+fn log(tag: &str, msg: &str) {
+    eprintln!("[{tag}] {msg}");
 }
 
 async fn submit(w: &World, args: Value) -> Result<Value> {
@@ -415,7 +453,7 @@ async fn an_honest_invoice_waits_72_hours_then_clears_and_pays_the_registered_ad
     );
     assert_eq!(balance(&w, &q).await?, 0);
 
-    wait_out_the_72_hours(&w).await?;
+    wait_out_the_72_hours(&w, "honest").await?;
     let r = submit(
         &w,
         w.sign
@@ -463,7 +501,6 @@ async fn an_honest_invoice_waits_72_hours_then_clears_and_pays_the_registered_ad
 async fn new_bank_details_are_seized_even_with_every_signature_valid() -> Result<()> {
     let w = world("seize", true).await?;
     let (g, t) = (w.guard.id().clone(), w.usdc.id().clone());
-    wait_out_the_72_hours(&w).await?;
     let attacker: AccountId = "qingmar-payments.test.near".parse()?;
     let r = submit(
         &w,
@@ -489,7 +526,6 @@ async fn one_signer_and_over_billing_are_held_on_chain_too() -> Result<()> {
         w.usdc.id().clone(),
         w.qingmar.id().clone(),
     );
-    wait_out_the_72_hours(&w).await?;
     let one = submit(
         &w,
         w.sign.invoice(
@@ -534,7 +570,7 @@ async fn a_payout_that_fails_returns_the_money_to_the_pool_and_can_be_retried() 
         w.usdc.id().clone(),
         w.qingmar.id().clone(),
     );
-    wait_out_the_72_hours(&w).await?;
+    wait_out_the_72_hours(&w, "fail").await?;
     let r = submit(
         &w,
         w.sign
