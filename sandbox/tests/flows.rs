@@ -5,16 +5,13 @@
 //! itself: the deposit hook, a payout and its callback, a payout that fails, the supplier
 //! wait in block time, and the agent's function-call key being refused by NEAR.
 //!
-//! One difference from the deployed wasm, on purpose: built with `sandbox-short-wait`, the
-//! supplier's wait is 2 minutes instead of 72 hours (a local node moves only about 0.3 s of
-//! block time per fast-forwarded block, so 72 hours would take hours). That build refuses to
-//! work outside the sandbox's test.near accounts. The 72-hour rule itself is covered by the
-//! unit tests and is live on testnet.
+//! The wasm is exactly the deployed one. To get past the supplier's 72-hour wait, the tests
+//! rewrite that one stored time on the local node (patch_state); the rule itself is unit-tested.
 //!
 //! Signatures come from the real signing tool (tools/ctp-sign), with its keys in a
 //! temporary home folder. Build first, from the repository root:
 //!
-//!   cargo near build non-reproducible-wasm --features sandbox-short-wait --out-dir target/near-sandbox
+//!   cargo near build non-reproducible-wasm
 //!   (cd sandbox/token && cargo near build non-reproducible-wasm --no-abi)
 //!   cargo build --manifest-path tools/ctp-sign/Cargo.toml
 //!   (cd sandbox && cargo test -- --test-threads=1)
@@ -202,7 +199,7 @@ async fn world(tag: &str, supplier_on_token: bool) -> Result<World> {
     let qingmar = mk("qingmar", 5).await?;
     let guard = mk("guard", 30)
         .await?
-        .deploy(&wasm("target/near-sandbox/clear_to_pay.wasm")?)
+        .deploy(&wasm("target/near/clear_to_pay.wasm")?)
         .await?
         .into_result()?;
     let usdc = mk("usdc", 10)
@@ -344,7 +341,9 @@ async fn world(tag: &str, supplier_on_token: bool) -> Result<World> {
     })
 }
 
-/// Move block time past the supplier wait (2 minutes in the sandbox build), in chunks, logging how block time moves.
+/// Skip the supplier's 72-hour wait on the local node: rewrite the one stored number that says
+/// when the supplier's address becomes payable, to the node's current time. The contract code is
+/// untouched (byte-for-byte the deployed wasm); the 72-hour rule's own logic is unit-tested.
 async fn wait_out_the_supplier_wait(w: &World, tag: &str) -> Result<()> {
     let s = view(
         &w.guard,
@@ -356,40 +355,39 @@ async fn wait_out_the_supplier_wait(w: &World, tag: &str) -> Result<()> {
         .as_str()
         .context("payable_from")?
         .parse()?;
-    let started = std::time::Instant::now();
-    let mut chunk: u64 = 1_000; // small first, to measure how far one block moves time
-    for round in 0..200 {
-        let now = w.worker.view_block().await?.timestamp();
-        if now >= from {
-            log(
-                tag,
-                &format!(
-                    "the supplier wait passed in block time after {round} fast-forwards ({:?})",
-                    started.elapsed()
-                ),
-            );
-            break;
-        }
-        w.worker.fast_forward(chunk).await?;
-        let after = w.worker.view_block().await?.timestamp();
-        let per_block = after.saturating_sub(now) / chunk.max(1);
-        log(
-            tag,
-            &format!(
-                "fast-forward {chunk} blocks: block time +{} s ({} ms per block), {} h to go",
-                after.saturating_sub(now) / 1_000_000_000,
-                per_block / 1_000_000,
-                from.saturating_sub(after) / 3_600_000_000_000
-            ),
+    let now = w.worker.view_block().await?.timestamp();
+    // The supplier record's storage key: the map prefix "s" + borsh("qingmar-steel") (u32 length, bytes).
+    let mut key = b"s".to_vec();
+    key.extend_from_slice(&13u32.to_le_bytes());
+    key.extend_from_slice(b"qingmar-steel");
+    let state = w.guard.view_state().prefix(&key).await?;
+    let value = state
+        .get(&key)
+        .context("supplier record not found in the contract's storage")?;
+    let needle = from.to_le_bytes();
+    let at: Vec<usize> = (0..value.len().saturating_sub(7))
+        .filter(|&i| value[i..i + 8] == needle)
+        .collect();
+    if at.len() != 1 {
+        bail!(
+            "the payable-from time appears {} times in the supplier record",
+            at.len()
         );
-        // Ask for what is left (plus a margin), now that the time per block is known.
-        if per_block > 0 {
-            chunk = (from.saturating_sub(after) / per_block + 100).clamp(1_000, 200_000);
-        }
-        if started.elapsed() > std::time::Duration::from_secs(600) {
-            bail!("fast-forwarding took over 10 minutes");
-        }
     }
+    let mut patched = value.clone();
+    patched[at[0]..at[0] + 8].copy_from_slice(&now.saturating_sub(1).to_le_bytes());
+    w.worker
+        .patch(w.guard.id())
+        .state(&key, &patched)
+        .transact()
+        .await?;
+    log(
+        tag,
+        &format!(
+            "supplier wait skipped on the local node ({} h left -> 0)",
+            from.saturating_sub(now) / 3_600_000_000_000
+        ),
+    );
     if view(
         &w.guard,
         "payable_route",
@@ -398,7 +396,7 @@ async fn wait_out_the_supplier_wait(w: &World, tag: &str) -> Result<()> {
     .await?
     .is_null()
     {
-        bail!("block time passed the wait, but the supplier is still not payable");
+        bail!("the supplier is still not payable after the wait was skipped");
     }
     Ok(())
 }

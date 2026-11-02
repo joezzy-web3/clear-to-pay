@@ -27,6 +27,31 @@ from ctp_reader.isolated import prepare_isolated  # noqa: E402
 ROUTE = HERE.parent / "demo" / "route-qingmar.json"
 
 
+def summary(h: dict) -> dict:
+    return {
+        "checked_at": h["checked_at"],
+        "intel": [{k: i[k] for k in ("kind", "signing_address", "status", "advisory_ids")} for i in h["intel"]],
+        "intel_launch_log": [{k: i[k] for k in ("signing_address", "status", "advisory_ids")}
+                             for i in h.get("intel_launch_log", [])],
+        "nvidia": [{k: n[k] for k in ("signing_address", "verdict")} for n in h["nvidia"]],
+        "how": "Intel TDX quote chain verified with dcap-qvl against Intel PCS collateral; GPU evidence verified "
+               "by NVIDIA NRAS, its signed token checked against NVIDIA's published keys",
+    }
+
+
+def split_hardware(path: Path) -> None:
+    """Keep the full hardware evidence (Intel collateral, NVIDIA token) out of the reading itself:
+    it goes to a local side file, <reading>.hardware.json, and only a summary stays in the reading."""
+    record = json.loads(path.read_text())
+    h = record.pop("hardware", None)
+    if h is None:
+        return
+    side = path.with_name(path.stem + ".hardware.json")
+    side.write_text(json.dumps(h, indent=1))
+    record["hardware_summary"] = summary(h)
+    path.write_text(json.dumps(record, indent=2))
+
+
 def hardware_step(record: dict, path: Path) -> list[str]:
     """Intel and NVIDIA checks. Online the first time; the full evidence (Intel collateral, NVIDIA
     token) is kept in a local side file, <reading>.hardware.json, and re-checked offline after
@@ -53,14 +78,7 @@ def hardware_step(record: dict, path: Path) -> list[str]:
         print(f"[hw]     hardware checks out ({how})")
         if not saved:
             side.write_text(json.dumps(h, indent=1))
-            record["hardware_summary"] = {
-                "checked_at": h["checked_at"],
-                "intel": [{k: i[k] for k in ("kind", "signing_address", "status", "advisory_ids")} for i in h["intel"]],
-                "intel_launch_log": [{k: i[k] for k in ("signing_address", "status", "advisory_ids")}
-                                     for i in h.get("intel_launch_log", [])],
-                "nvidia": [{k: n[k] for k in ("signing_address", "verdict")} for n in h["nvidia"]],
-                "how": "Intel TDX quote chain verified with dcap-qvl against Intel PCS collateral; GPU evidence verified by NVIDIA NRAS",
-            }
+            record["hardware_summary"] = summary(h)
             path.write_text(json.dumps(record, indent=2))
             print(f"[saved]  summary added to {path.name}; full evidence in {side.name} (local, not committed)")
     return h["problems"]
@@ -78,8 +96,8 @@ def main() -> int:
     ap.add_argument("--pin-software", metavar="READING",
                     help="add the software fingerprints of a verified reading to software-pins.json (review, then commit)")
     ap.add_argument("--hardware", action="store_true",
-                    help="also check the attestation down to Intel and NVIDIA (needs dcap-qvl and internet the "
-                         "first time; the result is saved in the reading and re-checked offline after that)")
+                    help="with --verify: also re-check the saved Intel and NVIDIA evidence (a new reading always "
+                         "runs the hardware check; it needs dcap-qvl and internet the first time)")
     a = ap.parse_args()
 
     if a.pin_software:
@@ -156,11 +174,8 @@ def main() -> int:
         cached = model._cache_file(p.sha256, a.model)
         if cached.exists():
             shutil.copyfile(cached, a.save)
-            print(f"[saved]  {a.save} (re-check any time: python3 tools/read_invoice.py --verify {a.save})")
-            if a.hardware and not ev.get("problems"):
-                if hardware_step(json.loads(Path(a.save).read_text()), Path(a.save)):
-                    print("[result] HELD: model_hardware_unverified")
-                    return 2
+            split_hardware(Path(a.save))
+            print(f"[saved]  {a.save} (re-check any time: python3 tools/read_invoice.py --verify {a.save} --hardware)")
     if r.held:
         for fp in r.evidence.get("unpinned_software") or []:
             print(f"[soft]   not pinned: {fp['kind']} enclave, OS image {fp.get('os_image_hash', '')[:12]}..., "

@@ -3,7 +3,7 @@
 Run from reader/ (the key comes from your environment, loaded from .env; it is never printed):
 
   python3 tools/qualify_model.py --list                         # the cases; no call, no cost
-  python3 tools/qualify_model.py                                # the current model (7 calls, under $0.01)
+  python3 tools/qualify_model.py                                # the current model (8 calls, under $0.01; needs the hardware check: pip install -r requirements-hardware.txt)
   python3 tools/qualify_model.py --model "Qwen/Some-New-Model"  # a candidate after a deprecation
 
 Writes docs/proof/qualification-<model>.json. Every case must pass; then
@@ -52,8 +52,14 @@ def main() -> int:
     out = Path(a.out) if a.out else qualify.report_path(a.model)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(rep, indent=2, ensure_ascii=False) + "\n")
-    print(f"[saved]  {out}")
+    print(f"[saved]  {out}; signed readings in {qualify.evidence_dir(a.model)} (local, not committed)")
     if rep["all_pass"]:
+        gaps = qualify.qualified(rep["software"], a.model, out)
+        for g in gaps:
+            print(f"[check]  PROBLEM: {g}")
+        if gaps:
+            print("[result] NOT qualified: the saved evidence does not re-check.")
+            return 2
         print("[result] QUALIFIED: every case passed. Its software can now be pinned (read_invoice.py --pin-software).")
         return 0
     print("[result] NOT qualified: do not pin this model's software.")

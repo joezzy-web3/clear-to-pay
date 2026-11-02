@@ -15,9 +15,28 @@ NONCE = "ab" * 32
 MODEL_ADDR, GW_ADDR = "0x" + "11" * 20, "0x" + "22" * 20
 
 
-def token(verdict):
-    enc = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip("=")  # noqa: E731
-    return f"{enc({'alg': 'ES384'})}.{enc({'x-nvidia-overall-att-result': verdict})}.sig"
+from cryptography.hazmat.primitives import hashes  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature  # noqa: E402
+
+NVIDIA_KEY, OTHER_KEY = ec.generate_private_key(ec.SECP384R1()), ec.generate_private_key(ec.SECP384R1())
+
+
+def enc(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+
+def jwk(k, kid="nv-1"):
+    n = k.public_key().public_numbers()
+    return {"kty": "EC", "crv": "P-384", "kid": kid, "x": enc(n.x.to_bytes(48, "big")), "y": enc(n.y.to_bytes(48, "big"))}
+
+
+def token(verdict, key=NVIDIA_KEY, iss=H.NRAS_ISSUER, kid="nv-1"):
+    """A token signed like NVIDIA's: ES384 over header.payload, signature as r||s."""
+    head = enc(json.dumps({"alg": "ES384", "kid": kid}).encode())
+    body = enc(json.dumps({"iss": iss, "x-nvidia-overall-att-result": verdict}).encode())
+    r, s_ = decode_dss_signature(key.sign(f"{head}.{body}".encode(), ec.ECDSA(hashes.SHA384())))
+    return f"{head}.{body}.{enc(r.to_bytes(48, 'big') + s_.to_bytes(48, 'big'))}"
 
 
 def report(gpu_nonce=NONCE):
@@ -37,10 +56,11 @@ def fake_verify(status="UpToDate", lie=False):
     return verify
 
 
-def run(rep=None, verdict=True, **kw):
+def run(rep=None, verdict=True, tok=None, **kw):
     sent = []
     h = H.check(rep or report(), NONCE, fetch=lambda q: "collateral-json", verify=kw.get("verify", fake_verify()),
-                gpu=lambda payload: sent.append(payload) or token(verdict), now=1_793_600_000)
+                gpu=lambda payload: sent.append(payload) or (tok or token(verdict)), keys=lambda: [jwk(NVIDIA_KEY)],
+                now=1_793_600_000)
     return h, sent
 
 
@@ -85,8 +105,27 @@ def test_a_saved_result_is_rechecked_offline_with_the_saved_collateral_and_time(
     def no_network(*a):
         raise AssertionError("must not fetch")
 
-    again = H.check(report(), NONCE, saved=first, fetch=no_network, verify=verify, gpu=no_network)
+    again = H.check(report(), NONCE, saved=first, fetch=no_network, verify=verify, gpu=no_network, keys=no_network)
     assert again["problems"] == [] and seen["now"] == first["checked_at"]
+
+
+def test_an_nvidia_token_that_is_not_signed_by_nvidia_fails():
+    unsigned = token(True).rsplit(".", 1)[0] + "." + enc(b"\0" * 96)
+    assert any("does not verify" in p for p in run(tok=unsigned)[0]["problems"])
+    assert any("does not verify" in p for p in run(tok=token(True, key=OTHER_KEY))[0]["problems"])
+    assert any("issuer" in p for p in run(tok=token(True, iss="https://evil.example"))[0]["problems"])
+    assert any("does not publish" in p for p in run(tok=token(True, kid="nv-9"))[0]["problems"])
+
+
+def test_an_edited_saved_token_fails_offline_and_an_old_one_without_its_key_must_be_rechecked():
+    first, _ = run()
+    forged = json.loads(json.dumps(first))
+    head, body, sig = forged["nvidia"][0]["token"].split(".")
+    forged["nvidia"][0]["token"] = f"{head}.{enc(json.dumps({'iss': H.NRAS_ISSUER, 'x-nvidia-overall-att-result': True, 'x': 1}).encode())}.{sig}"
+    assert any("does not verify" in p for p in H.check(report(), NONCE, saved=forged, verify=fake_verify())["problems"])
+    old = json.loads(json.dumps(first))
+    del old["nvidia"][0]["jwk"]
+    assert any("check online again" in p for p in H.check(report(), NONCE, saved=old, verify=fake_verify())["problems"])
 
 
 def test_without_dcap_qvl_the_error_says_how_to_install_it(monkeypatch):

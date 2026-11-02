@@ -98,7 +98,7 @@ def test_the_read_flow_holds_an_answer_from_unpinned_software(live, tmp_path, mo
     from ctp_reader import model as M
     record = json.loads(LIVE.read_text())
     monkeypatch.setenv("CTP_CACHE", str(tmp_path))
-    monkeypatch.setenv("CTP_SOFTWARE_CHECK", "1")
+    monkeypatch.setattr(M, "hardware_problems", lambda record: [])  # tested on its own in test_hardware.py
     p = Prepared(sha256=record["evidence"]["document_sha256"], text="")
     M._store(p.sha256, M.MODEL, record)
     route = {"chain": "near", "token": "t", "address": "a"}
@@ -114,10 +114,11 @@ def test_hardware_also_verifies_the_launch_log_quote(live):
     def verify(q, collateral, now):
         return {"status": "UpToDate", "advisory_ids": [], "report_data": q[568:632].hex()}
 
-    tok = "e30." + __import__("base64").urlsafe_b64encode(b'{"x-nvidia-overall-att-result": true}').decode().rstrip("=") + ".s"
-    h = H.check(report, nonce, fetch=lambda q: "c", verify=verify, gpu=lambda p: tok, now=1)
+    from test_hardware import NVIDIA_KEY, jwk, token
+    tok = token(True)
+    h = H.check(report, nonce, fetch=lambda q: "c", verify=verify, gpu=lambda p: tok, keys=lambda: [jwk(NVIDIA_KEY)], now=1)
     assert h["problems"] == [] and len(h["intel_launch_log"]) == 1
-    h2 = H.check(report, "22" * 32, fetch=lambda q: "c", verify=verify, gpu=lambda p: tok, now=1)
+    h2 = H.check(report, "22" * 32, fetch=lambda q: "c", verify=verify, gpu=lambda p: tok, keys=lambda: [jwk(NVIDIA_KEY)], now=1)
     assert any("launch log's verified quote does not hold its hash and our nonce" in p for p in h2["problems"])
 
 

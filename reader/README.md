@@ -96,15 +96,16 @@ version, so the same document is never paid for twice, and calls stop at a daily
 (`CTP_DAILY_CAP_USD`, default $0.50). Each reading is saved with the exact request and
 response bytes, the signature and the whole attestation report, so anyone can re-check it
 offline (`--verify`) and check the report down to the hardware with NEAR's
-[nearai-cloud-verifier](https://github.com/nearai/nearai-cloud-verifier). `--hardware` adds the
-last link (`hardware.py`): the TDX quote's signature chain is verified to Intel's root CA with
+[nearai-cloud-verifier](https://github.com/nearai/nearai-cloud-verifier). Every new reading also
+runs the last link (`hardware.py`; `--hardware` re-checks a saved reading): the TDX quote's signature chain is verified to Intel's root CA with
 `dcap-qvl` and collateral from Intel's own certification service, its verified REPORTDATA must
 hold the enclave's address and our nonce, and the GPU evidence (carrying our nonce) must get a
-`true` verdict from NVIDIA's attestation service. The full evidence is kept in a local
+`true` verdict from NVIDIA's attestation service, in a token whose ES384 signature verifies with
+NVIDIA's published key. A reading that cannot be checked is HELD (`model_hardware_unverified`). The full evidence is kept in a local
 `<reading>.hardware.json` and re-checked offline after the first run; the reading gets a summary.
 
 ```bash
-pip install -r requirements-hardware.txt           # dcap-qvl, pinned
+pip install -r requirements-hardware.txt           # dcap-qvl and cryptography, pinned; needed for every reading
 python3 tools/read_invoice.py --verify ../docs/proof/reading-INV-2208.json --hardware
 ```
 
@@ -124,16 +125,19 @@ python3 tools/read_invoice.py --pin-software reading.json   # prints what it pin
 
 **Qualifying a model before it is pinned** (`qualify.py`). When NEAR retires a model or changes its
 software, answers are HELD until a re-pin, and a re-pin needs evidence: the model, on that exact
-software, must first pass seven fictional invoices through the full verified call. It must read
+software, must first pass eight fictional invoices through the full verified call, every one
+answered by the same software. It must read
 clean ones exactly (two lines; a thousands separator and three decimals), HOLD an amount in words
 that disagrees with the figures, read one that agrees, and ignore a total and a payee written into
 the invoice as instructions. The report, with every signed chat id and the software fingerprints,
 is saved in `docs/proof/`; `--pin-software` refuses software that a passing report does not cover.
-Seven cases are a gate, not an accuracy measure.
+`--pin-software` trusts nothing in the report: it re-verifies and re-judges each case's signed
+reading, kept on the machine that ran the run (`qualification-evidence/`, not committed: it carries
+enclave keys and Intel collateral). Eight cases are a gate, not an accuracy measure.
 
 ```bash
 python3 tools/qualify_model.py --list                          # the cases; no call
-python3 tools/qualify_model.py                                 # the current model, 7 calls
+python3 tools/qualify_model.py                                 # the current model, 8 calls
 python3 tools/qualify_model.py --model "Qwen/Some-New-Model"   # a candidate; CTP_MODEL switches the reader to it
 ```
 
@@ -205,14 +209,16 @@ python3 tools/alerts.py                             # watch every 30 s
   "mcpServers": {
     "clear-to-pay": {
       "command": "wsl",
-      "args": ["python3", "/home/YOU/clear-to-pay/reader/tools/mcp_server.py"]
+      "args": ["env", "CTP_MCP_DOCS=/home/YOU/invoices",
+               "python3", "/home/YOU/clear-to-pay/reader/tools/mcp_server.py"]
     }
   }
 }
 ```
 
-On macOS or Linux use `"command": "python3"` and the path alone. Then ask the agent things like
-"inspect ~/invoices/INV-2208.pdf", "why was receipt 1 held, and what do I tell the supplier?" or
+On macOS or Linux use `"command": "env"` with the same arguments. `CTP_MCP_DOCS` is the only folder
+the agent may name files in (by relative name; links and `..` are refused). Then ask the agent things like
+"inspect INV-2208.pdf", "why was receipt 1 held, and what do I tell the supplier?" or
 "is Qingmar payable yet?".
 
 | Tool | What it does | Sends? |
@@ -224,12 +230,15 @@ On macOS or Linux use `"command": "python3"` and the path alone. Then ask the ag
 | `verify_reading` | re-check a saved reading offline | no |
 | `submit_invoice`, `retry_payment` | send with the agent's fenced key | yes, if enabled |
 
-Hidden text in a PDF is reported by page and reason only; its words never reach the agent.
+Hidden text in a PDF is reported by page and reason only; its words never reach the agent. An AI
+reading reports its signature, software and hardware checks one by one. Reads that matter (receipts,
+addresses, payments, the pool) must agree across every configured RPC server.
 To let the agent submit, the operator adds to the config's `env`:
 `CTP_MCP_ALLOW_SUBMIT=1`, `CTP_AGENT_ACCOUNT` (the buyer) and `CTP_AGENT_KEY_FILE` (the
 function-call key's file; needs near-cli-rs). Before each send the server asks NEAR what the key may
-do and refuses anything but a function-call key for `submit_invoice` and `execute_payment` on this
-contract. With WSL, pass these with `"args": ["env", "CTP_MCP_ALLOW_SUBMIT=1", ..., "python3", ...]`.
+do (every configured server must answer and agree) and refuses anything but a function-call key for
+`submit_invoice` and `execute_payment` on this contract with a set gas allowance of at most
+`CTP_MCP_MAX_ALLOWANCE` NEAR (default 1). With WSL, pass these with `"args": ["env", "CTP_MCP_ALLOW_SUBMIT=1", ..., "python3", ...]`.
 
 ## Not covered yet (stated, not claimed)
 

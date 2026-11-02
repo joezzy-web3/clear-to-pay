@@ -249,7 +249,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   <div class="htext">
     <span class="tagline"><i></i>The AI reads. Code decides.</span>
     <h1>Inspect an <span>invoice.</span></h1>
-    <p class="sub">Pick one of five invoices and watch it go through every check, the way the agent's money does. Each step shows real output: what the reader found in the file, the AI's signed answer, the contract's own reason codes and, where one exists, the receipt on NEAR testnet.</p>
+    <p class="sub">Pick one of five invoices and replay how it went through every check. This is a replay of saved evidence, not a live run: each step shows output the code really produced (what the reader found in the file, the AI's signed answer, the contract's own reason codes), and the page looks up the live receipt on NEAR testnet where one exists.</p>
   </div>
   <div class="cases" role="group" aria-label="Choose an invoice" id="cases"></div>
 </div></header>
@@ -276,7 +276,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 <section class="s night gut" id="sources"><div class="in">
   <span class="kick">Nothing here is made up for the page</span>
   <h2>Where every value <mark>comes from</mark>.</h2>
-  <p class="lead">The invoices are fictional (Qingmar Steel Co. does not exist) and the money is test USDC. The outputs are not: each one was produced by the code in the repository, and the links let you check it.</p>
+  <p class="lead">The invoices are fictional (Qingmar Steel Co. does not exist) and the money is test USDC. The outputs are not: each one was produced by the code in the repository and saved, and the links let you check it. To run it yourself, use the commands in the README.</p>
   <ul class="src">
     <li><i></i><div><b>The scan</b><span>The reader's own result on the PDFs in <code>reader/corpus/</code>: fingerprint, hidden text dropped with its reason, the verdict before any AI call. Re-run it with <code>tools/read_invoice.py --dry-run</code>.</span></div></li>
     <li><i></i><div><b>The AI's answer</b><span>The live reading of the honest invoice on NEAR AI Cloud, saved whole in <a href="https://github.com/joezzy-web3/clear-to-pay/blob/main/docs/proof/reading-INV-2208.json" target="_blank" rel="noopener">docs/proof/reading-INV-2208.json</a>: request, response, signature and attestation report. It re-checks offline.</span></div></li>
@@ -347,7 +347,7 @@ Payment: to the account registered with Clear to Pay`;
       <div><small>Signed by the model enclave</small><b>0xfdbd7952…961e8ddf</b></div>
       <div><small>Intel TDX quote, both enclaves</small><b>UpToDate · holds the signer and our nonce</b></div>
       <div><small>NVIDIA GPU attestation</small><b>true</b></div>
-      <div><small>Software it ran</small><b>pinned · qualified 7/7</b></div>
+      <div><small>Software it ran</small><b>pinned · qualified</b></div>
       <div><small>Cost of this reading</small><b>$0.000096</b></div>
     </div>
     ${callout("ok", "No payee field", "The answer has no address in it, by design: the schema has nowhere to put one. Where the money goes comes from the contract's register, never from the AI.")}`;

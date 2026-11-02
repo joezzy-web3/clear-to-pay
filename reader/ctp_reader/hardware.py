@@ -28,6 +28,8 @@ import urllib.request
 
 INTEL_PCS = "https://api.trustedservices.intel.com"
 NRAS = "https://nras.attestation.nvidia.com/v3/attest/gpu"
+NRAS_JWKS = "https://nras.attestation.nvidia.com/.well-known/jwks.json"
+NRAS_ISSUER = "https://nras.attestation.nvidia.com"
 # TCB statuses that still mean "a genuine, correctly signed TDX quote". OutOfDate means the
 # platform is behind Intel's latest advisory baseline, not that the quote is forged; it is
 # accepted (as NEAR's verifier does) and recorded with its advisory IDs.
@@ -90,13 +92,69 @@ def nras(payload: dict) -> str:
         raise HardwareError("NVIDIA attestation service: unexpected answer") from None
 
 
+def _b64(part: str) -> bytes:
+    return base64.urlsafe_b64decode(part + "=" * (-len(part) % 4))
+
+
 def jwt_claims(token: str) -> dict:
-    part = token.split(".")[1]
-    return json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+    """The claims, NOT verified. Only for display; use verified_claims() to trust them."""
+    return json.loads(_b64(token.split(".")[1]))
+
+
+def nras_keys() -> list[dict]:
+    """NVIDIA's published token-signing keys (network)."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(NRAS_JWKS, headers={"Accept": "application/json"}),
+                                    timeout=30) as r:
+            return list(json.loads(r.read()).get("keys") or [])
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise HardwareError(f"NVIDIA signing keys: {getattr(e, 'reason', e)}") from None
+
+
+def verified_claims(token: str, jwk: dict) -> dict:
+    """Check the NVIDIA token's ES384 signature with `jwk` and its issuer; return its claims (CTP6-07)."""
+    from cryptography.exceptions import InvalidSignature  # noqa: PLC0415
+    from cryptography.hazmat.primitives import hashes  # noqa: PLC0415
+    from cryptography.hazmat.primitives.asymmetric import ec  # noqa: PLC0415
+    from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature  # noqa: PLC0415
+
+    try:
+        head_b64, body_b64, sig_b64 = token.split(".")
+        head = json.loads(_b64(head_b64))
+        if head.get("alg") != "ES384" or jwk.get("kty") != "EC" or jwk.get("crv") != "P-384":
+            raise HardwareError("NVIDIA token: not an ES384 token, or not a P-384 key")
+        if head.get("kid") and jwk.get("kid") and head["kid"] != jwk["kid"]:
+            raise HardwareError("NVIDIA token: signed with another key")
+        key = ec.EllipticCurvePublicNumbers(int.from_bytes(_b64(jwk["x"]), "big"), int.from_bytes(_b64(jwk["y"]), "big"),
+                                            ec.SECP384R1()).public_key()
+        sig = _b64(sig_b64)
+        if len(sig) != 96:
+            raise HardwareError("NVIDIA token: bad signature length")
+        key.verify(encode_dss_signature(int.from_bytes(sig[:48], "big"), int.from_bytes(sig[48:], "big")),
+                   f"{head_b64}.{body_b64}".encode(), ec.ECDSA(hashes.SHA384()))
+        claims = json.loads(_b64(body_b64))
+    except InvalidSignature:
+        raise HardwareError("NVIDIA token: the signature does not verify") from None
+    except (ValueError, KeyError, TypeError) as e:
+        raise HardwareError(f"NVIDIA token: malformed ({e})") from None
+    if claims.get("iss") != NRAS_ISSUER:
+        raise HardwareError(f"NVIDIA token: issuer {claims.get('iss')!r}")
+    return claims
+
+
+def key_for(token: str, keys: list[dict]) -> dict:
+    try:
+        kid = json.loads(_b64(token.split(".")[0])).get("kid")
+    except (ValueError, IndexError):
+        raise HardwareError("NVIDIA token: malformed header") from None
+    for k in keys:
+        if not kid or k.get("kid") == kid:
+            return k
+    raise HardwareError("NVIDIA token: signed with a key NVIDIA does not publish")
 
 
 def check(report: dict, nonce: str, *, saved: dict | None = None, fetch=fetch_collateral, verify=verify_quote,
-          gpu=nras, now: int | None = None) -> dict:
+          gpu=nras, keys=nras_keys, now: int | None = None) -> dict:
     """Check every report part down to the hardware.
 
     With `saved` (an earlier result), the Intel check is re-run offline with the saved
@@ -156,12 +214,20 @@ def check(report: dict, nonce: str, *, saved: dict | None = None, fetch=fetch_co
             out["problems"].append(f"{label}: the GPU evidence does not carry our nonce")
             continue
         try:
-            token = saved["nvidia"][len(out["nvidia"])]["token"] if saved else gpu(payload)
-            verdict = jwt_claims(token).get("x-nvidia-overall-att-result")
+            if saved:
+                entry = saved["nvidia"][len(out["nvidia"])]
+                token, jwk = entry["token"], entry.get("jwk")
+                if not jwk:
+                    raise HardwareError("saved NVIDIA token has no key to check it with: check online again")
+            else:
+                token = gpu(payload)
+                jwk = key_for(token, keys())
+            verdict = verified_claims(token, jwk).get("x-nvidia-overall-att-result")
         except (HardwareError, KeyError, IndexError, TypeError, ValueError) as e:
             out["problems"].append(f"{label}: {e}")
             continue
         if verdict is not True:
             out["problems"].append(f"{label}: NVIDIA's verdict is {verdict!r}, not true")
-        out["nvidia"].append({"signing_address": part.get("signing_address"), "verdict": verdict, "token": token})
+        out["nvidia"].append({"signing_address": part.get("signing_address"), "verdict": verdict, "token": token,
+                              "jwk": jwk})
     return out

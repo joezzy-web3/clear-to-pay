@@ -11,12 +11,17 @@ Protocol: MCP over stdio (newline-delimited JSON-RPC 2.0). Run it from an MCP cl
 
   {"command": "python3", "args": ["/path/to/clear-to-pay/reader/tools/mcp_server.py"]}
 
-Environment (all optional):
+Environment:
+  CTP_MCP_DOCS              the only folder the agent may name files in (required for file tools);
+                            paths are relative to it, and links or ".." out of it are refused
   CTP_CONTRACT              the contract (default guard.cleartopay.testnet)
   NEAR_AI_API_KEY           only for read_with_ai / draft_with_ai (each call is signed and verified)
   CTP_MCP_ALLOW_SUBMIT=1    turn on submit_invoice and retry_payment
   CTP_AGENT_ACCOUNT         the buyer account the agent key belongs to
   CTP_AGENT_KEY_FILE        that account's function-call key file (never printed, never returned)
+  CTP_MCP_MAX_ALLOWANCE     the largest gas allowance the agent key may have, in NEAR (default 1)
+Reads that matter (receipts, supplier addresses, payments, the pool) must be answered identically
+by every configured RPC server (CTP_RPC); otherwise the tool returns an error, not an answer.
 """
 
 from __future__ import annotations
@@ -53,16 +58,41 @@ def _log(msg: str) -> None:
     print(f"[clear-to-pay mcp] {msg}", file=sys.stderr, flush=True)
 
 
+def doc(name: str, suffix: str) -> Path:
+    """A file inside CTP_MCP_DOCS, by relative name only (CTP6-06)."""
+    root_s = os.environ.get("CTP_MCP_DOCS", "")
+    if not root_s:
+        raise ToolError("file tools are off: the operator sets CTP_MCP_DOCS to the folder the agent may read")
+    root = Path(root_s).expanduser().resolve()
+    rel = Path(str(name))
+    if rel.is_absolute() or ".." in rel.parts or not rel.parts:
+        raise ToolError(f"give a file name inside the documents folder, like invoices/INV-1{suffix}")
+    cand = root / rel
+    try:
+        real = cand.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise ToolError(f"no such file in the documents folder: {rel}") from None
+    if not real.is_relative_to(root) or any((root / Path(*rel.parts[:i + 1])).is_symlink() for i in range(len(rel.parts))):
+        raise ToolError("links out of the documents folder are refused")
+    if real.suffix.lower() != suffix or not real.is_file():
+        raise ToolError(f"give a {suffix} file")
+    return real
+
+
+def read_json_doc(name: str) -> object:
+    p = doc(name, ".json")
+    if p.stat().st_size > 2_000_000:
+        raise ToolError("that JSON file is too large")
+    return json.loads(p.read_text())
+
+
 # ---------------------------------------------------------------- tools
 
 
 def inspect_invoice(pdf_path: str, read_with_ai: bool = False, supplier_id: str = "qingmar-steel") -> dict:
     from .isolated import prepare_isolated  # noqa: PLC0415 - imports pdf code only when used
 
-    p = Path(pdf_path).expanduser()
-    if p.suffix.lower() != ".pdf" or not p.is_file():
-        raise ToolError("give the path of a PDF file")
-    prep = prepare_isolated(p)
+    prep = prepare_isolated(doc(pdf_path, ".pdf"))
     out = {"document_sha256": prep.sha256, "held": prep.held,
            # What the hidden text says is never handed to the agent: it may be an instruction aimed at an AI.
            "hidden_text_dropped": [{"page": d.page, "reason": d.reason, "characters": len(d.text),
@@ -76,7 +106,7 @@ def inspect_invoice(pdf_path: str, read_with_ai: bool = False, supplier_id: str 
     if not read_with_ai:
         out["verdict"] = "clean so far; not read by the AI (read_with_ai=false, nothing spent)"
         return out
-    sup = chain.view("get_supplier", {"supplier_id": supplier_id})
+    sup = chain.view_agreed("get_supplier", {"supplier_id": supplier_id})
     if not sup:
         raise ToolError(f"supplier {supplier_id!r} is not registered on {chain.CONTRACT}")
     route = sup["route_on_file"]
@@ -84,7 +114,8 @@ def inspect_invoice(pdf_path: str, read_with_ai: bool = False, supplier_id: str 
     ev = r.evidence or {}
     out["ai"] = {"model": ev.get("model"), "chat_id": ev.get("chat_id"),
                  "signed_by": (ev.get("signature") or {}).get("signing_address"),
-                 "verified": not ev.get("problems"), "problems": ev.get("problems") or [], "usd": ev.get("usd")}
+                 "checks": checks_passed(r.held), "accepted": not r.held,
+                 "problems": ev.get("problems") or [], "usd": ev.get("usd")}
     out["held"] = r.held
     if r.held:
         out["verdict"] = "HELD after reading: " + ", ".join(r.held)
@@ -99,6 +130,23 @@ def inspect_invoice(pdf_path: str, read_with_ai: bool = False, supplier_id: str 
     return out
 
 
+CHECK_ORDER = [("signed_answer", "model_answer_unverified"), ("software_pinned", "model_software_unpinned"),
+               ("hardware", "model_hardware_unverified")]
+
+
+def checks_passed(held: list[str]) -> dict:
+    """Each check on its own (CTP6-12): "passed", "FAILED" or "not run". Never one vague 'verified'."""
+    out, stopped = {}, "model_daily_cap_reached" in held
+    for name, reason in CHECK_ORDER:
+        if stopped:
+            out[name] = "not run"
+        elif reason in held:
+            out[name], stopped = "FAILED", True
+        else:
+            out[name] = "passed"
+    return out
+
+
 def _receipt_view(r: dict) -> dict:
     return {k: r.get(k) for k in ("id", "verdict", "reasons", "supplier_id", "invoice_number", "order_id",
                                   "amount", "payee", "document_hash", "decided_at")} | {
@@ -106,25 +154,25 @@ def _receipt_view(r: dict) -> dict:
 
 
 def get_receipt(receipt_id: int) -> dict:
-    r = chain.receipt(int(receipt_id))
+    r = chain.view_agreed("get_receipt", {"receipt_id": int(receipt_id)})
     if r is None:
         raise ToolError(f"no receipt {receipt_id} on {chain.CONTRACT}")
     out = _receipt_view(r)
-    pay = chain.view("get_payment", {"receipt_id": int(receipt_id)})
+    pay = chain.view_agreed("get_payment", {"receipt_id": int(receipt_id)})
     if pay:
         out["payment"] = {"status": pay.get("status"), "to": (pay.get("recipient") or {}).get("address")}
     return out
 
 
 def list_receipts(limit: int = 10) -> dict:
-    n = int(chain.view("receipt_count", {}))
+    n = int(chain.view_agreed("receipt_count", {}))
     limit = max(1, min(int(limit), 50))
-    rs = [chain.receipt(i) for i in range(n - 1, max(-1, n - 1 - limit), -1)]
+    rs = [chain.view_agreed("get_receipt", {"receipt_id": i}) for i in range(n - 1, max(-1, n - 1 - limit), -1)]
     return {"contract": chain.CONTRACT, "receipt_count": n, "newest_first": [_receipt_view(r) for r in rs if r]}
 
 
 def supplier_status(supplier_id: str = "qingmar-steel") -> dict:
-    s = chain.view("get_supplier", {"supplier_id": supplier_id})
+    s = chain.view_agreed("get_supplier", {"supplier_id": supplier_id})
     if not s:
         raise ToolError(f"supplier {supplier_id!r} is not registered on {chain.CONTRACT}")
     return {"supplier_id": supplier_id, "address_on_file": s["route_on_file"],
@@ -135,17 +183,17 @@ def supplier_status(supplier_id: str = "qingmar-steel") -> dict:
 
 def pool(token: str = "") -> dict:
     tok = token or "3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af"
-    f = chain.view("get_funds", {"token": tok})
+    f = chain.view_agreed("get_funds", {"token": tok})
     return {"token": tok, "available_usdc": query.usdc(f["available"]), "reserved_usdc": query.usdc(f["reserved"]),
-            "limits": chain.view("get_limits", {})}
+            "limits": chain.view_agreed("get_limits", {})}
 
 
 def next_step(receipt_id: int, invoice_path: str, delivery_path: str = "", draft_with_ai: bool = False) -> dict:
-    rec = chain.receipt(int(receipt_id))
+    rec = chain.view_agreed("get_receipt", {"receipt_id": int(receipt_id)})
     if rec is None:
         raise ToolError(f"no receipt {receipt_id} on {chain.CONTRACT}")
-    inv = json.loads(Path(invoice_path).expanduser().read_text())
-    dlv = json.loads(Path(delivery_path).expanduser().read_text()) if delivery_path else None
+    inv = read_json_doc(invoice_path)
+    dlv = read_json_doc(delivery_path) if delivery_path else None
     mismatch = query.match_receipt(rec, inv, dlv, contract=chain.CONTRACT)
     if mismatch:
         raise ToolError("these files are not the ones the contract judged: " + "; ".join(mismatch))
@@ -153,7 +201,7 @@ def next_step(receipt_id: int, invoice_path: str, delivery_path: str = "", draft
     if str(rec["verdict"]).upper() == "CLEARED":
         out["next"] = "nothing to do: it cleared."
         return out
-    p = query.plan(rec, inv, dlv, chain.order(rec["order_id"]))
+    p = query.plan(rec, inv, dlv, chain.view_agreed("get_order", {"order_id": rec["order_id"]}))
     out |= {"facts": p.facts, "buyer_actions": p.buyer_actions, "supplier_asks": p.supplier_asks}
     if p.seized:
         out["draft"] = None
@@ -170,7 +218,9 @@ def next_step(receipt_id: int, invoice_path: str, delivery_path: str = "", draft
 
 
 def verify_reading(path: str) -> dict:
-    record = json.loads(Path(path).expanduser().read_text())
+    record = read_json_doc(path)
+    if not isinstance(record, dict) or not isinstance(record.get("evidence"), dict):
+        raise ToolError("that is not a saved reading")
     problems = M.reverify(record)
     return {"verified": not problems, "problems": problems, "chat_id": record.get("evidence", {}).get("chat_id")}
 
@@ -209,14 +259,19 @@ def check_fence(acct: str, keyfile: str, *, rpc=None) -> str:
             seen.append(ans["result"]["permission"])
         except (KeyError, TypeError) as e:
             last = e
-    if not seen:
-        raise ToolError(f"could not check the key on chain ({last}); nothing sent")
+    if len(seen) != len(chain.RPCS):  # every configured server must answer (CTP6-04)
+        raise ToolError(f"only {len(seen)} of {len(chain.RPCS)} RPC servers answered ({last}); nothing sent")
     if any(p != seen[0] for p in seen):
         raise ToolError("RPC servers disagree about this key's permission; nothing sent")
     perm = seen[0]
     if perm == "FullAccess" or not isinstance(perm, dict) or "FunctionCall" not in perm:
         raise ToolError("refused: this is a FULL-ACCESS key. An agent must only hold a function-call key.")
     fc = perm["FunctionCall"]
+    cap = int(float(os.environ.get("CTP_MCP_MAX_ALLOWANCE", "1")) * 10**24)
+    allowance = fc.get("allowance")
+    if allowance is None or int(allowance) > cap:  # None = unlimited gas spending from the buyer (CTP6-04)
+        raise ToolError("refused: the key's gas allowance must be set and at most "
+                        f"{cap / 10**24:g} NEAR (CTP_MCP_MAX_ALLOWANCE)")
     methods = set(fc.get("method_names") or [])
     if fc.get("receiver_id") != chain.CONTRACT or not methods or not methods <= AGENT_METHODS:
         raise ToolError(f"refused: the key must be limited to {sorted(AGENT_METHODS)} on {chain.CONTRACT}")
@@ -245,7 +300,7 @@ def _send(acct: str, keyfile: str, method: str, args: dict, run=subprocess.run) 
 
 def submit_invoice(args_path: str, *, rpc=None, run=subprocess.run) -> dict:
     acct, keyfile = _agent()
-    args = json.loads(Path(args_path).expanduser().read_text())
+    args = read_json_doc(args_path)
     if not isinstance(args, dict) or not {"invoice", "supplier_signature"} <= set(args):
         raise ToolError("give the submit_invoice arguments made by `ctp-sign submit-args`")
     check_fence(acct, keyfile, rpc=rpc)
@@ -325,10 +380,20 @@ def call(name: str, arguments: dict) -> dict:
 # ---------------------------------------------------------------- JSON-RPC over stdio
 
 
+def _err(mid, code: int, message: str) -> dict:
+    return {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": message}}
+
+
 def handle(msg: dict) -> dict | None:
-    mid, method, params = msg.get("id"), msg.get("method"), msg.get("params") or {}
+    mid, method, params = msg.get("id"), msg.get("method"), msg.get("params", {})
     if mid is None:  # a notification: no answer
         return None
+    if not isinstance(mid, (str, int)) or isinstance(mid, bool) or msg.get("jsonrpc") != "2.0" or not isinstance(method, str):
+        return _err(mid if isinstance(mid, (str, int)) else None, -32600, "invalid request")
+    if params is None:
+        params = {}
+    if not isinstance(params, dict):
+        return _err(mid, -32602, "params must be an object")
     if method == "initialize":
         want = params.get("protocolVersion")
         result = {"protocolVersion": want if want in PROTOCOLS else PROTOCOLS[0],
@@ -340,7 +405,12 @@ def handle(msg: dict) -> dict | None:
     elif method == "tools/list":
         result = {"tools": list_tools()}
     elif method == "tools/call":
-        result = call(str(params.get("name", "")), params.get("arguments") or {})
+        args = params.get("arguments", {})
+        if args is None:
+            args = {}
+        if not isinstance(args, dict) or not isinstance(params.get("name"), str):
+            return _err(mid, -32602, "tools/call needs a tool name and an arguments object")
+        result = call(params["name"], args)
     else:
         return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"method not found: {method}"}}
     return {"jsonrpc": "2.0", "id": mid, "result": result}
@@ -356,8 +426,12 @@ def serve(inp=sys.stdin, out=sys.stdout) -> None:
         except ValueError:
             reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "parse error"}}
         else:
-            reply = handle(msg) if isinstance(msg, dict) else {
-                "jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "invalid request"}}
+            try:
+                reply = handle(msg) if isinstance(msg, dict) else _err(None, -32600, "invalid request")
+            except Exception as e:  # noqa: BLE001 - one bad message must never stop the server (CTP6-08)
+                _log(f"internal error: {type(e).__name__}")
+                reply = _err(msg.get("id") if isinstance(msg, dict) and isinstance(msg.get("id"), (str, int)) else None,
+                             -32603, "internal error")
         if reply is not None:
             out.write(json.dumps(reply) + "\n")
             out.flush()

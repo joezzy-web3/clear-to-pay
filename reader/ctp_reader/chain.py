@@ -51,6 +51,17 @@ def view_each(method: str, args: dict, *, contract: str = CONTRACT, post=None) -
     return out
 
 
+def view_agreed(method: str, args: dict, *, contract: str = CONTRACT, post=None) -> object:
+    """A view that every configured RPC server must answer, identically (CTP6-09).
+    One lying or failing server means no answer, not a wrong one."""
+    out = view_each(method, args, contract=contract, post=post)
+    if len(out) != len(RPCS):
+        raise ChainError(f"{method}: only {len(out)} of {len(RPCS)} RPC servers answered")
+    if any(json.dumps(x, sort_keys=True) != json.dumps(out[0], sort_keys=True) for x in out):
+        raise ChainError(f"{method}: RPC servers disagree")
+    return out[0]
+
+
 def _post(url: str, body: bytes) -> bytes:
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=15) as r:

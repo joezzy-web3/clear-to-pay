@@ -13,19 +13,20 @@ function-call key being refused by NEAR itself. Signatures come from the real `c
 - `near_itself_refuses_what_the_agent_key_must_not_do`: withdraw, change limits, move USDC, attach a deposit: all refused
 - `deposits_from_anyone_but_the_buyer_are_sent_back`: refunded in full
 
-One deliberate difference from the deployed code: the sandbox build (`--features sandbox-short-wait`)
-waits 2 minutes instead of 72 hours before a new supplier is payable, because a local node only
-moves about 0.3 to 0.4 s of block time per fast-forwarded block. That build refuses to run on any account
-outside the sandbox's `test.near`, so it cannot be deployed by mistake. The 72-hour rule is proven
-by the unit tests and is live on testnet.
+The wasm is byte-for-byte the deployed code. To get past the supplier's 72-hour wait, the two
+paying tests rewrite that one stored time on the local node (state patching, which only a sandbox
+allows); a local node moves about 0.4 s of block time per fast-forwarded block, so waiting it out
+would take hours. The 72-hour rule's own logic is proven by the unit tests and is live on testnet.
+(Until 2 November evening the sandbox used a special short-wait build; the external review rightly
+called its account-name guard a weak boundary, CTP6-05, so it was removed.)
 
 Run (from the repository root; needs cargo-near and downloads the near-sandbox binary):
 
 ```bash
-cargo near build non-reproducible-wasm --features sandbox-short-wait --out-dir target/near-sandbox
+cargo near build non-reproducible-wasm
 (cd sandbox/token && cargo near build non-reproducible-wasm --no-abi)
 cargo build --manifest-path tools/ctp-sign/Cargo.toml
 (cd sandbox && cargo test -- --test-threads=1)
 ```
 
-In CI: Actions → **sandbox** → Run workflow. First green run: 2 Nov 2026, 6 passed in 131 s. The token in `token/` is for these tests only.
+In CI: Actions → **sandbox** → Run workflow. First green run: 2 Nov 2026, 6 passed in 131 s (with the short-wait build, since removed). The token in `token/` is for these tests only.
