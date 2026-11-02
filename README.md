@@ -2,7 +2,7 @@
 
 **A payment guardrail for AI agents.** The AI reads invoices. Code decides. No invoice gets paid until it clears.
 
-**[Live site](https://joezzy-web3.github.io/clear-to-pay/)** · **[Inspect an invoice](https://joezzy-web3.github.io/clear-to-pay/inspect/)** · **[Ledger, live from testnet](https://joezzy-web3.github.io/clear-to-pay/ledger/)** · [Threat model](THREAT_MODEL.md) · [Proof log](docs/testnet-proof.md) · [For AI reviewers](llms.txt) · [@cleartopay](https://x.com/cleartopay)
+**[Live site](https://clear-to-pay.vercel.app/)** · **[Inspect an invoice](https://clear-to-pay.vercel.app/inspect/)** · **[Ledger, live from testnet](https://clear-to-pay.vercel.app/ledger/)** ([mirror](https://joezzy-web3.github.io/clear-to-pay/)) · [Threat model](THREAT_MODEL.md) · [Proof log](docs/testnet-proof.md) · [For AI reviewers](llms.txt) · [@cleartopay](https://x.com/cleartopay)
 
 ![CI](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/ci.yml/badge.svg) ![Sandbox](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/sandbox.yml/badge.svg) ![Network](https://img.shields.io/badge/NEAR-testnet-10264A) ![Licence](https://img.shields.io/badge/licence-MIT-127A4A)
 

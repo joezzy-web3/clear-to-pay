@@ -31,7 +31,8 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 
 - Contract: `guard.cleartopay.testnet`; buyer and agent key: `buyer.cleartopay.testnet`; supplier payout: `qingmar.cleartopay.testnet`
 - Every transaction: [docs/testnet-proof.md](docs/testnet-proof.md), viewable at https://testnet.nearblocks.io/txns/<id>
-- Live ledger (reads the chain from the browser): https://joezzy-web3.github.io/clear-to-pay/ledger/
+- Live site: https://clear-to-pay.vercel.app/ (mirror: https://joezzy-web3.github.io/clear-to-pay/)
+- Live ledger (reads the chain from the browser): https://clear-to-pay.vercel.app/ledger/
 - MCP server for AI agents (stdlib only; sending off by default, agent key fence checked on chain): [reader/ctp_reader/mcp_server.py](reader/ctp_reader/mcp_server.py)
 - Inspect an invoice (five cases, step by step, real outputs and links): https://joezzy-web3.github.io/clear-to-pay/inspect/
 
