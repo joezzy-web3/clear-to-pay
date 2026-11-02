@@ -9,6 +9,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - `cargo test` : 127 contract tests, incl. 4 property tests and the baseline comparison
 - `(cd tools/ctp-sign && cargo test)` : 5 signing-tool tests, golden vectors shared with the contract
 - `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 238 reader tests, incl. the 19-invoice attack corpus, 34 offline tests of the TEE model call, 7 of the hardware check, 10 of which software the enclave ran, 8 of the qualification gate for a new model, 28 of the follow-up drafts, 20 of the alerts and 13 of the MCP server
+- [sandbox/](sandbox/README.md) : 6 end-to-end tests on a local NEAR node (near-sandbox, near-workspaces): the real wasm, a real NEP-141 token, payout callbacks (paid and refused), the deposit hook and the agent key refused by NEAR; all pass in CI (workflow `sandbox`). The sandbox build waits 2 minutes instead of 72 hours and refuses to run outside the sandbox
 - `scripts/attack-demo.sh` : a poisoned invoice, a fooled agent, and every refusal, logged
 - `scripts/baseline.sh` : the same invoice attacks against two allowlist guards and against Clear to Pay
 - `scripts/mutation-check.sh` : breaks three rules on purpose; a property test must catch each

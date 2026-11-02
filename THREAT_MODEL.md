@@ -32,7 +32,7 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 
 ## 2. The payee
 
-- **P1. "New bank details" on a convincing invoice.** The payee must equal the registered route; otherwise SEIZED. *Proof:* `attack_new_bank_details_on_a_signed_looking_invoice_is_seized`.
+- **P1. "New bank details" on a convincing invoice.** The payee must equal the registered route; otherwise SEIZED. *Proof:* `attack_new_bank_details_on_a_signed_looking_invoice_is_seized`; on a local NEAR node with every signature valid, `new_bank_details_are_seized_even_with_every_signature_valid` (sandbox/).
 - **P2. Someone at the buyer is talked into updating the address.** There is no "edit address". A change needs the **supplier's key** to propose it, the buyer to approve it, and 72 hours before it takes effect. *Proof:* `unapproved_change_never_takes_effect`, `attack_change_signed_by_the_wrong_key_is_rejected`, `approving_late_does_not_skip_the_wait_and_approving_early_does_not_shorten_it`.
 - **P3. A signed change is replayed, re-pointed, or reused on another contract.** Nonces, signature over the address, domain separation by contract. *Proof:* `attack_replaying_an_old_signed_change_is_rejected`, `attack_swapping_the_address_after_signing_is_rejected`, `attack_signature_made_for_another_contract_is_rejected`.
 - **P4. An invoice is paid to another supplier's (legitimate) address.** The payee must be **this** supplier's route, not any known address. *Proof:* `src/baseline_tests.rs` (row "another supplier's address").
@@ -56,7 +56,7 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 
 ## 4. The agent's key
 
-- **K1. The agent key is stolen and used to withdraw, change limits, or add signers.** NEAR function-call key: two methods only, no deposits; every owner method needs 1 yoctoNEAR. *Proof:* refusals on testnet, `docs/testnet-proof.md`; `scripts/attack-demo.sh --onchain`.
+- **K1. The agent key is stolen and used to withdraw, change limits, or add signers.** NEAR function-call key: two methods only, no deposits; every owner method needs 1 yoctoNEAR. *Proof:* refusals on testnet, `docs/testnet-proof.md`; `scripts/attack-demo.sh --onchain`; on a local NEAR node, `near_itself_refuses_what_the_agent_key_must_not_do` (sandbox/).
 - **K2. The key moves USDC directly.** USDC's `ft_transfer` needs 1 yoctoNEAR; the key cannot attach it, and only works on the guard contract. *Proof:* proof log (refused by NEAR).
 - **K3. The key floods the contract with submissions.** Daily submission limit (1–1000), storage-money check. *Proof:* `agent_cannot_exhaust_contract_storage_beyond_the_daily_limit`, `submissions_stop_before_the_contract_runs_out_of_storage_money`.
 - **K4. Strangers submit, pay, or fake a payout result.** Caller checks; callbacks only from the contract itself. *Proof:* `strangers_cannot_submit_invoices`, `strangers_cannot_fake_a_payout_callback`, `attack_direct_call_with_the_contracts_own_key_cannot_fake_a_payout_result`.
@@ -67,6 +67,7 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 - **M1. Paying twice.** Fixed payment states; a settled payment can never be paid again. *Proof:* `a_settled_payment_can_never_be_paid_again`, `a_callback_cannot_settle_the_same_payment_twice`.
 - **M2. A lost or late transfer result is misread.** Unknown outcomes are never treated as failure; resolved from the balance only when unambiguous. *Proof:* `attack_unknown_outcome_is_never_treated_as_failure`, `with_two_payouts_in_flight_a_lower_balance_proves_nothing`, `attack_stale_payout_result_from_an_earlier_attempt_cannot_touch_the_current_one`.
 - **M2b. A payout that really left is stuck for ever because its in-flight counter was lost.** If the counter is missing, the balance settles it only when this payment is the only money reserved; otherwise it stays unresolved and visible (`payment_unresolved`). *Proof:* `a_paid_transfer_with_a_missing_counter_settles_when_it_is_the_only_reserved_payment`, `a_missing_counter_with_another_reserved_payment_stays_unresolved`.
+- **M2c. A refused transfer strands the money.** When the token refuses the payout, the callback marks it FAILED and every unit returns to the pool; a reauthorised attempt pays the current route. *Proof:* on a local NEAR node with a real token, `a_payout_that_fails_returns_the_money_to_the_pool_and_can_be_retried` (sandbox/).
 - **M3. The operator drains reserved money.** `withdraw` pays the owner only, never reserved funds. *Proof:* `withdraw_cannot_take_reserved_money`, `property_random_action_sequences_keep_every_money_rule`.
 - **M4. Returned tokens are used to pay twice.** A repeat payout can only be funded by the returned tokens. *Proof:* `attack_returned_tokens_can_fund_a_repeat_payout_but_never_the_buyers_money`.
 

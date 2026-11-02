@@ -48,6 +48,7 @@ python3 -m pytest -q                        # 238 reader tests
 cargo test                        # 127 contract tests, incl. 4 property tests (~2,300 random cases)
 (cd tools/ctp-sign && cargo test) # 5 signing-tool tests, incl. golden vectors shared with the contract
 (cd reader && python3 -m pytest -q) # 238 reader tests, incl. the 19-invoice attack corpus
+(see sandbox/README.md)          # 6 end-to-end tests on a local NEAR node: real wasm, real token, real callbacks
 scripts/attack-demo.sh            # a poisoned invoice, a fooled agent, and every "no", logged
 scripts/baseline.sh               # the same attacks against two allowlist guards and against Clear to Pay
 scripts/mutation-check.sh         # breaks the contract on purpose; the property test must catch it
@@ -56,7 +57,7 @@ cargo near build non-reproducible-wasm
 
 **Live site:** [joezzy-web3.github.io/clear-to-pay](https://joezzy-web3.github.io/clear-to-pay/) (the landing page reads its verdict counts, the inspection card and the record in "Proof" from the contract) and the **ledger** at [/ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/): each receipt (the latest 200) with its verdict and reasons, the pool, the limits, the supplier's locked address and its countdown, and a box that fingerprints a document in your browser and finds its receipt. The [inspection bench](https://joezzy-web3.github.io/clear-to-pay/inspect/) walks five invoices through every check, step by step. All read NEAR testnet directly from the browser: no server, no keys. Source: [docs/](docs/).
 
-Every testnet transaction mentioned below is listed in [docs/testnet-proof.md](docs/testnet-proof.md) and can be opened at `https://testnet.nearblocks.io/txns/<id>`. Tests run locally and in CI; they are not on-chain transactions.
+Every testnet transaction mentioned below is listed in [docs/testnet-proof.md](docs/testnet-proof.md) and can be opened at `https://testnet.nearblocks.io/txns/<id>`. Tests run locally and in CI; they are not on-chain transactions. Beyond the unit tests (a mock chain), six **sandbox tests** deploy the contract's wasm on a local NEAR node next to a real NEP-141 token and run the cross-contract flows end to end, with signatures from the real `ctp-sign`: an honest invoice held during the supplier's wait, then CLEARED and paid exactly 7.80; "new bank details" SEIZED with every signature valid; one signer and over-billing HELD; a payout the token refuses coming back to the pool in full and paying after reauthorisation; deposits from anyone but the buyer refunded; and NEAR itself refusing the agent key's attempts to withdraw, change limits, move USDC or attach a deposit. All six pass in CI (workflow `sandbox`, started by hand). One stated difference: that build waits 2 minutes instead of 72 hours (a local node moves about 0.4 s of block time per fast-forwarded block) and refuses to run outside the sandbox. See [sandbox/README.md](sandbox/README.md).
 
 ## Claims and proof
 

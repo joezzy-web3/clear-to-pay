@@ -15,7 +15,7 @@ function-call key being refused by NEAR itself. Signatures come from the real `c
 
 One deliberate difference from the deployed code: the sandbox build (`--features sandbox-short-wait`)
 waits 2 minutes instead of 72 hours before a new supplier is payable, because a local node only
-moves about 0.3 s of block time per fast-forwarded block. That build refuses to run on any account
+moves about 0.3 to 0.4 s of block time per fast-forwarded block. That build refuses to run on any account
 outside the sandbox's `test.near`, so it cannot be deployed by mistake. The 72-hour rule is proven
 by the unit tests and is live on testnet.
 
@@ -28,4 +28,4 @@ cargo build --manifest-path tools/ctp-sign/Cargo.toml
 (cd sandbox && cargo test -- --test-threads=1)
 ```
 
-In CI: Actions → **sandbox** → Run workflow. The token in `token/` is for these tests only.
+In CI: Actions → **sandbox** → Run workflow. First green run: 2 Nov 2026, 6 passed in 131 s. The token in `token/` is for these tests only.
