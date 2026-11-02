@@ -113,3 +113,11 @@ def test_pinning_needs_a_passing_report_that_covers_the_software(tmp_path):
     assert "did not pass" in Q.qualified(FP, M.MODEL, path)[0]
     path.write_text(json.dumps(dict(rep, prompt_version="1")))
     assert "another prompt version" in Q.qualified(FP, M.MODEL, path)[0]
+
+
+def test_qualifying_again_asks_again_instead_of_reusing_saved_answers():
+    cloud = Reader()
+    run(cloud)
+    first = sum(1 for c in cloud.calls if c.startswith("POST /v1/chat"))
+    run(cloud)
+    assert sum(1 for c in cloud.calls if c.startswith("POST /v1/chat")) == 2 * first == 14

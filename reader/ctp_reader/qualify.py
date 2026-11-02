@@ -99,6 +99,9 @@ def run(model: str, *, send=M.http, fingerprints=software.fingerprints) -> dict:
     try:
         for c in cases():
             p = prepared(c)
+            # Always a fresh answer: a saved one would carry the software it ran on back then,
+            # so after a NEAR redeploy the gate would keep testing the old software.
+            M._cache_file(p.sha256, model).unlink(missing_ok=True)
             try:
                 r = M.read_invoice(p, token=ROUTE["token"], payee_route=ROUTE, model=model, send=send)
             except M.ModelError as e:

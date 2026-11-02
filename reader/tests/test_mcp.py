@@ -143,3 +143,14 @@ def test_a_key_the_chain_does_not_know_is_refused(agent):
     with pytest.raises(S.ToolError, match="not on"):
         S.submit_invoice(str(args), rpc=lambda u, b: json.dumps({"result": {"error": "access key does not exist"}}).encode(),
                          run=Near())
+
+
+def test_rpc_servers_that_disagree_about_the_key_mean_nothing_is_sent(agent, monkeypatch):
+    _, args = agent
+    monkeypatch.setattr(chain, "RPCS", ["https://a", "https://b"])
+    answers = {"https://a": FENCED, "https://b": "FullAccess"}  # one server lies
+    near = Near()
+    with pytest.raises(S.ToolError, match="disagree"):
+        S.submit_invoice(str(args), rpc=lambda url, body: json.dumps({"result": {"permission": answers[url]}}).encode(),
+                         run=near)
+    assert near.cmd is None

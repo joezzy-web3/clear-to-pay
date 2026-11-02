@@ -33,4 +33,4 @@ jobs:
         run: cargo build --manifest-path tools/ctp-sign/Cargo.toml
       - name: End to end on near-sandbox
         working-directory: sandbox
-        run: cargo update -p near-workspaces && cargo tree -i near-workspaces --depth 0 && cargo test -- --nocapture
+        run: cargo test -- --nocapture
