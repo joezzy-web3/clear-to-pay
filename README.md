@@ -10,6 +10,8 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 
 **30 seconds, nothing to install.** Open the [live ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/#verify) and, under **Verify a document**, click **Fake invoice, new bank details**. Your browser fingerprints the exact document that was submitted on 30 October (a fake invoice asking to be paid to a new address) and finds its receipt on NEAR testnet: **SEIZED**, `payee_mismatch`, with a link to the transaction. You can also download it there, or take [`demo/INV-2210/document.txt`](demo/INV-2210/document.txt) from this repo, and drop the file yourself. Switch to **Live contract** to see the pool, the limits, the two delivery signers and the supplier's locked address, read straight from the chain.
 
+**Or walk one through.** [Inspect an invoice](https://joezzy-web3.github.io/clear-to-pay/inspect/) puts five invoices (honest, white-text payee, new bank details, over-billed, one signer) through every step: the scan, what the AI may see, the signed reading, the contract's checks, the stamp and the next step. Every value is real output from this repository, with links to the receipt, the test or the saved reading; the page also looks up the live receipt for each invoice.
+
 **5 minutes, clone and test.** No wallet, no keys:
 
 ```bash
@@ -52,7 +54,7 @@ scripts/mutation-check.sh         # breaks the contract on purpose; the property
 cargo near build non-reproducible-wasm
 ```
 
-**Live site:** [joezzy-web3.github.io/clear-to-pay](https://joezzy-web3.github.io/clear-to-pay/) (the landing page reads its verdict counts, the inspection card and the record in "Proof" from the contract) and the **ledger** at [/ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/): each receipt (the latest 200) with its verdict and reasons, the pool, the limits, the supplier's locked address and its countdown, and a box that fingerprints a document in your browser and finds its receipt. Both read NEAR testnet directly from the browser: no server, no keys. Source: [docs/](docs/).
+**Live site:** [joezzy-web3.github.io/clear-to-pay](https://joezzy-web3.github.io/clear-to-pay/) (the landing page reads its verdict counts, the inspection card and the record in "Proof" from the contract) and the **ledger** at [/ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/): each receipt (the latest 200) with its verdict and reasons, the pool, the limits, the supplier's locked address and its countdown, and a box that fingerprints a document in your browser and finds its receipt. The [inspection bench](https://joezzy-web3.github.io/clear-to-pay/inspect/) walks five invoices through every check, step by step. All read NEAR testnet directly from the browser: no server, no keys. Source: [docs/](docs/).
 
 Every testnet transaction mentioned below is listed in [docs/testnet-proof.md](docs/testnet-proof.md) and can be opened at `https://testnet.nearblocks.io/txns/<id>`. Tests run locally and in CI; they are not on-chain transactions.
 

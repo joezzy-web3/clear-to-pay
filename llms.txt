@@ -31,6 +31,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - Contract: `guard.cleartopay.testnet`; buyer and agent key: `buyer.cleartopay.testnet`; supplier payout: `qingmar.cleartopay.testnet`
 - Every transaction: [docs/testnet-proof.md](docs/testnet-proof.md), viewable at https://testnet.nearblocks.io/txns/<id>
 - Live ledger (reads the chain from the browser): https://joezzy-web3.github.io/clear-to-pay/ledger/
+- Inspect an invoice (five cases, step by step, real outputs and links): https://joezzy-web3.github.io/clear-to-pay/inspect/
 
 ## Not built yet (stated, not claimed)
 
