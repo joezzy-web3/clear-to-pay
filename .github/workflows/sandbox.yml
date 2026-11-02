@@ -1,0 +1,34 @@
+name: sandbox
+
+# End-to-end tests on a local NEAR node (near-sandbox): the real contract wasm, a real
+# NEP-141 token, real cross-contract calls and the agent's function-call key.
+# Started by hand (Actions -> sandbox -> Run workflow) while it is new; it downloads the
+# near-sandbox binary, so it is kept apart from the main CI.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: cargo-near
+      - name: Build the contract wasm (as deployed)
+        run: cargo near build non-reproducible-wasm
+      - name: Build the test token wasm
+        working-directory: sandbox/token
+        run: cargo near build non-reproducible-wasm --no-abi
+      - name: Build the signing tool
+        run: cargo build --manifest-path tools/ctp-sign/Cargo.toml
+      - name: End to end on near-sandbox
+        working-directory: sandbox
+        run: cargo test -- --test-threads=1 --nocapture

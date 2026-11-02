@@ -1,0 +1,23 @@
+[package]
+name = "ctp-test-token"
+description = "A plain NEP-141 token for the sandbox tests only (stands in for USDC). Never deployed anywhere real."
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+near-sdk = "5.29"
+near-contract-standards = "5.29"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
