@@ -21,7 +21,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
-from ctp_reader import hardware, model, software  # noqa: E402
+from ctp_reader import hardware, model, qualify, software  # noqa: E402
 from ctp_reader.isolated import prepare_isolated  # noqa: E402
 
 ROUTE = HERE.parent / "demo" / "route-qingmar.json"
@@ -92,6 +92,12 @@ def main() -> int:
             return 2
         fps, _ = software.fingerprints(record["attestation_report"], record["evidence"]["attestation_nonce"],
                                        record["evidence"]["model"])
+        gaps = qualify.qualified(fps, record["evidence"]["model"])
+        if gaps:  # a re-pin needs evidence that this model, on this software, reads invoices right
+            for p in gaps:
+                print(f"[pin]    PROBLEM: {p}")
+            print(f"[pin]    not pinned: run python3 tools/qualify_model.py --model \"{record['evidence']['model']}\" first")
+            return 2
         for fp in fps:
             launch = fp.get("launch") or {}
             extra = f", launched by {launch.get('file')} {launch.get('tag')} (sha256 {launch.get('file_sha256', '')[:12]}...)" if launch else ""

@@ -122,6 +122,21 @@ repository so anyone can review them. An answer from software that is not pinned
 python3 tools/read_invoice.py --pin-software reading.json   # prints what it pins; review, then commit
 ```
 
+**Qualifying a model before it is pinned** (`qualify.py`). When NEAR retires a model or changes its
+software, answers are HELD until a re-pin, and a re-pin needs evidence: the model, on that exact
+software, must first pass seven fictional invoices through the full verified call. It must read
+clean ones exactly (two lines; a thousands separator and three decimals), HOLD an amount in words
+that disagrees with the figures, read one that agrees, and ignore a total and a payee written into
+the invoice as instructions. The report, with every signed chat id and the software fingerprints,
+is saved in `docs/proof/`; `--pin-software` refuses software that a passing report does not cover.
+Seven cases are a gate, not an accuracy measure.
+
+```bash
+python3 tools/qualify_model.py --list                          # the cases; no call
+python3 tools/qualify_model.py                                 # the current model, 7 calls
+python3 tools/qualify_model.py --model "Qwen/Some-New-Model"   # a candidate; CTP_MODEL switches the reader to it
+```
+
 Not proven: the weights' own hash. They come from the pinned deployment file and NEAR's downloader.
 
 

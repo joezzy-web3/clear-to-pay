@@ -42,7 +42,8 @@ from .schema import Rejected, check, parse, to_invoice
 from .tee import check_signed_answer
 
 BASE = os.environ.get("CTP_NEAR_AI_BASE", "https://cloud-api.near.ai")
-MODEL = "Qwen/Qwen3.6-35B-A3B-FP8"  # a "Private" model: the text stays inside the TEE. Canonical name, no alias
+MODEL = os.environ.get("CTP_MODEL") or "Qwen/Qwen3.6-35B-A3B-FP8"  # a "Private" model: the text stays inside the TEE.
+# Canonical name, no alias. CTP_MODEL switches model; its software must still be qualified and pinned.
 PRICE_PER_MILLION = (0.15, 0.55)  # USD in / out; an upper bound for the spend cap
 PROMPT_VERSION = "2"  # bump when SYSTEM changes, so old cached answers are not reused
 
