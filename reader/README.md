@@ -195,6 +195,42 @@ python3 tools/alerts.py --test                      # one test message to your p
 python3 tools/alerts.py                             # watch every 30 s
 ```
 
+## Use it from an AI agent (MCP)
+
+`tools/mcp_server.py` speaks MCP over stdio with the standard library only. Add it to an MCP client
+(Claude Desktop: Settings → Developer → Edit config; on Windows with WSL, run it through `wsl`):
+
+```json
+{
+  "mcpServers": {
+    "clear-to-pay": {
+      "command": "wsl",
+      "args": ["python3", "/home/YOU/clear-to-pay/reader/tools/mcp_server.py"]
+    }
+  }
+}
+```
+
+On macOS or Linux use `"command": "python3"` and the path alone. Then ask the agent things like
+"inspect ~/invoices/INV-2208.pdf", "why was receipt 1 held, and what do I tell the supplier?" or
+"is Qingmar payable yet?".
+
+| Tool | What it does | Sends? |
+|---|---|---|
+| `inspect_invoice` | scan a PDF; with `read_with_ai`, the attested model reads it | no |
+| `get_receipt`, `list_receipts` | verdicts, reasons, payments | no |
+| `supplier_status`, `pool` | the registered address, the 72-hour clock, the pool and limits | no |
+| `next_step` | facts, who acts, a checked draft for a person | no |
+| `verify_reading` | re-check a saved reading offline | no |
+| `submit_invoice`, `retry_payment` | send with the agent's fenced key | yes, if enabled |
+
+Hidden text in a PDF is reported by page and reason only; its words never reach the agent.
+To let the agent submit, the operator adds to the config's `env`:
+`CTP_MCP_ALLOW_SUBMIT=1`, `CTP_AGENT_ACCOUNT` (the buyer) and `CTP_AGENT_KEY_FILE` (the
+function-call key's file; needs near-cli-rs). Before each send the server asks NEAR what the key may
+do and refuses anything but a function-call key for `submit_invoice` and `execute_payment` on this
+contract. With WSL, pass these with `"args": ["env", "CTP_MCP_ALLOW_SUBMIT=1", ..., "python3", ...]`.
+
 ## Not covered yet (stated, not claimed)
 
 Clipping paths, transparency (fill opacity, soft masks), and text over photographs

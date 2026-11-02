@@ -60,6 +60,7 @@ the buyer (a storekeeper, say); a cloud AI provider that swaps or tampers with t
 - **K2. The key moves USDC directly.** USDC's `ft_transfer` needs 1 yoctoNEAR; the key cannot attach it, and only works on the guard contract. *Proof:* proof log (refused by NEAR).
 - **K3. The key floods the contract with submissions.** Daily submission limit (1–1000), storage-money check. *Proof:* `agent_cannot_exhaust_contract_storage_beyond_the_daily_limit`, `submissions_stop_before_the_contract_runs_out_of_storage_money`.
 - **K4. Strangers submit, pay, or fake a payout result.** Caller checks; callbacks only from the contract itself. *Proof:* `strangers_cannot_submit_invoices`, `strangers_cannot_fake_a_payout_callback`, `attack_direct_call_with_the_contracts_own_key_cannot_fake_a_payout_result`.
+- **K5. An agent using the MCP server is fed the hidden instruction, or runs with a key that is too strong.** The server withholds the words of any hidden text (it returns only where it was and why it was dropped); sending is off by default; before every send it asks NEAR for the key's permission and refuses a full-access key, a key for another contract or a key with any method beyond `submit_invoice` and `execute_payment`. *Proof:* `test_a_poisoned_pdf_is_held_and_its_hidden_words_never_reach_the_agent`, `test_sending_is_off_unless_the_operator_turns_it_on`, `test_a_key_that_is_not_fenced_is_refused_before_anything_is_sent`, `test_a_fenced_key_submits_and_the_key_never_appears_in_the_answer`.
 
 ## 5. Payments
 

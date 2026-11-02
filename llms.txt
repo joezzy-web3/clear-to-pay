@@ -8,7 +8,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 
 - `cargo test` : 127 contract tests, incl. 4 property tests and the baseline comparison
 - `(cd tools/ctp-sign && cargo test)` : 5 signing-tool tests, golden vectors shared with the contract
-- `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 225 reader tests, incl. the 19-invoice attack corpus, 34 offline tests of the TEE model call, 7 of the hardware check, 10 of which software the enclave ran, 8 of the qualification gate for a new model, 28 of the follow-up drafts and 20 of the alerts
+- `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 238 reader tests, incl. the 19-invoice attack corpus, 34 offline tests of the TEE model call, 7 of the hardware check, 10 of which software the enclave ran, 8 of the qualification gate for a new model, 28 of the follow-up drafts, 20 of the alerts and 13 of the MCP server
 - `scripts/attack-demo.sh` : a poisoned invoice, a fooled agent, and every refusal, logged
 - `scripts/baseline.sh` : the same invoice attacks against two allowlist guards and against Clear to Pay
 - `scripts/mutation-check.sh` : breaks three rules on purpose; a property test must catch each
@@ -31,6 +31,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - Contract: `guard.cleartopay.testnet`; buyer and agent key: `buyer.cleartopay.testnet`; supplier payout: `qingmar.cleartopay.testnet`
 - Every transaction: [docs/testnet-proof.md](docs/testnet-proof.md), viewable at https://testnet.nearblocks.io/txns/<id>
 - Live ledger (reads the chain from the browser): https://joezzy-web3.github.io/clear-to-pay/ledger/
+- MCP server for AI agents (stdlib only; sending off by default, agent key fence checked on chain): [reader/ctp_reader/mcp_server.py](reader/ctp_reader/mcp_server.py)
 - Inspect an invoice (five cases, step by step, real outputs and links): https://joezzy-web3.github.io/clear-to-pay/inspect/
 
 ## Not built yet (stated, not claimed)
