@@ -90,7 +90,11 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
 .ctabs span{opacity:.55;font-weight:500}
 .ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
-.ctabs a.dim{opacity:.5}
+.ctabs a.dim{opacity:.35}
+.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+.ctabs a.for[aria-current]{color:var(--navy)}
+.rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
+.rolehint a{color:var(--signal)}
 .roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
 .roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
 .roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
@@ -131,7 +135,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/" aria-current="page"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><span title="Coming next">Inbox · next</span></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div></div></nav>
+  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><span title="Coming next">Inbox · next</span></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
 
   <div class="hero">
     <div>
@@ -290,6 +294,29 @@ const FORMS = [
     async readBack() { return this.now(); },
     async now() { const t = await view(contract(), "get_allowed_tokens"); return "Allowed: " + (t.map((x) => short(x, 6)).join(", ") || "none"); } },
 
+  { id: "agent", kicker: "The agent", title: "Give the agent a fenced key", custom: true,
+    help: "The AI agent submits invoices with its own key. NEAR fences it: this contract only, two methods (submit_invoice, execute_payment), no money attached, and a gas allowance you set. It can never move USDC anywhere the contract would not.",
+    warn: "The key is made in this browser and handed to you as a file before anything is signed. It is not kept here. Put it only on the machine that runs the agent.",
+    fields: `<label>Gas allowance<span>NEAR the key may burn on fees; 0.05 to 1 (the agent tools refuse more)</span><input id="a-allow" inputmode="decimal" value="0.25"></label>
+      <div class="row" style="margin-top:4px"><button class="btn" type="button" id="a-make">1 · Make the key</button><button class="btn ghost" type="button" id="a-dl" disabled>2 · Download it</button></div>
+      <p class="note" id="a-state">No key made yet.</p>`,
+    build() {
+      if (!AGENT.pub) fail("Make the key first (step 1).");
+      if (!AGENT.saved) fail("Download the key file first (step 2). The wallet step comes after, so the key is never lost.");
+      const n = toUnits($("a-allow").value, 24);
+      if (!n || BigInt(n) < 5n * 10n ** 22n || BigInt(n) > 10n ** 24n) fail("Allowance: 0.05 to 1 NEAR.");
+      const methodNames = ["submit_invoice", "execute_payment"];
+      return { receiver: S.me || S.owner, actions: [{ type: "AddKey", params: { publicKey: AGENT.pub, accessKey: { permission: { receiverId: contract(), allowance: n, methodNames } } } }],
+        args: { public_key: AGENT.pub }, preview: `AddKey on your own account (${S.me || S.owner})
+key       ${AGENT.pub}
+may call  ${contract()}
+methods   ${methodNames.join(", ")}
+allowance ${$("a-allow").value.trim()} NEAR of gas
+deposit   none (a function-call key can never attach money)` };
+    },
+    async readBack() { return this.now(); },
+    async now() { const ks = await agentKeys(); renderAgentKeys(ks); return ks.length ? `Fenced agent keys on ${contract()}: ${ks.length}` : "No agent key for this contract yet."; } },
+
   { id: "pool", kicker: "Payments", title: "Top up the pool",
     help: "Moves USDC from the buyer's account into the contract with ft_transfer_call. Only the buyer's deposits are accepted; anything else is returned.",
     fields: `<label>Amount<span>USDC</span><input id="p-amt" inputmode="decimal" placeholder="10"></label>`,
@@ -300,6 +327,54 @@ const FORMS = [
     async readBack() { return this.now(); },
     async now() { const f = await view(contract(), "get_funds", { token: USDC }); $("f-pool").textContent = fromUnits(f.available) + " USDC"; return `Pool: ${fromUnits(f.available)} USDC available · ${fromUnits(f.reserved || 0)} reserved`; } },
 ];
+
+// ---------------------------------------------------------------- the agent's key (made here, handed over, never stored)
+const AGENT = { pub: null, secret: null, saved: false };
+async function agentKeys() {
+  const owner = await view(contract(), "get_owner");
+  const r = await rpc("query", { request_type: "view_access_key_list", finality: "final", account_id: owner });
+  return r.keys.filter((k) => k.access_key.permission?.FunctionCall?.receiver_id === contract());
+}
+let DEMO_KEY = null;
+fetch("../agent.json").then((r) => (r.ok ? r.json() : null)).then((a) => (DEMO_KEY = a && a.public_key)).catch(() => {});
+function renderAgentKeys(ks) {
+  const box = $("a-keys"); if (!box) return;
+  box.innerHTML = ks.length ? `<small class="muted" style="font:500 11.5px var(--mono);letter-spacing:.14em;text-transform:uppercase">Keys already fenced to this contract</small>` + ks.map((k) => { const fc = k.access_key.permission.FunctionCall;
+    return `<div class="arow"><span><b>${esc(short(k.public_key, 10))}${k.public_key === DEMO_KEY ? " · Judge mode's public key" : ""}</b><small>${esc(fc.method_names.join(", "))} · ${fc.allowance == null ? "unlimited gas" : (Number(BigInt(fc.allowance) / 10n ** 18n) / 1e6).toFixed(3) + " NEAR left"}</small></span>
+      <button class="btn ghost" type="button" data-rm="${esc(k.public_key)}">Remove</button></div>`; }).join("") : "";
+  box.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = () => removeKey(b.dataset.rm)));
+}
+async function removeKey(pub) {
+  if (!S.wallet || S.me !== S.owner) { alert("Connect the buyer's wallet to remove a key."); return; }
+  if (!confirm(`Remove agent key ${short(pub, 10)}? The agent using it stops at once.${pub === DEMO_KEY ? "\n\nThis is Judge mode's public demo key: removing it stops Judge mode." : ""}`)) return;
+  const out = $("out-agent");
+  try {
+    sessionStorage.setItem("ctp-setup-pending", JSON.stringify({ id: "agent", c: S.c, args: { removed: pub } }));
+    const res = await S.wallet.signAndSendTransaction({ receiverId: S.me, actions: [{ type: "DeleteKey", params: { publicKey: pub } }] });
+    sessionStorage.removeItem("ctp-setup-pending");
+    if (res) await done(FORMS.find((x) => x.id === "agent"), res.transaction?.hash || res.transaction_outcome?.id, {}, res.status?.Failure);
+  } catch (e) { sessionStorage.removeItem("ctp-setup-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
+}
+function wireAgent() {
+  $("a-make").onclick = () => {
+    const k = C.newKeyFile(); AGENT.pub = k.public_key; AGENT.secret = k.secret_key; AGENT.saved = false;
+    $("a-dl").disabled = false;
+    $("a-state").innerHTML = `Key made: <code>${esc(short(k.public_key, 10))}</code>. Download it next.`;
+    document.querySelector('[data-sign="agent"]').disabled = true;
+  };
+  $("a-dl").onclick = () => {
+    if (!AGENT.secret) return;
+    // exactly the access-key file near-cli-rs reads (sign-with-access-key-file), which the agent tools use
+    const acct = S.owner, file = { account_id: acct, public_key: AGENT.pub, private_key: AGENT.secret };
+    const name = `ctp-agent-${contract().split(".")[0]}.json`;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2) + "\n"], { type: "application/json" }));
+    a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    AGENT.saved = true; AGENT.secret = null; // the page forgets it once it is yours
+    $("a-dl").disabled = true;
+    $("a-state").innerHTML = `Saved as <code>${esc(name)}</code>. On the agent's machine, set:<br><code>CTP_CONTRACT=${esc(contract())}</code><br><code>CTP_AGENT_ACCOUNT=${esc(acct)}</code><br><code>CTP_AGENT_KEY_FILE=/path/to/${esc(name)}</code><br>Then Review and sign: your wallet fences the key on chain.`;
+  };
+}
 
 function fillRoles(signers) { const sel = $("k-role"); if (sel) sel.innerHTML = [...new Set(signers.map((s) => s.role))].map((r) => `<option>${esc(r)}</option>`).join(""); }
 function addLine(id, dn) {
@@ -321,6 +396,8 @@ function render() {
         <div id="out-${f.id}"></div></div>
     </section>`).join(""));
   addLine("o-lines"); addLine("k-lines", true);
+  $("out-agent").insertAdjacentHTML("beforebegin", `<div class="alist" id="a-keys"></div>`);
+  wireAgent();
   document.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addLine(b.dataset.add, b.dataset.dn)));
   document.querySelectorAll("[data-review]").forEach((b) => (b.onclick = () => review(b.dataset.review)));
   document.querySelectorAll("[data-sign]").forEach((b) => (b.onclick = () => sign(b.dataset.sign)));
@@ -329,13 +406,18 @@ function render() {
 }
 
 const PENDING = {};
-function call(f) { const b = f.build(); return { receiver: b.receiver || contract(), method: b.method, args: b.args, gas: TGAS(b.gas || 50), deposit: YOCTO, note: b.note }; }
+function call(f) {
+  const b = f.build();
+  if (b.actions) return { receiver: b.receiver, actions: b.actions, args: b.args, preview: b.preview };
+  return { receiver: b.receiver || contract(), method: b.method, args: b.args, gas: TGAS(b.gas || 50), deposit: YOCTO, note: b.note,
+    actions: [{ type: "FunctionCall", params: { methodName: b.method, args: b.args, gas: TGAS(b.gas || 50), deposit: YOCTO } }] };
+}
 function review(id) {
   const f = FORMS.find((x) => x.id === id), out = $("out-" + id);
   out.innerHTML = "";
   try {
     const c = call(f); PENDING[id] = c;
-    $("pv-" + id).innerHTML = `<b>Your wallet will sign</b>\nfrom      ${esc(S.me || "(connect your wallet)")}\nto        ${esc(c.receiver)}\nmethod    ${esc(c.method)}\ndeposit   1 yoctoNEAR (proves it is you)\ngas       ${esc(c.gas.slice(0, -12))} Tgas\nargs      ${esc(JSON.stringify(c.args, null, 2))}${c.note ? "\n\n" + esc(c.note) : ""}`;
+    $("pv-" + id).innerHTML = c.preview ? `<b>Your wallet will sign</b>\n${esc(c.preview)}` : `<b>Your wallet will sign</b>\nfrom      ${esc(S.me || "(connect your wallet)")}\nto        ${esc(c.receiver)}\nmethod    ${esc(c.method)}\ndeposit   1 yoctoNEAR (proves it is you)\ngas       ${esc(c.gas.slice(0, -12))} Tgas\nargs      ${esc(JSON.stringify(c.args, null, 2))}${c.note ? "\n\n" + esc(c.note) : ""}`;
     const sb = document.querySelector(`[data-sign="${id}"]`);
     sb.disabled = !(S.me && S.owner && S.me === S.owner);
     if (!S.me) out.innerHTML = `<p class="err">Connect the buyer's wallet to sign.</p>`;
@@ -348,7 +430,7 @@ async function sign(id) {
   try {
     sessionStorage.setItem("ctp-setup-pending", JSON.stringify({ id, c: S.c, args: c.args }));
     out.innerHTML = `<p class="muted">Waiting for your wallet…</p>`;
-    const res = await S.wallet.signAndSendTransaction({ receiverId: c.receiver, actions: [{ type: "FunctionCall", params: { methodName: c.method, args: c.args, gas: c.gas, deposit: c.deposit } }] });
+    const res = await S.wallet.signAndSendTransaction({ receiverId: c.receiver, actions: c.actions });
     sessionStorage.removeItem("ctp-setup-pending");
     if (res) await done(f, res.transaction?.hash || res.transaction_outcome?.id, c.args, res.status?.Failure);
   } catch (e) { sessionStorage.removeItem("ctp-setup-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
@@ -402,8 +484,8 @@ async function checklist() {
       const owner = await view(c, "get_owner"), k = await rpc("query", { request_type: "view_access_key_list", finality: "final", account_id: owner });
       agent = k.keys.find((x) => x.access_key.permission?.FunctionCall?.receiver_id === c && x.access_key.permission.FunctionCall.method_names.includes("submit_invoice"));
     } catch {}
-    rows.push(agent ? ["ok", null, "Agent key fenced", `may call ${agent.access_key.permission.FunctionCall.method_names.join(", ")} only`]
-      : ["todo", null, "Give the agent a fenced key", "NEAR CLI, once: near account add-key <buyer> grant-function-call-access --contract-account-id " + c + " --function-names 'submit_invoice, execute_payment' …"]);
+    rows.push(agent ? ["ok", "agent", "Agent key fenced", `may call ${agent.access_key.permission.FunctionCall.method_names.join(", ")} only`]
+      : ["todo", "agent", "Give the agent a fenced key", "made here, fenced by your wallet: this contract, two methods, a gas allowance"]);
   } catch { rows.push(["todo", null, "Could not read the contract", "NEAR's RPC is not reachable; try again"]); }
   const done = rows.filter((r) => r[0] === "ok").length;
   $("h-ready").textContent = done === rows.length ? "Ready. The agent can submit." : "What this contract still needs.";
@@ -506,6 +588,7 @@ await returning();
 /* Console bar: remember who is using it, and mark the pages for that role. */
 (() => {
   const FOR = { buyer: ["judge", "setup"], signer: ["sign"], supplier: ["sign"] };
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts) and Judge mode.", "signer": "You confirm what arrived. Open the signing link the buyer sends you; your page is Sign. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign (the buyer's invoice link), plus Telegram alerts."};
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
@@ -513,6 +596,15 @@ await returning();
       const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
       a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
     });
+    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
+    if (h) {
+      h.hidden = !role;
+      if (role) {
+        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+        h.textContent = HINT[role] + (mineHere ? "" : " ");
+        if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
+      }
+    }
   };
   document.querySelectorAll(".roles button").forEach((b) => b.addEventListener("click", () => {
     role = role === b.dataset.role ? null : b.dataset.role;

@@ -86,7 +86,11 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
 .ctabs span{opacity:.55;font-weight:500}
 .ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
-.ctabs a.dim{opacity:.5}
+.ctabs a.dim{opacity:.35}
+.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+.ctabs a.for[aria-current]{color:var(--navy)}
+.rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
+.rolehint a{color:var(--signal)}
 .roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
 .roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
 .roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
@@ -101,7 +105,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/" aria-current="page"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign" aria-current="page">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><span title="Coming next">Inbox · next</span></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div></div></nav>
+  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign" aria-current="page">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><span title="Coming next">Inbox · next</span></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
 
   <div class="hero">
     <div>
@@ -349,6 +353,7 @@ $("sign").addEventListener("click", async () => {
 /* Console bar: remember who is using it, and mark the pages for that role. */
 (() => {
   const FOR = { buyer: ["judge", "setup"], signer: ["sign"], supplier: ["sign"] };
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts) and Judge mode.", "signer": "You confirm what arrived. Open the signing link the buyer sends you; your page is Sign. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign (the buyer's invoice link), plus Telegram alerts."};
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
@@ -356,6 +361,15 @@ $("sign").addEventListener("click", async () => {
       const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
       a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
     });
+    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
+    if (h) {
+      h.hidden = !role;
+      if (role) {
+        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+        h.textContent = HINT[role] + (mineHere ? "" : " ");
+        if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
+      }
+    }
   };
   document.querySelectorAll(".roles button").forEach((b) => b.addEventListener("click", () => {
     role = role === b.dataset.role ? null : b.dataset.role;
