@@ -10,6 +10,10 @@ useDefault = true
 
 [allowlist]
 description = "Published public values, exact match only"
+# One generated file: the third-party NEAR Wallet Selector bundle, rebuilt byte for byte from
+# tools/console-crypto (npm ci && npm run build:wallet). Its minified names (e.g. "KeyPairEd25519")
+# trip the generic rule. It holds no key; no other file is skipped.
+paths = ['''^docs/console/wallet\.js$''']
 regexes = [
   # Circle's USDC token contract on NEAR testnet
   '''^3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af$''',

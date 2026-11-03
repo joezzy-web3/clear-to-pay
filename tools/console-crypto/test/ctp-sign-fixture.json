@@ -1,0 +1,53 @@
+{
+ "what": "Throwaway test keys and the signatures tools/ctp-sign made with them (submit-args, --policy-version 1, contract cleartopay.testnet). check.mjs proves the browser signs the same bytes. Not used anywhere else.",
+ "seeds_hex": {
+  "supplier": "17ada1d81b0c05b4a63a19177e0e89522f11f32583173f04da5a80ff3a68525b",
+  "storekeeper": "0043a74efc66b9e6a9c8d286c277375dbb0f4d1de32fab7291d450f1befb3893",
+  "weighbridge": "a9a1baca59553d6d2ab40b41a3edcb06ebe61961b71bad2624d139978ce096ea"
+ },
+ "contract": "cleartopay.testnet",
+ "policy_version": 1,
+ "ctp_sign_output": {
+  "delivery": {
+   "lines": [
+    {
+     "qty": "10",
+     "sku": "AH36-12mm"
+    }
+   ],
+   "note_id": "DN-552",
+   "order_id": "PO-1184"
+  },
+  "delivery_signatures": [
+   {
+    "key": "ed25519:s9LSuqdvRUHDFEMibzc7dck2hzVfKBiffhapUZshjit",
+    "signature": "GPANGsEEZCAAEzhzpgj5TV9H9/9QrQiTmX2k+G0R0/uU8m+9t0WmffLF94DA+2eEl4rO26yJUIbS5NjEx7y4Bg=="
+   },
+   {
+    "key": "ed25519:2yWuWkfTQcfFCCAtHQGi3SmijTkrPX3n3jETGMAGaNAE",
+    "signature": "K1pYgTJ7N5hXVn0zw4Kc07x5+sLUJJ4SC6iwoFjRbcbOEMfo9fex1o29Fc/p321d2cvLKrxI6ZHl2ldmCe1gAw=="
+   }
+  ],
+  "document_hash": "soQvE6xrOdxanqOuPN5wINgUG8paE+o83n2c8Mqr1Lo=",
+  "invoice": {
+   "invoice_number": "INV-2208",
+   "lines": [
+    {
+     "qty": "10",
+     "sku": "AH36-12mm",
+     "unit_price": "780000"
+    }
+   ],
+   "order_id": "PO-1184",
+   "payee": {
+    "address": "qingmar.testnet",
+    "chain": "near",
+    "token": "usdc.testnet"
+   },
+   "supplier_id": "qingmar-steel",
+   "token": "usdc.testnet",
+   "total": "7800000"
+  },
+  "supplier_signature": "VqBkz2hmVUrFuETjPhkW9q7YSZozIhku6TQPJM16UJzWaLNXcIPYzkKcS8dK9Kn7x9zRLuIH8/KUWSw7N3wXAA=="
+ }
+}

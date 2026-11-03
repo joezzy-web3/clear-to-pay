@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Clear to Pay Sign</title>
+<meta name="description" content="Sign a delivery note or an invoice for Clear to Pay on your phone. The same signed bytes as the ctp-sign tool; your key stays on this device.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../console.css">
+<style>
+/* Sign: one job per screen, phone first. The note is the paper; the button is the only loud thing. */
+.hero{grid-template-columns:1fr;padding-block:clamp(26px,5vw,48px) clamp(24px,4vw,36px)}
+.hero h1{font-size:clamp(52px,9vw,112px)}
+.wrap{max-width:760px;margin:0 auto;padding-block:clamp(24px,4vw,44px) clamp(48px,7vw,80px);display:grid;gap:18px}
+.paper.note{white-space:normal;font:400 15px/1.5 var(--mono);padding:30px 22px 22px;overflow:visible}
+.paper.note::first-line{font:inherit}
+.paper.note::after{content:none}
+.paper.note h3{font:800 clamp(28px,7vw,40px)/1.05 var(--display);margin:0 0 6px;color:var(--navy)}
+.paper.note .meta{color:var(--mute);font-size:13.5px}
+.lines{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:8px}
+.lines li{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:12px 0;border-top:1px dashed var(--line)}
+.lines b{font:800 clamp(26px,6vw,34px)/1 var(--display);white-space:nowrap}
+.big{display:grid;gap:4px;margin-top:14px;padding:14px 16px;background:var(--cell);border-left:4px solid var(--navy)}
+.big span{font:500 11.5px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.big b{font:500 clamp(18px,4.6vw,24px)/1.3 var(--mono);overflow-wrap:anywhere}
+.big.total b{font:800 clamp(40px,10vw,64px)/1 var(--display)}
+.big.bad{border-color:var(--seize);background:#FBECEA}.big.bad b{color:var(--seize)}
+.role{font:500 15px var(--body);margin-top:14px}.role b{background:var(--signal);padding:2px 8px}
+.signbtn{width:100%;justify-content:center;font:800 clamp(26px,6vw,32px)/1 var(--display);letter-spacing:.02em;padding:22px 18px;background:var(--signal);color:var(--navy)}
+.signbtn:disabled{background:#D9DED9;color:var(--mute)}
+.plain{font:400 15px/1.55 var(--body);color:var(--mute);margin:0}
+.keybox{display:grid;gap:12px}
+.keybox code{display:block;background:var(--cell);border:1px solid var(--line);padding:10px 12px;overflow-wrap:anywhere;font-size:13px}
+.keybox textarea{width:100%;min-height:90px;font:400 13px var(--mono);border:1px solid var(--line);padding:10px}
+.out{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:18px;align-items:start}
+.out pre{margin:0;background:var(--deep);color:#C9D6E6;font:400 12.5px/1.6 var(--mono);padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.qr{background:#fff;border:1px solid var(--line);padding:8px}.qr svg{display:block;width:100%;height:auto}
+.msg{padding:12px 14px;border-left:4px solid var(--held);background:#FFF6D6;line-height:1.5}
+.msg.bad{border-color:var(--seize);background:#FBECEA}.msg.ok{border-color:var(--clear);background:#E5F2EA}
+@media (max-width:640px){.out{grid-template-columns:1fr}.qr{max-width:240px}}
+
+/* the shared nav: four words, a "Try it" menu and one solid button */
+.nav{flex-wrap:nowrap}
+.links{flex-wrap:nowrap!important;align-items:center}
+.links a,.links .trybtn{white-space:nowrap}
+.try{position:relative}
+.trybtn{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.trybtn svg{transition:transform .15s}
+.trybtn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.trymenu{position:absolute;top:calc(100% + 10px);right:-8px;z-index:80;width:min(380px,calc(100vw - 32px));background:#fff;color:#10264A;
+  border-radius:14px;padding:8px;box-shadow:0 0 0 1px rgba(16,38,74,.10),0 30px 60px -20px rgba(11,26,51,.55)}
+.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#F4C20D 16px 32px)}
+.trymenu[hidden]{display:none}
+.links .trymenu a{display:grid;gap:3px;padding:12px 14px;border-radius:10px;color:#10264A!important;background:none!important;backdrop-filter:none!important;text-decoration:none;white-space:normal}
+.links .trymenu a:hover,.links .trymenu a:focus-visible{background:#EEF1EC!important}
+.trymenu b{font:600 15px "Instrument Sans",Arial,sans-serif}
+.trymenu small{font:400 13px/1.4 "Instrument Sans",Arial,sans-serif;color:#55657C}
+.trymenu a[aria-current] b::after{content:" · you are here";font-weight:400;color:#55657C}
+.navlive{display:inline-flex;align-items:center;gap:8px;font:600 14.5px/1 "Instrument Sans",Arial,sans-serif;text-decoration:none;padding:11px 16px;border-radius:10px;white-space:nowrap}
+.navlive:hover{filter:brightness(1.06)}
+.navlive i{width:8px;height:8px;border-radius:50%;background:#127A4A;box-shadow:0 0 0 3px rgba(18,122,74,.2)}
+@media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
+@media (max-width:900px){.navlive{display:none}}
+.fnear{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-weight:600;color:inherit}
+.fnear img{border-radius:5px;display:block}
+.links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
+.links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
+.navlive{background:var(--signal);color:var(--navy)}
+</style>
+</head>
+<body>
+<header class="top gut"><div class="in">
+  <nav class="nav">
+    <a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay<span class="crumb">/ Sign</span></a>
+    <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/" aria-current="page"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
+    <span class="navr"><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+  </nav>
+
+  <div class="hero">
+    <div>
+      <span class="live" id="live"><i></i><span id="liveText"><b>Reading the link</b></span></span>
+      <h1 id="h1">Sign a <span>delivery.</span></h1>
+      <p class="sub" id="sub">The buyer sent you this link. Check what it says against what arrived, then sign. Your key never leaves this phone.</p>
+    </div>
+  </div>
+</div></header>
+
+<main class="gut"><div class="wrap" id="main">
+  <div class="msg" id="nolink" hidden>This page signs a delivery note or an invoice from a link the buyer sends you. Open the link you were sent. Until then, you can set up your signing key below and send its public key to the buyer.</div>
+
+  <article class="paper note" id="note" hidden aria-live="polite"></article>
+
+  <section class="card" id="checks-card" hidden>
+    <h3>Checked on chain before you sign</h3>
+    <ul class="checks" id="checks"></ul>
+  </section>
+
+  <section class="card keybox" id="keycard" aria-labelledby="h-key">
+    <h3 id="h-key">Your signing key</h3>
+    <div id="keystate"></div>
+    <p class="note">Demo-grade key storage: the key is kept in this browser's storage for this site only. Anyone with this phone unlocked could use it. For real deliveries, use a hardware-backed key.</p>
+  </section>
+
+  <section id="signsec" hidden>
+    <button class="btn signbtn" id="sign" type="button" disabled>Sign</button>
+    <p class="plain" id="plain" style="margin-top:12px"></p>
+  </section>
+
+  <section class="card" id="result" hidden aria-live="polite">
+    <h3 id="res-h">Signed</h3>
+    <p class="muted" id="res-p">Send this back to the buyer: copy it, show the QR code, or share the link.</p>
+    <div class="out"><pre id="res-json"></pre><div class="qr" id="qr" aria-label="QR code of the send-back link"></div></div>
+    <div class="row"><button class="btn" id="copy" type="button">Copy</button><button class="btn ghost" id="share" type="button">Send back</button><button class="btn ghost" id="copylink" type="button">Copy the link</button></div>
+  </section>
+</div></main>
+<section class="closer gut" aria-label="Closing"><div class="in">
+  <span class="tg t1">The AI reads.</span>
+  <span class="tg t2">Code decides.</span>
+  <p><a href="../">Judge mode</a> · <a href="../../ledger/">Every receipt on the ledger</a> · <a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">Source on GitHub</a></p>
+</div></section>
+<div class="gut" style="background:var(--paper)"><footer class="in"><span><a class="fnear" href="https://near.org" target="_blank" rel="noopener"><img src="../../near.png" alt="" width="20" height="20">Built on NEAR</a> · Clear to Pay · built for the NEAR Hackathon · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></span><span>Testnet only. Qingmar Steel Co. is fictional.</span></footer></div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/" aria-current="page">Sign a delivery</a><a href="../../console/setup/">Buyer setup</a><a href="../../ledger/">Live ledger</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+
+<script type="module">
+import * as C from "../crypto.js";
+import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy } from "../chain.js";
+initMenu();
+
+// ---------------------------------------------------------------- the key, kept in IndexedDB for this site only
+const DB = "ctp-signer", ST = "keys";
+function idb() { return new Promise((ok, no) => { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore(ST); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); }
+async function kv(mode, fn) { const db = await idb(); return new Promise((ok, no) => { const t = db.transaction(ST, mode), q = fn(t.objectStore(ST)); t.oncomplete = () => ok(q && q.result); t.onerror = () => no(t.error); }); }
+const loadKey = async () => { try { return (await kv("readonly", (s) => s.get("current"))) || null; } catch { return null; } };
+const saveKey = async (k) => { try { await kv("readwrite", (s) => s.put(k, "current")); return true; } catch { return false; } };
+const forgetKey = async () => { try { await kv("readwrite", (s) => s.delete("current")); } catch {} };
+
+let KEY = null, JOB = null, READY = false;
+
+function paintKey() {
+  const el = $("keystate");
+  if (KEY) {
+    el.innerHTML = `<p class="plain">This phone signs with:</p><code id="pub">${esc(KEY.public_key)}</code>
+      <div class="row" style="margin-top:0"><button class="btn ghost" id="copypub" type="button">Copy the public key</button><button class="btn ghost" id="forget" type="button">Forget this key</button></div>
+      <p class="note" style="margin:0">The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key). It is safe to share; the secret half stays here.</p>`;
+    $("copypub").onclick = (e) => copy(KEY.public_key, e.target);
+    $("forget").onclick = async () => { if (confirm("Forget this key on this phone? Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); } };
+  } else {
+    el.innerHTML = `<p class="plain">No key on this phone yet. Make one here, or import the key file the buyer's team gave you (the <code>ctp-sign</code> JSON).</p>
+      <div class="row" style="margin-top:0"><button class="btn" id="gen" type="button">Make a key on this phone</button><label class="btn ghost" for="file">Import a key file</label><input type="file" id="file" accept=".json,application/json" hidden></div>
+      <details><summary class="muted" style="cursor:pointer">Or paste the key file</summary><textarea id="paste" spellcheck="false" aria-label="Key file JSON"></textarea><div class="row"><button class="btn ghost" id="usepaste" type="button">Use this key</button></div></details>`;
+    $("gen").onclick = async () => setKey(C.newKeyFile(), true);
+    $("file").onchange = async (e) => { const f = e.target.files[0]; if (f) importKey(await f.text()); };
+    $("usepaste").onclick = () => importKey($("paste").value);
+  }
+}
+function importKey(text) {
+  try { setKey(C.readKeyFile(JSON.parse(text)), false); }
+  catch (e) { alert("That is not a valid key file: " + e.message); }
+}
+async function setKey(k, fresh) {
+  KEY = { public_key: k.public_key, secret_key: k.secret_key };
+  if (!(await saveKey(KEY))) alert("This browser would not store the key (private mode?). It works until you close the page.");
+  paintKey(); check();
+  if (fresh) alert("Key made. Send its public key to the buyer to register before you sign anything.");
+}
+
+// ---------------------------------------------------------------- the link
+const P = new URLSearchParams(location.hash.slice(1));
+function parseJob() {
+  if (P.get("n")) {
+    const n = decodeLink(P.get("n"));
+    const okLines = Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isUint(String(l.qty)));
+    if (!isAccount(n.contract) || !isRef(n.order_id) || !isRef(n.note_id) || !okLines || !isRole(n.role) || !Number.isInteger(n.policy_version) || n.policy_version < 0 || n.policy_version > 4294967295) throw new Error("this delivery link is damaged or incomplete");
+    const unit = typeof n.unit === "string" && /^[a-z]{1,6}$/i.test(n.unit) ? n.unit : "";
+    return { kind: "delivery", contract: n.contract, role: n.role, policy_version: n.policy_version, unit,
+      note: { order_id: n.order_id, note_id: n.note_id, lines: n.lines.map((l) => ({ sku: l.sku, qty: String(l.qty) })) }, raw: P.get("n") };
+  }
+  if (P.get("i")) {
+    const x = decodeLink(P.get("i")), v = x.invoice || {};
+    let doc; try { doc = C.base64.decode(x.document_hash); } catch { doc = null; }
+    const route = v.payee || {};
+    const okLines = Array.isArray(v.lines) && v.lines.length >= 1 && v.lines.length <= 50 && v.lines.every((l) => isRef(l.sku) && isUint(String(l.qty)) && isUint(String(l.unit_price)));
+    if (!isAccount(x.contract) || !isSupplierId(v.supplier_id) || !isRef(v.invoice_number) || !isRef(v.order_id) || !isPrintable(v.token, 128) || !okLines || !isUint(String(v.total))
+        || !isPrintable(route.chain, 32) || !isPrintable(route.token, 128) || !isPrintable(route.address, 128) || !doc || doc.length !== 32) throw new Error("this invoice link is damaged or incomplete");
+    const invoice = { supplier_id: v.supplier_id, invoice_number: v.invoice_number, order_id: v.order_id, token: v.token,
+      lines: v.lines.map((l) => ({ sku: l.sku, qty: String(l.qty), unit_price: String(l.unit_price) })), total: String(v.total), payee: { chain: route.chain, token: route.token, address: route.address } };
+    return { kind: "invoice", contract: x.contract, invoice, doc, docB64: x.document_hash, raw: P.get("i") };
+  }
+  return null;
+}
+const money = (units, token) => token === USDC ? fromUnits(units) + " USDC" : units + " units";
+
+function paintJob() {
+  const j = JOB;
+  if (j.kind === "delivery") {
+    $("h1").innerHTML = "Sign a <span>delivery.</span>";
+    $("note").innerHTML = `<h3>Delivery note ${esc(j.note.note_id)}</h3><div class="meta">Order ${esc(j.note.order_id)} · contract ${esc(j.contract)}</div>
+      <ul class="lines">${j.note.lines.map((l) => `<li><span>${esc(l.sku)}</span><b>${esc(l.qty)}${j.unit ? " " + esc(j.unit) : ""} received</b></li>`).join("")}</ul>
+      <div class="role">You sign as: <b>${esc(j.role)}</b></div>`;
+    $("plain").textContent = "You confirm these goods arrived. Your signature cannot be moved to another note, order, role or contract.";
+    $("sign").textContent = "Sign delivery";
+  } else {
+    $("h1").innerHTML = "Sign an <span>invoice.</span>";
+    $("sub").textContent = "You are the supplier. Check where the money goes and how much, then sign with your registered key.";
+    const v = j.invoice;
+    $("note").innerHTML = `<h3>Invoice ${esc(v.invoice_number)}</h3><div class="meta">${esc(v.supplier_id)} · order ${esc(v.order_id)} · contract ${esc(j.contract)}</div>
+      <ul class="lines">${v.lines.map((l) => `<li><span>${esc(l.sku)} · ${esc(l.qty)} at ${esc(money(l.unit_price, v.token))}</span></li>`).join("")}</ul>
+      <div class="big total"><span>Total</span><b>${esc(money(v.total, v.token))}</b></div>
+      <div class="big" id="payee"><span>Pay to</span><b>${esc(v.payee.address)}</b><span style="text-transform:none;letter-spacing:0">${esc(v.payee.chain)} · token ${esc(short(v.payee.token, 10))}</span></div>
+      <div class="meta" style="margin-top:10px">Document fingerprint ${esc(short(C.hex(j.doc), 12))}</div>`;
+    $("plain").textContent = "You confirm this is your invoice, for this amount, to be paid to this address. Your signature cannot be moved to another invoice, document or contract.";
+    $("sign").textContent = "Sign invoice";
+  }
+  $("note").hidden = false; $("checks-card").hidden = false; $("signsec").hidden = false;
+}
+
+function setChecks(list) {
+  $("checks").innerHTML = list.map(([state, t, d]) => `<li class="${state}"><i></i><div>${esc(t)}<small>${esc(d || "")}</small></div></li>`).join("");
+}
+async function check() {
+  if (!JOB) return;
+  READY = false; $("sign").disabled = true;
+  const j = JOB, rows = [];
+  try {
+    if (j.kind === "delivery") {
+      const [order, signers, policy] = await Promise.all([view(j.contract, "get_order", { order_id: j.note.order_id }), view(j.contract, "get_delivery_signers"), view(j.contract, "get_delivery_policy", { order_id: j.note.order_id })]);
+      const skus = order ? order.lines.map((l) => l.sku) : [];
+      rows.push(order ? ["ok", "The order exists", `${j.note.order_id} on ${j.contract}`] : ["no", "No such order on this contract", j.note.order_id]);
+      if (order) { const off = j.note.lines.filter((l) => !skus.includes(l.sku)); rows.push(off.length ? ["no", "An item is not on the order", off.map((l) => l.sku).join(", ")] : ["ok", "Every item is on the order", skus.join(", ")]); }
+      rows.push(policy.version === j.policy_version ? ["ok", "The link uses the order's current delivery rules", "policy version " + policy.version]
+        : ["no", "The link is out of date", `it says policy version ${j.policy_version}; the order is now at ${policy.version}. Ask the buyer for a new link.`]);
+      if (!KEY) rows.push(["wait", "Your key", "set up your key below"]);
+      else {
+        const me = signers.find((s) => s.key === KEY.public_key);
+        rows.push(!me ? ["no", "This key is not a registered delivery signer", "send your public key to the buyer to register: " + short(KEY.public_key, 10)]
+          : me.role !== j.role ? ["no", "Wrong role for this key", `the link asks for ${j.role}; this key is registered as ${me.role}`]
+          : ["ok", "Your key is registered as " + me.role, short(KEY.public_key, 10)]);
+      }
+    } else {
+      const sup = await view(j.contract, "get_supplier", { supplier_id: j.invoice.supplier_id });
+      rows.push(sup ? ["ok", "The supplier is registered", j.invoice.supplier_id] : ["no", "No such supplier on this contract", j.invoice.supplier_id]);
+      if (sup) {
+        const on = sup.payable_route || sup.route_on_file, same = on && on.chain === j.invoice.payee.chain && on.token === j.invoice.payee.token && on.address === j.invoice.payee.address;
+        rows.push(same ? ["ok", "The payee is the address on file", on.address] : ["no", "The payee is NOT the address on file", `on file: ${on ? on.address : "none"}. The contract will refuse to pay this. Change an address only through the signed payout change.`]);
+        $("payee").classList.toggle("bad", !same);
+        if (!KEY) rows.push(["wait", "Your key", "set up your key below"]);
+        else rows.push(sup.signing_key === KEY.public_key ? ["ok", "Your key is the supplier's registered key", short(KEY.public_key, 10)] : ["no", "This key is not the supplier's registered key", short(KEY.public_key, 10)]);
+      }
+    }
+    $("live").className = "live on"; $("liveText").innerHTML = "<b>Checked live</b> · NEAR testnet";
+  } catch (e) {
+    rows.push(["no", "Could not read the contract", /does not exist/.test(e.message) ? "no contract at " + j.contract : "NEAR's RPC is not reachable. Try again."]);
+    $("live").className = "live err"; $("liveText").innerHTML = "<b>Could not check</b>";
+  }
+  setChecks(rows);
+  READY = !!KEY && rows.every((r) => r[0] === "ok");
+  $("sign").disabled = !READY;
+}
+
+// ---------------------------------------------------------------- sign and send back
+function digestOf(j) {
+  return j.kind === "delivery" ? C.deliveryDigest(j.contract, j.note, j.role, j.policy_version) : C.invoiceDigest(j.contract, j.invoice, j.doc);
+}
+function showResult(key, sig, returned) {
+  const out = { key, signature: sig };
+  const link = location.origin + location.pathname + "#" + (JOB.kind === "delivery" ? "n=" : "i=") + JOB.raw + "&s=" + encodeURIComponent(sig) + "&k=" + encodeURIComponent(key);
+  $("res-json").textContent = JSON.stringify(out, null, 1);
+  $("qr").innerHTML = C.qrSvg(link);
+  $("copy").onclick = (e) => copy(JSON.stringify(out), e.target);
+  $("copylink").onclick = (e) => copy(link, e.target);
+  $("share").onclick = async () => { if (navigator.share) { try { await navigator.share({ title: "Signed " + (JOB.kind === "delivery" ? JOB.note.note_id : JOB.invoice.invoice_number), url: link }); } catch {} } else copy(link, $("share")); };
+  $("result").hidden = false;
+  if (returned) { $("res-h").textContent = "Signature received"; $("res-p").textContent = "This signature checks out for this exact " + (JOB.kind === "delivery" ? "note and role" : "invoice") + ". Paste the JSON into the agent's submission."; $("signsec").hidden = true; }
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("sign").addEventListener("click", async () => {
+  if (!READY || !KEY) return;
+  await check(); if (!READY) return;
+  showResult(KEY.public_key, C.signDigest(KEY.secret_key, digestOf(JOB)), false);
+});
+
+// ---------------------------------------------------------------- start
+(async () => {
+  try { JOB = parseJob(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This link cannot be used: " + e.message + "."; }
+  KEY = await loadKey(); paintKey();
+  if (!JOB) { if ($("nolink").className !== "msg bad") $("nolink").hidden = false; $("live").className = "live"; $("liveText").innerHTML = "<b>No link opened</b>"; $("h1").innerHTML = "Your <span>signing key.</span>"; return; }
+  paintJob();
+  const s = P.get("s"), k = P.get("k");
+  if (s && k) {
+    const ok = C.verifyDigest(k, digestOf(JOB), s);
+    if (!ok) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "The signature in this link does not match this " + (JOB.kind === "delivery" ? "note and role" : "invoice") + ". Do not use it."; }
+    else { $("keycard").hidden = true; KEY = { public_key: k }; showResult(k, s, true); }
+  }
+  check();
+})();
+</script>
+<script>
+/* "Try it" menu: a button that opens a list; Esc or a click outside closes it. */
+(() => {
+  const b = document.getElementById("trybtn"), m = document.getElementById("trymenu");
+  if (!b || !m) return;
+  const set = (open, focus) => { b.setAttribute("aria-expanded", String(open)); m.hidden = !open; if (open && focus) m.querySelector("a").focus(); };
+  b.addEventListener("click", () => set(b.getAttribute("aria-expanded") !== "true"));
+  b.addEventListener("keydown", (e) => { if (e.key === "ArrowDown") { e.preventDefault(); set(true, true); } });
+  m.addEventListener("keydown", (e) => {
+    const a = [...m.querySelectorAll("a")], i = a.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); a[(i + 1) % a.length].focus(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); a[(i - 1 + a.length) % a.length].focus(); }
+  });
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && b.getAttribute("aria-expanded") === "true") { set(false); b.focus(); } });
+  addEventListener("click", (e) => { if (!b.contains(e.target) && !m.contains(e.target)) set(false); });
+  m.addEventListener("focusout", (e) => { if (!m.contains(e.relatedTarget) && e.relatedTarget !== b) set(false); });
+})();
+</script>
+</body>
+</html>

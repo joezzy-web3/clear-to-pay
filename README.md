@@ -164,18 +164,18 @@ The rule is the same everywhere: whoever benefits from saying "delivered" is nev
 
 | When | Who | What they do | What runs today |
 |---|---|---|---|
-| Once | Buyer (finance) | Registers the supplier: its signing key and payout address, checked by a call to a number already on file. Creates the order, names the delivery roles (storekeeper, weighbridge), sets limits, puts USDC in the pool, and gives the agent a key that can only submit and pay. | Contract calls with the NEAR CLI; the supplier's address waits 72 hours before it can be paid |
-| Delivery day | Storekeeper and weighbridge operator | Each confirms what actually arrived (10 t) by signing the delivery note. Neither can do it alone. | `tools/ctp-sign` |
-| Invoice day | Supplier | Signs the invoice and sends the PDF as usual. | `tools/ctp-sign` |
+| Once | Buyer (finance) | Registers the supplier: its signing key and payout address, checked by a call to a number already on file. Creates the order, names the delivery roles (storekeeper, weighbridge), sets limits, puts USDC in the pool, and gives the agent a key that can only submit and pay. | **In the browser:** [Buyer setup](https://clear-to-pay.vercel.app/console/setup/) signs each call with the buyer's NEAR wallet (MyNearWallet or Meteor), shows exactly what will be signed, then reads the value back. The agent's key is still added with the NEAR CLI. The supplier's address waits 72 hours before it can be paid |
+| Delivery day | Storekeeper and weighbridge operator | Each confirms what actually arrived (10 t) by signing the delivery note. Neither can do it alone. | **On a phone:** the buyer sends a [signing link](https://clear-to-pay.vercel.app/console/sign/); the page checks the order, the signer's role and the policy version on chain, then signs the same bytes as `tools/ctp-sign` (proven in `tools/console-crypto/test/check.mjs`) and returns the signature as a QR code or link |
+| Invoice day | Supplier | Signs the invoice and sends the PDF as usual. | The same phone page (`sign/#i=…`) shows the payee and total in large type and refuses a key that is not the supplier's; or `tools/ctp-sign` |
 | Minutes later | The agent | Reads the PDF: hidden text cut, the attested AI pulls out the fields (never the payee), and submits. | `reader/tools/read_invoice.py`, then `submit_invoice` with the fenced key |
 | Instantly | The contract | **CLEARED**: authorises and sends the payment to the registered address. **HELD**: says what to fix, and the AI drafts the supplier query from the facts. **SEIZED**: nothing paid; call the supplier on the number on file, never reply. | Live on testnet; `reader/tools/next_step.py` |
 | As it happens | Buyer and supplier | Get a Telegram message for every address change, new delivery signer, verdict and payment. | `reader/tools/alerts.py` |
 | Any time | Anyone (finance, the supplier, an auditor) | Opens the ledger: each receipt (the latest 200), its reasons and transaction; drops a document to find its receipt. | [Live ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/) |
 
-**Honestly, today:** the rules, the payments, the reader and the ledger run, but setting up and signing use a terminal. A finance team would not.
+**Honestly, today:** setup, delivery signing and invoice signing run in the browser. Still on the command line: adding the agent's key, reading invoices (the AI key cannot live in a web page) and handling a HELD or CLEARED-but-unpaid invoice (the inbox is next). The signer pages keep keys in browser storage: demo grade (see THREAT_MODEL.md §7).
 
 **Next, so nobody needs a terminal** (planned, not claimed):
-- **Console:** a web app. The buyer signs in with a wallet to manage suppliers, orders, limits and address approvals; delivery signers confirm from a phone page; suppliers sign invoices and request address changes in the browser. Wallet message signing (NEP-413) replaces the key files.
+- **Inbox:** every invoice and its next step; execute, cancel or reauthorise a payment with the wallet. Address approvals and supplier address changes in the browser. Wallet message signing (NEP-413) replaces browser-stored signer keys.
 - **"Inspect an invoice":** a guided walk-through on the site, with no wallet: pick an attack and watch each check stop it.
 - **Proof of control:** the supplier's payout account signs once at registration, so a mistyped or swapped address cannot even be registered.
 

@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Clear to Pay Buyer Setup</title>
+<meta name="description" content="Set up Clear to Pay without a terminal: register a supplier, create an order, set limits, add delivery signers and top up the pool, each signed with the buyer's NEAR wallet.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../console.css">
+<link rel="stylesheet" href="../wallet.css">
+<style>
+/* Buyer setup: a ledger of forms. Each card is one contract call: fill it, read exactly what will be signed, sign, read it back. */
+.hero{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);align-items:end}
+.hero .facts::before{content:"Contract · read live"}
+.who{display:grid;gap:10px;margin-top:22px}
+.switch{display:flex;gap:8px;flex-wrap:wrap}
+.switch button{font:600 15px var(--body);border:0;padding:11px 16px;cursor:pointer;color:var(--paper);background:#13284A;box-shadow:inset 0 0 0 2px #24406B;text-align:left}
+.switch button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
+.switch small{display:block;font:400 12px var(--mono);opacity:.75;margin-top:2px}
+.acct{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font:500 14px var(--mono);color:var(--nmute)}
+.acct b{color:var(--paper);font-weight:500}
+.forms{padding-block:clamp(30px,5vw,56px) clamp(56px,8vw,96px);display:grid;gap:clamp(16px,2.4vw,22px)}
+.f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(16px,3vw,32px)}
+.f h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.fields{display:grid;gap:12px;margin-top:16px}
+.fields label{display:grid;gap:6px;font:500 13.5px var(--body)}
+.fields label span{font:400 12.5px var(--mono);color:var(--mute)}
+input,select{font:400 15px var(--mono);padding:11px 12px;border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:0;width:100%;min-width:0}
+input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
+.linegrid{display:grid;gap:8px}
+.lrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.7fr) minmax(0,.9fr) 40px;gap:6px}
+.lrow.dn{grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) 40px}
+.x{border:1px solid var(--line);background:#fff;cursor:pointer;font-size:18px}
+.side2{display:grid;gap:12px;align-content:start}
+.preview{background:var(--deep);color:#C9D6E6;font:400 12.5px/1.6 var(--mono);padding:14px 16px;margin:0;white-space:pre-wrap;overflow-wrap:anywhere;min-height:120px}
+.preview b{color:var(--signal);font-weight:500}
+.now{font:400 13px/1.5 var(--mono);color:var(--mute);background:var(--cell);border:1px solid var(--line);padding:10px 12px;overflow-wrap:anywhere;white-space:pre-wrap}
+.err{color:var(--seize);font:500 14px/1.45 var(--body)}
+.okline{padding:10px 12px;background:#E5F2EA;border-left:4px solid var(--clear);line-height:1.5}
+.warn{padding:10px 12px;background:#FFF6D6;border-left:4px solid var(--held);line-height:1.5;font-size:14.5px}
+.linkout{display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:12px;align-items:start}
+.linkout code{display:block;background:var(--cell);border:1px solid var(--line);padding:10px;overflow-wrap:anywhere;font-size:12px}
+.qr{background:#fff;border:1px solid var(--line);padding:6px}.qr svg{display:block;width:100%;height:auto}
+@media (max-width:900px){.hero{grid-template-columns:1fr}.hero-side{justify-items:stretch}.facts b{overflow-wrap:anywhere;min-width:0}.f{grid-template-columns:1fr}.lrow{grid-template-columns:minmax(0,1fr) minmax(0,.6fr) minmax(0,.8fr) 36px}}
+
+/* the shared nav: four words, a "Try it" menu and one solid button */
+.nav{flex-wrap:nowrap}
+.links{flex-wrap:nowrap!important;align-items:center}
+.links a,.links .trybtn{white-space:nowrap}
+.try{position:relative}
+.trybtn{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.trybtn svg{transition:transform .15s}
+.trybtn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.trymenu{position:absolute;top:calc(100% + 10px);right:-8px;z-index:80;width:min(380px,calc(100vw - 32px));background:#fff;color:#10264A;
+  border-radius:14px;padding:8px;box-shadow:0 0 0 1px rgba(16,38,74,.10),0 30px 60px -20px rgba(11,26,51,.55)}
+.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#F4C20D 16px 32px)}
+.trymenu[hidden]{display:none}
+.links .trymenu a{display:grid;gap:3px;padding:12px 14px;border-radius:10px;color:#10264A!important;background:none!important;backdrop-filter:none!important;text-decoration:none;white-space:normal}
+.links .trymenu a:hover,.links .trymenu a:focus-visible{background:#EEF1EC!important}
+.trymenu b{font:600 15px "Instrument Sans",Arial,sans-serif}
+.trymenu small{font:400 13px/1.4 "Instrument Sans",Arial,sans-serif;color:#55657C}
+.trymenu a[aria-current] b::after{content:" · you are here";font-weight:400;color:#55657C}
+.navlive{display:inline-flex;align-items:center;gap:8px;font:600 14.5px/1 "Instrument Sans",Arial,sans-serif;text-decoration:none;padding:11px 16px;border-radius:10px;white-space:nowrap}
+.navlive:hover{filter:brightness(1.06)}
+.navlive i{width:8px;height:8px;border-radius:50%;background:#127A4A;box-shadow:0 0 0 3px rgba(18,122,74,.2)}
+@media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
+@media (max-width:900px){.navlive{display:none}}
+.fnear{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-weight:600;color:inherit}
+.fnear img{border-radius:5px;display:block}
+.links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
+.links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
+.navlive{background:var(--signal);color:var(--navy)}
+</style>
+</head>
+<body>
+<header class="top gut"><div class="in">
+  <nav class="nav">
+    <a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay<span class="crumb">/ Buyer setup</span></a>
+    <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/" aria-current="page"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
+    <span class="navr"><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+  </nav>
+
+  <div class="hero">
+    <div>
+      <span class="live" id="live"><i></i><span id="liveText"><b>Connecting</b> · NEAR testnet</span></span>
+      <h1>Set it up. <span>No terminal.</span></h1>
+      <p class="sub">Everything the buyer does on chain, as forms. You see exactly what will be signed, your NEAR wallet signs it, and the page reads the new value back from the contract.</p>
+      <div class="who">
+        <div class="switch" role="group" aria-label="Contract">
+          <button type="button" data-c="demo" aria-pressed="true">Demo contract<small>judge.cleartopay.testnet</small></button>
+          <button type="button" data-c="live" aria-pressed="false">Live contract<small>guard.cleartopay.testnet</small></button>
+        </div>
+        <div class="acct"><span id="acct">Not connected</span><button class="btn y" id="connect" type="button">Connect wallet</button><button class="btn ghost" id="disconnect" type="button" hidden style="color:var(--paper);box-shadow:inset 0 0 0 2px #24406B">Disconnect</button></div>
+      </div>
+    </div>
+    <div class="hero-side"><div class="facts" aria-label="Contract">
+      <div><span>Contract</span><b id="f-c">–</b></div>
+      <div><span>Owner (the buyer)</span><b id="f-owner">–</b></div>
+      <div><span>You</span><b id="f-you">–</b></div>
+      <div><span>Pool</span><b id="f-pool">–</b></div>
+    </div></div>
+  </div>
+</div></header>
+
+<main class="gut"><div class="in forms" id="forms">
+  <div class="msg warn" id="notowner" hidden></div>
+</div></main>
+<section class="closer gut" aria-label="Closing"><div class="in">
+  <span class="tg t1">The AI reads.</span>
+  <span class="tg t2">Code decides.</span>
+  <p><a href="../">Judge mode</a> · <a href="../../ledger/">Every receipt on the ledger</a> · <a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">Source on GitHub</a></p>
+</div></section>
+<div class="gut" style="background:var(--paper)"><footer class="in"><span><a class="fnear" href="https://near.org" target="_blank" rel="noopener"><img src="../../near.png" alt="" width="20" height="20">Built on NEAR</a> · Clear to Pay · built for the NEAR Hackathon · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></span><span>Testnet only. Qingmar Steel Co. is fictional.</span></footer></div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/">Sign a delivery</a><a href="../../console/setup/" aria-current="page">Buyer setup</a><a href="../../ledger/">Live ledger</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+
+<script type="module">
+import * as C from "../crypto.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy } from "../chain.js";
+initMenu();
+
+const YOCTO = "1", TGAS = (n) => (BigInt(n) * 10n ** 12n).toString();
+const S = { c: sessionStorage.getItem("ctp-setup-contract") === "live" ? "live" : "demo", owner: null, me: null, wallet: null, selector: null, modal: null };
+const contract = () => CONTRACTS[S.c];
+
+// ---------------------------------------------------------------- the forms: one contract call each
+const lines = (id, dn) => [...document.querySelectorAll(`#${id} .lrow`)].map((r) => [...r.querySelectorAll("input")].map((i) => i.value.trim())).filter((v) => v.some(Boolean));
+const fail = (m) => { throw new Error(m); };
+const FORMS = [
+  { id: "supplier", kicker: "Supplier", title: "Register a supplier",
+    help: "The only place a payout address can come from. It cannot be paid for 72 hours.",
+    warn: "Check this address with the supplier by phone, on a number you already had, before you register it.",
+    fields: `<label>Supplier id<span>a-z, 0-9, '-', '_', '.'</span><input id="s-id" placeholder="qingmar-steel" autocomplete="off"></label>
+      <label>Supplier's signing key<span>ed25519:… (from their phone or ctp-sign)</span><input id="s-key" placeholder="ed25519:" autocomplete="off"></label>
+      <label>Payout account on NEAR<span>where USDC is paid</span><input id="s-addr" placeholder="qingmar.cleartopay.testnet" autocomplete="off"></label>`,
+    build() {
+      const id = $("s-id").value.trim(), key = $("s-key").value.trim(), addr = $("s-addr").value.trim();
+      if (!isSupplierId(id)) fail("Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
+      if (!isPubKey(key)) fail("The signing key must look like ed25519:… (44 characters after the colon).");
+      if (!isAccount(addr)) fail("The payout account must be a NEAR account id.");
+      return { method: "register_supplier", args: { supplier_id: id, signing_key: key, route: { chain: "near", token: USDC, address: addr } } };
+    },
+    async readBack(a) { const s = await view(contract(), "get_supplier", { supplier_id: a.supplier_id }); return s && `${s.supplier_id} → ${s.route_on_file.address}\npayable from ${new Date(Number(BigInt(s.route_payable_from) / 1_000_000n)).toLocaleString()}`; },
+    async now() { const ids = await view(contract(), "get_supplier_ids"); return "Registered: " + (ids.join(", ") || "none"); } },
+
+  { id: "order", kicker: "Purchase order", title: "Create an order",
+    help: "Invoices are checked line by line against it: the item, the price, and how much is left to bill.",
+    fields: `<label>Order id<input id="o-id" placeholder="PO-1185" autocomplete="off"></label>
+      <label>Supplier<select id="o-sup"></select></label>
+      <div class="linegrid" id="o-lines"><span class="muted" style="font:400 12.5px var(--mono)">Item · quantity · unit price in USDC</span></div>
+      <div><button class="btn ghost" type="button" data-add="o-lines">Add a line</button></div>`,
+    build() {
+      const id = $("o-id").value.trim(), sup = $("o-sup").value, ls = lines("o-lines");
+      if (!isRef(id)) fail("Order id: 1 to 64 of A-Z, a-z, 0-9, '-', '_', '.', '/'.");
+      if (!isSupplierId(sup)) fail("Choose a registered supplier.");
+      if (!ls.length || ls.length > 50) fail("An order needs 1 to 50 lines.");
+      const out = ls.map(([sku, qty, price], n) => {
+        if (!isRef(sku)) fail(`Line ${n + 1}: the item code is not valid.`);
+        if (!/^[1-9]\d{0,18}$/.test(qty)) fail(`Line ${n + 1}: quantity must be a whole number above 0.`);
+        const u = toUnits(price); if (!u || u === "0") fail(`Line ${n + 1}: price must be in USDC, up to 6 decimals, above 0.`);
+        return { sku, qty, unit_price: u };
+      });
+      if (new Set(out.map((l) => l.sku)).size !== out.length) fail("The same item is on two lines.");
+      return { method: "create_order", args: { order_id: id, supplier_id: sup, token: USDC, lines: out },
+        note: out.map((l) => `${l.sku}: ${l.qty} at ${fromUnits(l.unit_price)} USDC = unit_price ${l.unit_price}`).join("\n") };
+    },
+    async readBack(a) { const o = await view(contract(), "get_order", { order_id: a.order_id }); return o && JSON.stringify(o.lines.map((l, i) => ({ ...l, invoiced: o.invoiced[i] }))); },
+    async now() { const ids = await view(contract(), "get_supplier_ids"); $("o-sup").innerHTML = ids.map((i) => `<option>${esc(i)}</option>`).join(""); return ids.length ? "" : "Register a supplier first."; } },
+
+  { id: "limits", kicker: "Limits", title: "Set spending limits",
+    help: "Nothing clears above these, whatever an invoice or an AI says.",
+    fields: `<label>Largest single invoice<span>USDC</span><input id="l-inv" inputmode="decimal" placeholder="50"></label>
+      <label>Most per supplier per period<span>USDC</span><input id="l-per" inputmode="decimal" placeholder="200"></label>
+      <label>Period<span>hours, 1 to 8784</span><input id="l-h" inputmode="numeric" placeholder="24"></label>
+      <label>Most submissions per day<span>1 to 1000, any verdict</span><input id="l-max" inputmode="numeric" placeholder="100"></label>`,
+    build() {
+      const a = toUnits($("l-inv").value), b = toUnits($("l-per").value), h = $("l-h").value.trim(), m = $("l-max").value.trim();
+      if (!a || !b) fail("Limits are USDC amounts, up to 6 decimals.");
+      if (BigInt(a) > BigInt(b)) fail("The single-invoice limit cannot be above the period limit.");
+      if (!/^\d{1,4}$/.test(h) || +h < 1 || +h > 8784) fail("The period is 1 to 8784 hours.");
+      if (!/^\d{1,4}$/.test(m) || +m < 1 || +m > 1000) fail("Submissions per day: 1 to 1000.");
+      return { method: "set_limits", args: { per_invoice: a, per_supplier_per_period: b, period_hours: h, max_submissions_per_day: +m },
+        note: `per invoice ${fromUnits(a)} USDC, per supplier ${fromUnits(b)} USDC every ${h} h, ${m} submissions a day` };
+    },
+    async readBack() { return this.now(); },
+    async now() { const l = await view(contract(), "get_limits"); return `Now: ${fromUnits(l.per_invoice)} USDC per invoice · ${fromUnits(l.per_supplier_per_period)} USDC per ${l.period_hours} h · ${l.max_submissions_per_day || 100}/day`; } },
+
+  { id: "signer", kicker: "Delivery", title: "Add a delivery signer",
+    help: "A storekeeper, weighbridge or inspector. By default an invoice clears only when two different roles sign its delivery note.",
+    fields: `<label>Their public key<span>from the Sign page on their phone</span><input id="d-key" placeholder="ed25519:" autocomplete="off"></label>
+      <label>Role<span>a-z, 0-9, '-'</span><input id="d-role" placeholder="weighbridge" autocomplete="off"></label>`,
+    build() {
+      const key = $("d-key").value.trim(), role = $("d-role").value.trim();
+      if (!isPubKey(key)) fail("The key must look like ed25519:… (44 characters after the colon).");
+      if (!isRole(role)) fail("Role: 1 to 32 of a-z, 0-9, '-'.");
+      return { method: "add_delivery_signer", args: { key, role } };
+    },
+    async readBack() { return this.now(); },
+    async now() { const s = await view(contract(), "get_delivery_signers"); fillRoles(s); return "Registered: " + (s.map((x) => `${x.role} ${short(x.key, 6)}`).join(" · ") || "none"); } },
+
+  { id: "link", kicker: "Delivery", title: "Make a signing link", nosign: true,
+    help: "Send it to a delivery signer. They open it on their phone, check the goods against the note, and tap Sign. Nothing secret is in the link.",
+    fields: `<label>Order<input id="k-order" placeholder="PO-1185" autocomplete="off"></label>
+      <label>Delivery note id<input id="k-note" placeholder="DN-553" autocomplete="off"></label>
+      <div class="linegrid" id="k-lines"><span class="muted" style="font:400 12.5px var(--mono)">Item · quantity received</span></div>
+      <div><button class="btn ghost" type="button" data-add="k-lines" data-dn="1">Add a line</button></div>
+      <label>Role that signs<select id="k-role"></select></label>
+      <label>Unit shown to the signer<span>optional, e.g. t</span><input id="k-unit" placeholder="t" autocomplete="off"></label>`,
+    async make() {
+      const order = $("k-order").value.trim(), note = $("k-note").value.trim(), role = $("k-role").value, unit = $("k-unit").value.trim();
+      if (!isRef(order) || !isRef(note)) fail("Order and note ids: 1 to 64 of A-Z, a-z, 0-9, '-', '_', '.', '/'.");
+      if (!isRole(role)) fail("Register a delivery signer first, then choose its role.");
+      if (unit && !/^[a-z]{1,6}$/i.test(unit)) fail("Unit: up to 6 letters.");
+      const ls = lines("k-lines").map(([sku, qty], n) => { if (!isRef(sku) || !/^[1-9]\d{0,18}$/.test(qty)) fail(`Line ${n + 1}: item code and a whole quantity.`); return { sku, qty }; });
+      if (!ls.length) fail("Add what was delivered.");
+      const o = await view(contract(), "get_order", { order_id: order }); if (!o) fail("No such order on " + contract() + ".");
+      const p = await view(contract(), "get_delivery_policy", { order_id: order });
+      const n = { contract: contract(), order_id: order, note_id: note, lines: ls, role, policy_version: p.version };
+      if (unit) n.unit = unit;
+      return new URL("../sign/#n=" + encodeLink(n), location.href).href;
+    } },
+
+  { id: "token", kicker: "Payments", title: "Allow a token",
+    help: "Only allowed tokens can be deposited and paid out. USDC on testnet is filled in.",
+    fields: `<label>Token contract<input id="t-id" value="${USDC}" autocomplete="off"></label>`,
+    build() { const t = $("t-id").value.trim(); if (!isAccount(t)) fail("A token contract is a NEAR account id."); return { method: "allow_token", args: { token: t } }; },
+    async readBack() { return this.now(); },
+    async now() { const t = await view(contract(), "get_allowed_tokens"); return "Allowed: " + (t.map((x) => short(x, 6)).join(", ") || "none"); } },
+
+  { id: "pool", kicker: "Payments", title: "Top up the pool",
+    help: "Moves USDC from the buyer's account into the contract with ft_transfer_call. Only the buyer's deposits are accepted; anything else is returned.",
+    fields: `<label>Amount<span>USDC</span><input id="p-amt" inputmode="decimal" placeholder="10"></label>`,
+    build() {
+      const a = toUnits($("p-amt").value); if (!a || a === "0") fail("Amount in USDC, up to 6 decimals.");
+      return { receiver: USDC, method: "ft_transfer_call", gas: 100, args: { receiver_id: contract(), amount: a, msg: "" }, note: `${fromUnits(a)} USDC from your account into the pool of ${contract()}` };
+    },
+    async readBack() { return this.now(); },
+    async now() { const f = await view(contract(), "get_funds", { token: USDC }); $("f-pool").textContent = fromUnits(f.available) + " USDC"; return `Pool: ${fromUnits(f.available)} USDC available · ${fromUnits(f.reserved || 0)} reserved`; } },
+];
+
+function fillRoles(signers) { const sel = $("k-role"); if (sel) sel.innerHTML = [...new Set(signers.map((s) => s.role))].map((r) => `<option>${esc(r)}</option>`).join(""); }
+function addLine(id, dn) {
+  const box = $(id), row = document.createElement("div");
+  row.className = "lrow" + (dn ? " dn" : "");
+  row.innerHTML = dn ? `<input aria-label="Item" placeholder="AH36-12mm"><input aria-label="Quantity" inputmode="numeric" placeholder="10"><button type="button" class="x" aria-label="Remove line">×</button>`
+    : `<input aria-label="Item" placeholder="AH36-12mm"><input aria-label="Quantity" inputmode="numeric" placeholder="30"><input aria-label="Unit price in USDC" inputmode="decimal" placeholder="0.78"><button type="button" class="x" aria-label="Remove line">×</button>`;
+  row.querySelector(".x").onclick = () => row.remove();
+  box.append(row);
+}
+
+function render() {
+  $("forms").insertAdjacentHTML("beforeend", FORMS.map((f) => `
+    <section class="card f" id="f-${f.id}" aria-labelledby="h-${f.id}">
+      <div><h3 id="h-${f.id}"><small>${f.kicker}</small>${f.title}</h3><p class="muted">${f.help}</p>${f.warn ? `<p class="warn">${f.warn}</p>` : ""}<div class="fields">${f.fields}</div></div>
+      <div class="side2"><div class="now" id="now-${f.id}" ${f.now ? "" : "hidden"}>…</div>
+        <pre class="preview" id="pv-${f.id}">${f.nosign ? "The link appears here." : "Review shows exactly what your wallet will sign."}</pre>
+        <div class="row" style="margin-top:0">${f.nosign ? `<button class="btn y" type="button" data-make="${f.id}">Make the link</button>` : `<button class="btn" type="button" data-review="${f.id}">Review</button><button class="btn y" type="button" data-sign="${f.id}" disabled>Sign with wallet</button>`}</div>
+        <div id="out-${f.id}"></div></div>
+    </section>`).join(""));
+  addLine("o-lines"); addLine("k-lines", true);
+  document.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addLine(b.dataset.add, b.dataset.dn)));
+  document.querySelectorAll("[data-review]").forEach((b) => (b.onclick = () => review(b.dataset.review)));
+  document.querySelectorAll("[data-sign]").forEach((b) => (b.onclick = () => sign(b.dataset.sign)));
+  document.querySelectorAll("[data-make]").forEach((b) => (b.onclick = () => makeLink(b.dataset.make)));
+  document.querySelectorAll(".f input, .f select").forEach((i) => i.addEventListener("input", () => { const id = i.closest(".f").id.slice(2); const s = document.querySelector(`[data-sign="${id}"]`); if (s) s.disabled = true; }));
+}
+
+const PENDING = {};
+function call(f) { const b = f.build(); return { receiver: b.receiver || contract(), method: b.method, args: b.args, gas: TGAS(b.gas || 50), deposit: YOCTO, note: b.note }; }
+function review(id) {
+  const f = FORMS.find((x) => x.id === id), out = $("out-" + id);
+  out.innerHTML = "";
+  try {
+    const c = call(f); PENDING[id] = c;
+    $("pv-" + id).innerHTML = `<b>Your wallet will sign</b>\nfrom      ${esc(S.me || "(connect your wallet)")}\nto        ${esc(c.receiver)}\nmethod    ${esc(c.method)}\ndeposit   1 yoctoNEAR (proves it is you)\ngas       ${esc(c.gas.slice(0, -12))} Tgas\nargs      ${esc(JSON.stringify(c.args, null, 2))}${c.note ? "\n\n" + esc(c.note) : ""}`;
+    const sb = document.querySelector(`[data-sign="${id}"]`);
+    sb.disabled = !(S.me && S.owner && S.me === S.owner);
+    if (!S.me) out.innerHTML = `<p class="err">Connect the buyer's wallet to sign.</p>`;
+    else if (S.me !== S.owner) out.innerHTML = `<p class="err">Only the buyer account can do this (${esc(S.owner)}).</p>`;
+  } catch (e) { $("pv-" + id).textContent = "Not ready to sign."; out.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+async function sign(id) {
+  const c = PENDING[id], f = FORMS.find((x) => x.id === id), out = $("out-" + id);
+  if (!c || !S.wallet || S.me !== S.owner) return;
+  try {
+    sessionStorage.setItem("ctp-setup-pending", JSON.stringify({ id, c: S.c, args: c.args }));
+    out.innerHTML = `<p class="muted">Waiting for your wallet…</p>`;
+    const res = await S.wallet.signAndSendTransaction({ receiverId: c.receiver, actions: [{ type: "FunctionCall", params: { methodName: c.method, args: c.args, gas: c.gas, deposit: c.deposit } }] });
+    sessionStorage.removeItem("ctp-setup-pending");
+    if (res) await done(f, res.transaction?.hash || res.transaction_outcome?.id, c.args, res.status?.Failure);
+  } catch (e) { sessionStorage.removeItem("ctp-setup-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
+}
+async function done(f, hash, args, failure) {
+  const out = $("out-" + f.id);
+  if (failure) { out.innerHTML = `<p class="err">The contract refused it: ${esc(JSON.stringify(failure).slice(0, 300))}</p>${hash ? `<a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a>` : ""}`; return; }
+  let back = ""; try { back = (await f.readBack(args)) || ""; } catch {}
+  out.innerHTML = `<div class="okline">Done. Read back from the contract:<br><code>${esc(back)}</code></div>${hash ? `<div class="row"><a class="btn" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a></div>` : ""}`;
+  refresh();
+}
+async function makeLink(id) {
+  const f = FORMS.find((x) => x.id === id), out = $("out-" + id);
+  try {
+    const link = await f.make();
+    $("pv-" + id).textContent = "Signing link for " + $("k-role").value + ":\n" + link;
+    out.innerHTML = `<div class="linkout"><code>${esc(link)}</code><div class="qr">${C.qrSvg(link)}</div></div><div class="row"><button class="btn" type="button" id="cl">Copy the link</button><a class="btn ghost" href="${esc(link)}" target="_blank" rel="noopener">Open it</a></div>`;
+    $("cl").onclick = (e) => copy(link, e.target);
+  } catch (e) { out.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+
+// ---------------------------------------------------------------- contract and wallet
+async function refresh() {
+  $("f-c").textContent = contract();
+  try {
+    S.owner = await view(contract(), "get_owner");
+    $("f-owner").textContent = S.owner;
+    $("live").className = "live on"; $("liveText").innerHTML = "<b>Live</b> · NEAR testnet";
+    for (const f of FORMS) if (f.now) f.now().then((t) => { $("now-" + f.id).textContent = t || ""; $("now-" + f.id).hidden = !t; }).catch(() => {});
+  } catch (e) { $("live").className = "live err"; $("liveText").innerHTML = "<b>Could not read the contract</b>"; }
+  paintWho();
+}
+function paintWho() {
+  $("acct").innerHTML = S.me ? `Signed in as <b>${esc(S.me)}</b>` : "Not connected";
+  $("f-you").textContent = S.me ? (S.me === S.owner ? "the buyer ✓" : "not the buyer") : "–";
+  $("connect").hidden = !!S.me; $("disconnect").hidden = !S.me;
+  const n = $("notowner");
+  n.hidden = !(S.me && S.owner && S.me !== S.owner);
+  n.textContent = `Only the buyer account can do this. ${S.me} is signed in; ${contract()} belongs to ${S.owner}. You can still fill the forms and review them.`;
+}
+document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => {
+  S.c = b.dataset.c; sessionStorage.setItem("ctp-setup-contract", S.c);
+  document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  document.querySelectorAll(".preview").forEach((p) => (p.textContent = "Review shows exactly what your wallet will sign."));
+  document.querySelectorAll("[data-sign]").forEach((s) => (s.disabled = true));
+  refresh();
+}));
+document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === S.c)));
+
+async function initWallet() {
+  try {
+    const W = await import("../wallet.js");
+    S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMyNearWallet(), W.setupMeteorWallet()] });
+    S.modal = W.setupModal(S.selector, { description: "Sign in with the buyer's account to change Clear to Pay settings." });
+    const sync = async () => {
+      const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
+      S.me = a ? a.accountId : null; S.wallet = S.me ? await S.selector.wallet() : null; paintWho();
+    };
+    S.selector.store.observable.subscribe(sync); await sync();
+  } catch (e) { $("acct").textContent = "The wallet could not load: " + e.message; }
+}
+$("connect").onclick = () => (S.modal ? S.modal.show() : initWallet().then(() => S.modal && S.modal.show()));
+$("disconnect").onclick = async () => { try { await S.wallet.signOut(); } catch {} S.me = null; S.wallet = null; paintWho(); };
+
+// Back from a redirect wallet: ?transactionHashes=… or ?errorCode=…
+async function returning() {
+  const q = new URLSearchParams(location.search), p = JSON.parse(sessionStorage.getItem("ctp-setup-pending") || "null");
+  if (!p || (!q.get("transactionHashes") && !q.get("errorCode"))) return;
+  sessionStorage.removeItem("ctp-setup-pending");
+  history.replaceState(null, "", location.pathname + location.hash);
+  const f = FORMS.find((x) => x.id === p.id); if (!f) return;
+  document.getElementById("f-" + f.id).scrollIntoView({ block: "start" });
+  if (q.get("errorCode")) { $("out-" + f.id).innerHTML = `<p class="err">The wallet did not sign (${esc(q.get("errorCode"))}).</p>`; return; }
+  const hash = q.get("transactionHashes").split(",").pop();
+  let failure = null;
+  try { const t = await rpc("tx", { tx_hash: hash, sender_account_id: S.me || S.owner, wait_until: "EXECUTED_OPTIMISTIC" }); failure = t.status?.Failure || null; } catch {}
+  await done(f, hash, p.args, failure);
+}
+
+render();
+await refresh();
+await initWallet();
+await returning();
+</script>
+<script>
+/* "Try it" menu: a button that opens a list; Esc or a click outside closes it. */
+(() => {
+  const b = document.getElementById("trybtn"), m = document.getElementById("trymenu");
+  if (!b || !m) return;
+  const set = (open, focus) => { b.setAttribute("aria-expanded", String(open)); m.hidden = !open; if (open && focus) m.querySelector("a").focus(); };
+  b.addEventListener("click", () => set(b.getAttribute("aria-expanded") !== "true"));
+  b.addEventListener("keydown", (e) => { if (e.key === "ArrowDown") { e.preventDefault(); set(true, true); } });
+  m.addEventListener("keydown", (e) => {
+    const a = [...m.querySelectorAll("a")], i = a.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); a[(i + 1) % a.length].focus(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); a[(i - 1 + a.length) % a.length].focus(); }
+  });
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && b.getAttribute("aria-expanded") === "true") { set(false); b.focus(); } });
+  addEventListener("click", (e) => { if (!b.contains(e.target) && !m.contains(e.target)) set(false); });
+  m.addEventListener("focusout", (e) => { if (!m.contains(e.relatedTarget) && e.relatedTarget !== b) set(false); });
+})();
+</script>
+</body>
+</html>

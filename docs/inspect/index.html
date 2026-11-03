@@ -267,6 +267,34 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 }
 @media (prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
 @media (max-width:900px){.burger{color:#EEF1EC;background:#13284A;box-shadow:inset 0 0 0 1px #24406B}}
+
+/* the shared nav: four words, a "Try it" menu and one solid button */
+.nav{flex-wrap:nowrap}
+.links{flex-wrap:nowrap!important;align-items:center}
+.links a,.links .trybtn{white-space:nowrap}
+.try{position:relative}
+.trybtn{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.trybtn svg{transition:transform .15s}
+.trybtn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.trymenu{position:absolute;top:calc(100% + 10px);right:-8px;z-index:80;width:min(380px,calc(100vw - 32px));background:#fff;color:#10264A;
+  border-radius:14px;padding:8px;box-shadow:0 0 0 1px rgba(16,38,74,.10),0 30px 60px -20px rgba(11,26,51,.55)}
+.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#F4C20D 16px 32px)}
+.trymenu[hidden]{display:none}
+.links .trymenu a{display:grid;gap:3px;padding:12px 14px;border-radius:10px;color:#10264A!important;background:none!important;backdrop-filter:none!important;text-decoration:none;white-space:normal}
+.links .trymenu a:hover,.links .trymenu a:focus-visible{background:#EEF1EC!important}
+.trymenu b{font:600 15px "Instrument Sans",Arial,sans-serif}
+.trymenu small{font:400 13px/1.4 "Instrument Sans",Arial,sans-serif;color:#55657C}
+.trymenu a[aria-current] b::after{content:" · you are here";font-weight:400;color:#55657C}
+.navlive{display:inline-flex;align-items:center;gap:8px;font:600 14.5px/1 "Instrument Sans",Arial,sans-serif;text-decoration:none;padding:11px 16px;border-radius:10px;white-space:nowrap}
+.navlive:hover{filter:brightness(1.06)}
+.navlive i{width:8px;height:8px;border-radius:50%;background:#127A4A;box-shadow:0 0 0 3px rgba(18,122,74,.2)}
+@media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
+@media (max-width:900px){.navlive{display:none}}
+.fnear{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-weight:600;color:inherit}
+.fnear img{border-radius:5px;display:block}
+.links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
+.links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
+.navlive{background:var(--signal);color:var(--navy)}
 </style>
 </head>
 <body>
@@ -274,8 +302,8 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 <header class="top gut"><div class="in">
   <nav class="nav">
     <a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay<span class="crumb">/ Inspect</span></a>
-    <div class="links"><a href="#bench">The bench</a><a href="#sources">Where it comes from</a><a href="../ledger/">Ledger</a><a href="../console/">Judge mode</a></div>
-    <span class="navr"><a class="near" href="https://near.org" target="_blank" rel="noopener" title="Built on NEAR"><img src="../near.png" alt="" width="22" height="22"><span>Built on NEAR</span></a><a class="back" href="../">&larr;<span> Back to the site</span></a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+    <div class="links"><a href="../#how">How it works</a><a href="../#checks">The checks</a><a href="../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../inspect/" aria-current="page"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
+    <span class="navr"><a class="navlive" href="../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
   <div class="htext">
     <span class="tagline"><i></i>The AI reads. Code decides.</span>
@@ -321,7 +349,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   <span class="tg t2">Code decides.</span>
   <p><a href="../ledger/">Every receipt on the ledger</a> · <a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">Source on GitHub</a> · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></p>
 </div></section>
-<div class="gut" style="background:var(--paper)"><footer class="in"><span>Clear to Pay · built for the NEAR Hackathon</span><span>Qingmar Steel Co. is fictional. Amounts are test USDC on NEAR testnet.</span></footer></div>
+<div class="gut" style="background:var(--paper)"><footer class="in"><span><a class="fnear" href="https://near.org" target="_blank" rel="noopener"><img src="../near.png" alt="" width="20" height="20">Built on NEAR</a> · Clear to Pay · built for the NEAR Hackathon · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></span><span>Qingmar Steel Co. is fictional. Amounts are test USDC on NEAR testnet.</span></footer></div>
 </main>
 
 <script>
@@ -632,7 +660,7 @@ Payment: to the account registered with Clear to Pay`;
 })();
 </script>
 <div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="#bench" aria-current="page">The bench</a><a href="../ledger/" class="hot">Live ledger</a><a href="../console/">Judge mode</a><a href="#sources">Where it comes from</a><a href="../ledger/#verify">Verify a document</a><a href="../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../console/" class="hot">Judge mode: try to fool it</a><a href="../inspect/" aria-current="page">Inspect an invoice</a><a href="../console/sign/">Sign a delivery</a><a href="../console/setup/">Buyer setup</a><a href="../ledger/">Live ledger</a><a href="../#how">How it works</a><a href="../#checks">The checks</a><a href="../#proof">Proof</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
 <script>
 (() => {
   const b = document.getElementById("burger"), d = document.getElementById("drawer"), s = document.getElementById("scrim");
@@ -651,6 +679,24 @@ Payment: to the account registered with Clear to Pay`;
   d.querySelectorAll("nav a").forEach((a) => a.addEventListener("click", () => set(false)));
   addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("menu-open")) set(false); });
   addEventListener("resize", () => { if (innerWidth > 900 && document.body.classList.contains("menu-open")) set(false); });
+})();
+</script>
+<script>
+/* "Try it" menu: a button that opens a list; Esc or a click outside closes it. */
+(() => {
+  const b = document.getElementById("trybtn"), m = document.getElementById("trymenu");
+  if (!b || !m) return;
+  const set = (open, focus) => { b.setAttribute("aria-expanded", String(open)); m.hidden = !open; if (open && focus) m.querySelector("a").focus(); };
+  b.addEventListener("click", () => set(b.getAttribute("aria-expanded") !== "true"));
+  b.addEventListener("keydown", (e) => { if (e.key === "ArrowDown") { e.preventDefault(); set(true, true); } });
+  m.addEventListener("keydown", (e) => {
+    const a = [...m.querySelectorAll("a")], i = a.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); a[(i + 1) % a.length].focus(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); a[(i - 1 + a.length) % a.length].focus(); }
+  });
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && b.getAttribute("aria-expanded") === "true") { set(false); b.focus(); } });
+  addEventListener("click", (e) => { if (!b.contains(e.target) && !m.contains(e.target)) set(false); });
+  m.addEventListener("focusout", (e) => { if (!m.contains(e.relatedTarget) && e.relatedTarget !== b) set(false); });
 })();
 </script>
 </body>
