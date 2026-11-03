@@ -2,7 +2,7 @@
 
 **A payment guardrail for AI agents.** The AI reads invoices. Code decides. No invoice gets paid until it clears.
 
-**[Live site](https://clear-to-pay.vercel.app/)** · **[Inspect an invoice](https://clear-to-pay.vercel.app/inspect/)** · **[Ledger, live from testnet](https://clear-to-pay.vercel.app/ledger/)** ([mirror](https://joezzy-web3.github.io/clear-to-pay/)) · [Threat model](THREAT_MODEL.md) · [Proof log](docs/testnet-proof.md) · [For AI reviewers](llms.txt) · [@cleartopay](https://x.com/cleartopay)
+**[Live site](https://clear-to-pay.vercel.app/)** · **[Judge mode: try to fool it](https://clear-to-pay.vercel.app/console/)** · **[Inspect an invoice](https://clear-to-pay.vercel.app/inspect/)** · **[Ledger, live from testnet](https://clear-to-pay.vercel.app/ledger/)** ([mirror](https://joezzy-web3.github.io/clear-to-pay/)) · [Threat model](THREAT_MODEL.md) · [Proof log](docs/testnet-proof.md) · [For AI reviewers](llms.txt) · [@cleartopay](https://x.com/cleartopay)
 
 ![CI](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/ci.yml/badge.svg) ![Sandbox](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/sandbox.yml/badge.svg) ![Network](https://img.shields.io/badge/NEAR-testnet-10264A) ![Licence](https://img.shields.io/badge/licence-MIT-127A4A)
 
@@ -13,6 +13,8 @@ Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this READ
 ## Try it
 
 **30 seconds, nothing to install.** Open the [live ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/#verify) and, under **Verify a document**, click **Fake invoice, new bank details**. Your browser fingerprints the exact document that was submitted on 30 October (a fake invoice asking to be paid to a new address) and finds its receipt on NEAR testnet: **SEIZED**, `payee_mismatch`, with a link to the transaction. You can also download it there, or take [`demo/INV-2210/document.txt`](demo/INV-2210/document.txt) from this repo, and drop the file yourself. Switch to **Live contract** to see the pool, the limits, the two delivery signers and the supplier's locked address, read straight from the chain.
+
+**Or run it yourself.** [Judge mode](https://clear-to-pay.vercel.app/console/) sends real testnet transactions from your browser, no wallet: check the AI's enclave signature on its reading (seven checks, in the page), then let a fooled agent submit the poisoned invoice with its payee swapped and watch the contract return **SEIZED**; the honest one returns **CLEARED** and pays 0.78 USDC to the registered address. It runs on its own demo contract, `judge.cleartopay.testnet`, with a published agent key that NEAR fences to that contract, two methods and a gas allowance ([scripts/judge-setup.sh](scripts/judge-setup.sh)).
 
 **Or walk one through.** [Inspect an invoice](https://joezzy-web3.github.io/clear-to-pay/inspect/) puts five invoices (honest, white-text payee, new bank details, over-billed, one signer) through every step: the scan, what the AI may see, the signed reading, the contract's checks, the stamp and the next step. Every value is real output from this repository, with links to the receipt, the test or the saved reading; the page also looks up the live receipt for each invoice.
 

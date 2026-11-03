@@ -1,0 +1,16 @@
+{
+  "name": "ctp-console-crypto",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=esm --minify --legal-comments=eof --outfile=../../docs/console/crypto.js",
+    "test": "node test/check.mjs"
+  },
+  "devDependencies": {
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "@scure/base": "1.2.6",
+    "esbuild": "0.28.2",
+    "near-api-js": "5.1.1"
+  }
+}
