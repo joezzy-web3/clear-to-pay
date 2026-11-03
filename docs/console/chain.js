@@ -81,3 +81,14 @@ export async function copy(text, btn) {
   }
   if (btn) { const o = btn.textContent; btn.textContent = "Copied"; setTimeout(() => (btn.textContent = o), 1400); }
 }
+
+// ---- Telegram alerts (workers/alerts): one tap on Start subscribes that person
+export const BOT = "CleartoPayAlertsBOT";
+export const netOf = (contract) => Object.entries(CONTRACTS).find(([, c]) => c === contract)?.[0] || null;
+const b64u = (s) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+/** role: "buyer" | "signers" | { supplier: id } */
+export function alertLink(contract, role) {
+  const net = netOf(contract); if (!net) return null;
+  const p = role === "buyer" ? `${net}_b` : role === "signers" ? `${net}_g` : `${net}_s_${b64u(role.supplier)}`;
+  return `https://t.me/${BOT}?start=${p}`;
+}

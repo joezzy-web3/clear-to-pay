@@ -1,0 +1,16 @@
+# Clear to Pay alerts worker. Setup: workers/alerts/README.md
+name = "ctp-alerts"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# net=contract, the same names the Console's alert links use
+CONTRACTS = "live=guard.cleartopay.testnet,demo=judge.cleartopay.testnet"
+BOT_USERNAME = "CleartoPayAlertsBOT"
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "PUT_THE_KV_ID_HERE"

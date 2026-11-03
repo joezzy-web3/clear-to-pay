@@ -97,6 +97,14 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
 @media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
 
+.alerts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(16px,3vw,32px)}
+.alerts h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.alist{display:grid;gap:8px;align-content:start}
+.arow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--line);background:var(--cell)}
+.arow b{font:600 15px var(--body)}.arow small{display:block;font:400 12.5px var(--mono);color:var(--mute)}
+.tgbtn{display:inline-flex;align-items:center;gap:8px;background:#229ED9;color:#fff!important;text-decoration:none;font:600 14px var(--body);padding:10px 14px;white-space:nowrap}
+.tgbtn svg{flex:none}
+@media (max-width:900px){.alerts{grid-template-columns:1fr}.arow{grid-template-columns:1fr auto}.arow .btn.ghost{grid-column:1/-1;justify-self:start}}
 /* the checklist: the contract's own state, one line per thing a company sets up */
 .ready{background:var(--card);border:1px solid var(--line);padding:clamp(18px,2.6vw,28px);position:relative}
 .ready::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,var(--navy) 0 18px,var(--signal) 18px 36px)}
@@ -153,6 +161,11 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div class="ready-h"><div><span class="kick">Ready to run</span><h2 id="h-ready">What this contract still needs.</h2></div><div class="ready-n" id="ready-n" aria-live="polite">–</div></div>
     <ol class="rlist" id="rlist"></ol>
   </section>
+  <section class="card alerts" id="alerts" aria-labelledby="h-alerts">
+    <div><h3 id="h-alerts"><small>Alerts</small>Everyone hears it on Telegram</h3>
+    <p class="muted">Each person taps Start once. The buyer hears everything; a supplier hears about its own payout address (while a change is still in its 72-hour wait), its invoices and its payments; delivery signers hear when a signer is added. Only public on-chain facts are sent.</p></div>
+    <div class="alist" id="alist"></div>
+  </section>
   <div class="msg warn" id="notowner" hidden></div>
 </div></main>
 <section class="closer gut" aria-label="Closing"><div class="in">
@@ -166,7 +179,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 <script type="module">
 import * as C from "../crypto.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy } from "../chain.js";
 initMenu();
 
 const YOCTO = "1", TGAS = (n) => (BigInt(n) * 10n ** 12n).toString();
@@ -398,9 +411,19 @@ async function checklist() {
   $("rlist").innerHTML = rows.map(([st, id, t, d]) => `<li class="${st}">${id ? `<a href="${go(id)}">` : "<div>"}<i aria-hidden="true"></i><span><b>${esc(t)}</b><small>${esc(d)}</small></span>${id ? "</a>" : "</div>"}</li>`).join("");
 }
 
+const TG = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.9 4.3 18.7 19.4c-.2 1.1-.9 1.3-1.8.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.3-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13 1.4 11.5c-1-.3-1.1-1 .2-1.5L20.5 2.7c.9-.3 1.7.2 1.4 1.6Z"/></svg>';
+async function alertsCard() {
+  const c = contract(), rows = [["buyer", "You, the buyer", "everything on " + c]];
+  try { for (const id of await view(c, "get_supplier_ids")) rows.push([{ supplier: id }, "Supplier " + id, "send them this link"]); } catch {}
+  rows.push(["signers", "Delivery signers", "send to your storekeeper and weighbridge"]);
+  $("alist").innerHTML = rows.map(([r, t, d], i) => { const l = alertLink(c, r); return l ? `<div class="arow"><span><b>${esc(t)}</b><small>${esc(d)}</small></span>
+    <a class="tgbtn" href="${esc(l)}" target="_blank" rel="noopener">${TG}${i === 0 ? "Get alerts" : "Open"}</a><button class="btn ghost" type="button" data-copy="${esc(l)}">Copy link</button></div>` : ""; }).join("");
+  document.querySelectorAll("#alist [data-copy]").forEach((b) => (b.onclick = () => copy(b.dataset.copy, b)));
+}
+
 async function refresh() {
   $("f-c").textContent = contract();
-  checklist();
+  checklist(); alertsCard();
   try {
     S.owner = await view(contract(), "get_owner");
     $("f-owner").textContent = S.owner;

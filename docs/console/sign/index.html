@@ -134,6 +134,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <p class="plain" id="plain" style="margin-top:12px"></p>
   </section>
 
+  <section class="card" id="tg" hidden><div class="row" style="margin:0;justify-content:space-between"><p class="plain" id="tg-t" style="max-width:44ch"></p><a class="btn" id="tg-a" href="#" target="_blank" rel="noopener" style="background:#229ED9">Get alerts on Telegram</a></div></section>
+
   <section class="card" id="result" hidden aria-live="polite">
     <h3 id="res-h">Signed</h3>
     <p class="muted" id="res-p">Send this back to the buyer: copy it, show the QR code, or share the link.</p>
@@ -152,7 +154,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 <script type="module">
 import * as C from "../crypto.js";
-import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy } from "../chain.js";
+import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 initMenu();
 
 // ---------------------------------------------------------------- the key, kept in IndexedDB for this site only
@@ -241,6 +243,8 @@ function paintJob() {
     $("sign").textContent = "Sign invoice";
   }
   $("note").hidden = false; $("checks-card").hidden = false; $("signsec").hidden = false;
+  const al = alertLink(j.contract, j.kind === "delivery" ? "signers" : { supplier: j.invoice.supplier_id });
+  if (al) { $("tg").hidden = false; $("tg-a").href = al; $("tg-t").textContent = j.kind === "delivery" ? "Hear on Telegram when a delivery signer is added or removed." : `Hear on Telegram about ${j.invoice.supplier_id}'s payout address, invoices and payments.`; }
 }
 
 function setChecks(list) {
