@@ -71,15 +71,59 @@ input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
 .links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
 .links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
 .navlive{background:var(--signal);color:var(--navy)}
+
+/* way home: the logo, a clickable page label, and a quiet Home link */
+.brand{display:flex;align-items:center;gap:6px;min-width:0}
+a.crumb{text-decoration:none;padding:6px 8px;border-radius:8px;white-space:nowrap}
+a.crumb:hover{color:var(--paper);background:#13284A}
+.homelink{font:500 14.5px var(--body);color:var(--nmute);text-decoration:none;padding:8px 10px;border-radius:8px;white-space:nowrap}
+.homelink:hover{color:var(--paper);background:#13284A}
+@media (max-width:900px){.homelink{display:none}}
+
+/* the Console bar: its pages, and who you are */
+.cbar{background:#13284A;color:var(--paper);border-radius:14px;box-shadow:inset 0 0 0 1px #24406B;margin-top:16px}
+.cbar-in{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 10px 8px 16px}
+.cbar-k{font:500 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-right:4px}
+.ctabs{display:flex;gap:2px;flex-wrap:wrap}
+.ctabs a,.ctabs span{position:relative;font:600 14px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}
+.ctabs a:hover{color:var(--paper);background:#1B3358}
+.ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
+.ctabs span{opacity:.55;font-weight:500}
+.ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+.ctabs a.dim{opacity:.5}
+.roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
+.roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
+.roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
+.roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
+@media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
+
+/* the checklist: the contract's own state, one line per thing a company sets up */
+.ready{background:var(--card);border:1px solid var(--line);padding:clamp(18px,2.6vw,28px);position:relative}
+.ready::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,var(--navy) 0 18px,var(--signal) 18px 36px)}
+.ready-h{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.ready h2{font-size:clamp(32px,4vw,52px);max-width:none}
+.ready-n{font:800 clamp(44px,6vw,72px)/1 var(--display)}
+.ready-n small{font:500 13px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);display:block;text-align:right}
+.rlist{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.rlist li a,.rlist li div{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start;padding:13px 14px;border:1px solid var(--line);text-decoration:none;color:var(--navy);background:var(--cell);height:100%}
+.rlist li a:hover{border-color:var(--navy)}
+.rlist i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#E2E7E1;margin-top:1px}
+.rlist .ok i{background:var(--clear)}.rlist .ok i::after{content:"";width:8px;height:4.5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:translateY(-1px) rotate(-45deg)}
+.rlist .wait i{background:var(--signal)}.rlist .wait i::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--navy)}
+.rlist .todo i::after{content:"";width:7px;height:7px;border-radius:50%;border:2px solid var(--mute)}
+.rlist b{font:600 15px var(--body);display:block}
+.rlist small{font:400 12.5px/1.45 var(--mono);color:var(--mute);display:block;margin-top:3px;overflow-wrap:anywhere}
+.rlist code{font-size:11.5px}
 </style>
 </head>
 <body>
 <header class="top gut"><div class="in">
   <nav class="nav">
-    <a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay<span class="crumb">/ Buyer setup</span></a>
+    <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Buyer setup</a></span>
     <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/" aria-current="page"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
-    <span class="navr"><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+    <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
+  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><span title="Coming next">Inbox · next</span></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div></div></nav>
 
   <div class="hero">
     <div>
@@ -103,7 +147,12 @@ input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
   </div>
 </div></header>
 
+
 <main class="gut"><div class="in forms" id="forms">
+  <section class="ready" id="ready" aria-labelledby="h-ready">
+    <div class="ready-h"><div><span class="kick">Ready to run</span><h2 id="h-ready">What this contract still needs.</h2></div><div class="ready-n" id="ready-n" aria-live="polite">–</div></div>
+    <ol class="rlist" id="rlist"></ol>
+  </section>
   <div class="msg warn" id="notowner" hidden></div>
 </div></main>
 <section class="closer gut" aria-label="Closing"><div class="in">
@@ -113,7 +162,7 @@ input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
 </div></section>
 <div class="gut" style="background:var(--paper)"><footer class="in"><span><a class="fnear" href="https://near.org" target="_blank" rel="noopener"><img src="../../near.png" alt="" width="20" height="20">Built on NEAR</a> · Clear to Pay · built for the NEAR Hackathon · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></span><span>Testnet only. Qingmar Steel Co. is fictional.</span></footer></div>
 <div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/">Sign a delivery</a><a href="../../console/setup/" aria-current="page">Buyer setup</a><a href="../../ledger/">Live ledger</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/">Sign a delivery</a><a href="../../console/setup/" aria-current="page">Buyer setup</a><a href="../../ledger/">Live ledger</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><a href="../../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
 
 <script type="module">
 import * as C from "../crypto.js";
@@ -309,8 +358,49 @@ async function makeLink(id) {
 }
 
 // ---------------------------------------------------------------- contract and wallet
+// ---------------------------------------------------------------- the checklist, read from the contract
+const ORDERS_API = (c) => `https://api-testnet.nearblocks.io/v1/account/${encodeURIComponent(c)}/txns?method=create_order&per_page=25`;
+async function checklist() {
+  const c = contract(), rows = [];
+  const go = (id) => `#f-${id}`;
+  try {
+    const [ids, limits, signers, tokens, funds] = await Promise.all([view(c, "get_supplier_ids"), view(c, "get_limits"), view(c, "get_delivery_signers"),
+      view(c, "get_allowed_tokens"), view(c, "get_funds", { token: USDC })]);
+    const sups = (await Promise.all(ids.slice(0, 5).map((id) => view(c, "get_supplier", { supplier_id: id })))).filter(Boolean);
+    if (!sups.length) rows.push(["todo", "supplier", "Register a supplier", "its signing key and the payout address you checked by phone"]);
+    else {
+      const payable = sups.filter((x) => x.payable_route), first = sups[0], from = Number(BigInt(first.route_payable_from) / 1_000_000n);
+      rows.push(payable.length ? ["ok", "supplier", "Supplier registered", sups.map((x) => x.supplier_id).join(", ") + " · payable"]
+        : ["wait", "supplier", "Supplier in its 72-hour wait", `${first.supplier_id} becomes payable ${new Date(from).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}`]);
+    }
+    let orders = null;
+    try { const r = await fetch(ORDERS_API(c)); if (r.ok) { const j = await r.json(); orders = (j.txns || []).filter((t) => t.outcomes?.status !== false).length; } } catch {}
+    rows.push(orders === null ? ["todo", "order", "Purchase order", "could not count orders (NearBlocks unreachable); create one below"]
+      : orders ? ["ok", "order", "Purchase order created", `${orders} order call${orders > 1 ? "s" : ""} on chain`] : ["todo", "order", "Create a purchase order", "invoices are checked line by line against it"]);
+    rows.push(BigInt(limits.per_invoice) > 0n ? ["ok", "limits", "Spending limits set", `${fromUnits(limits.per_invoice)} USDC per invoice · ${fromUnits(limits.per_supplier_per_period)} per ${limits.period_hours} h`]
+      : ["todo", "limits", "Set spending limits", "until you do, nothing can clear"]);
+    const roles = [...new Set(signers.map((x) => x.role))];
+    rows.push(roles.length >= 2 ? ["ok", "signer", "Two delivery roles", roles.join(" + ")]
+      : ["todo", "signer", roles.length ? "Add a second delivery role" : "Add two delivery signers", roles.length ? `only ${roles[0]} so far; a delivery needs two roles` : "e.g. storekeeper and weighbridge"]);
+    rows.push(tokens.includes(USDC) ? ["ok", "token", "USDC allowed", short(USDC, 6)] : ["todo", "token", "Allow USDC", "only allowed tokens can be deposited and paid"]);
+    rows.push(BigInt(funds.available) > 0n ? ["ok", "pool", "Pool funded", fromUnits(funds.available) + " USDC available"] : ["todo", "pool", "Top up the pool", "payments wait until there is USDC"]);
+    let agent = null;
+    try {
+      const owner = await view(c, "get_owner"), k = await rpc("query", { request_type: "view_access_key_list", finality: "final", account_id: owner });
+      agent = k.keys.find((x) => x.access_key.permission?.FunctionCall?.receiver_id === c && x.access_key.permission.FunctionCall.method_names.includes("submit_invoice"));
+    } catch {}
+    rows.push(agent ? ["ok", null, "Agent key fenced", `may call ${agent.access_key.permission.FunctionCall.method_names.join(", ")} only`]
+      : ["todo", null, "Give the agent a fenced key", "NEAR CLI, once: near account add-key <buyer> grant-function-call-access --contract-account-id " + c + " --function-names 'submit_invoice, execute_payment' …"]);
+  } catch { rows.push(["todo", null, "Could not read the contract", "NEAR's RPC is not reachable; try again"]); }
+  const done = rows.filter((r) => r[0] === "ok").length;
+  $("h-ready").textContent = done === rows.length ? "Ready. The agent can submit." : "What this contract still needs.";
+  $("ready-n").innerHTML = `${done}<span style="color:var(--mute)">/${rows.length}</span><small>ready</small>`;
+  $("rlist").innerHTML = rows.map(([st, id, t, d]) => `<li class="${st}">${id ? `<a href="${go(id)}">` : "<div>"}<i aria-hidden="true"></i><span><b>${esc(t)}</b><small>${esc(d)}</small></span>${id ? "</a>" : "</div>"}</li>`).join("");
+}
+
 async function refresh() {
   $("f-c").textContent = contract();
+  checklist();
   try {
     S.owner = await view(contract(), "get_owner");
     $("f-owner").textContent = S.owner;
@@ -387,6 +477,26 @@ await returning();
   addEventListener("keydown", (e) => { if (e.key === "Escape" && b.getAttribute("aria-expanded") === "true") { set(false); b.focus(); } });
   addEventListener("click", (e) => { if (!b.contains(e.target) && !m.contains(e.target)) set(false); });
   m.addEventListener("focusout", (e) => { if (!m.contains(e.relatedTarget) && e.relatedTarget !== b) set(false); });
+})();
+</script>
+<script>
+/* Console bar: remember who is using it, and mark the pages for that role. */
+(() => {
+  const FOR = { buyer: ["judge", "setup"], signer: ["sign"], supplier: ["sign"] };
+  let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
+  const paint = () => {
+    document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
+    document.querySelectorAll(".ctabs a[data-page]").forEach((a) => {
+      const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
+      a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
+    });
+  };
+  document.querySelectorAll(".roles button").forEach((b) => b.addEventListener("click", () => {
+    role = role === b.dataset.role ? null : b.dataset.role;
+    try { role ? localStorage.setItem("ctp-role", role) : localStorage.removeItem("ctp-role"); } catch {}
+    paint();
+  }));
+  paint();
 })();
 </script>
 </body>

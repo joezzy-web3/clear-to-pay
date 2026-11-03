@@ -288,15 +288,32 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
 .links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
 .navlive{background:var(--signal);color:var(--navy)}
+
+/* way home: the logo, a clickable page label, and a quiet Home link */
+.brand{display:flex;align-items:center;gap:6px;min-width:0}
+a.crumb{text-decoration:none;padding:6px 8px;border-radius:8px;white-space:nowrap}
+a.crumb:hover{color:var(--paper);background:#13284A}
+.homelink{font:500 14.5px var(--body);color:var(--nmute);text-decoration:none;padding:8px 10px;border-radius:8px;white-space:nowrap}
+.homelink:hover{color:var(--paper);background:#13284A}
+@media (max-width:900px){.homelink{display:none}}
+
+.tryband-wrap{padding-top:clamp(28px,4vw,44px)}
+.tryband{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px 22px;align-items:center;text-decoration:none;color:var(--navy);background:var(--signal);padding:18px 22px;position:relative}
+.tryband::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:repeating-linear-gradient(90deg,var(--navy) 0 18px,var(--signal) 18px 36px)}
+.tb-k{font:500 12px var(--mono);letter-spacing:.16em;text-transform:uppercase;background:var(--navy);color:var(--paper);padding:7px 10px}
+.tb-t{font:500 16px/1.45 var(--body)}
+.tb-go{font:800 26px/1 var(--display);white-space:nowrap}
+.tryband:hover .tb-go{text-decoration:underline}
+@media (max-width:760px){.tryband{grid-template-columns:1fr}.tb-k{justify-self:start}}
 </style>
 
 </head>
 <body>
 <header class="top gut"><div class="in">
   <nav class="nav">
-    <a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay<span class="crumb">/ Ledger</span></a>
+    <span class="brand"><a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Ledger</a></span>
     <div class="links"><a href="../#how">How it works</a><a href="../#checks">The checks</a><a href="../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
-    <span class="navr"><a class="navlive" href="../ledger/" aria-current="page"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+    <span class="navr"><a class="homelink" href="../">&larr; Home</a><a class="navlive" href="../ledger/" aria-current="page"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
   <div class="htext" id="top">
     <div>
@@ -322,6 +339,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 </div></header>
 
 <main>
+<section class="gut tryband-wrap" aria-label="Make a receipt yourself"><div class="in"><a class="tryband" href="../console/"><span class="tb-k">Judge mode</span><span class="tb-t">Every receipt here was made by an agent. Make one yourself: send a poisoned invoice from your browser and watch the contract seize it.</span><span class="tb-go">Try to fool it &rarr;</span></a></div></section>
 <section class="s gut" id="receipts"><div class="in">
   <div class="head">
     <div><span class="kick">Receipts</span><h2>Every invoice the agent <mark>submitted</mark>.</h2>
@@ -814,7 +832,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 </script>
 
 <div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../console/" class="hot">Judge mode: try to fool it</a><a href="../inspect/">Inspect an invoice</a><a href="../console/sign/">Sign a delivery</a><a href="../console/setup/">Buyer setup</a><a href="../ledger/" aria-current="page">Live ledger</a><a href="../#how">How it works</a><a href="../#checks">The checks</a><a href="../#proof">Proof</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../console/" class="hot">Judge mode: try to fool it</a><a href="../inspect/">Inspect an invoice</a><a href="../console/sign/">Sign a delivery</a><a href="../console/setup/">Buyer setup</a><a href="../ledger/" aria-current="page">Live ledger</a><a href="../#how">How it works</a><a href="../#checks">The checks</a><a href="../#proof">Proof</a><a href="../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
 <script>
 (() => {
   const b = document.getElementById("burger"), d = document.getElementById("drawer"), s = document.getElementById("scrim");

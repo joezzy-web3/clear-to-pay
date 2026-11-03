@@ -209,3 +209,4 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 @media (max-width:900px){.doc{grid-template-columns:1fr!important}.paper{white-space:pre;overflow-x:auto;font-size:12px}.paper::first-line{font-size:21px}}
 @media (max-width:520px){.crumb{display:none}.logo{white-space:nowrap;font-size:21px}}
 @media (prefers-reduced-motion:reduce){.hero-seal,.stamp:not(.wait){animation:none}}
+[hidden]{display:none!important}
