@@ -109,6 +109,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .tgbtn{display:inline-flex;align-items:center;gap:8px;background:#229ED9;color:#fff!important;text-decoration:none;font:600 14px var(--body);padding:10px 14px;white-space:nowrap}
 .tgbtn svg{flex:none}
 @media (max-width:900px){.alerts{grid-template-columns:1fr}.arow{grid-template-columns:1fr auto}.arow .btn.ghost{grid-column:1/-1;justify-self:start}}
+.confirm{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font:500 14.5px/1.45 var(--body)}
+.confirm input{width:auto;margin-top:3px}
 /* the checklist: the contract's own state, one line per thing a company sets up */
 .ready{background:var(--card);border:1px solid var(--line);padding:clamp(18px,2.6vw,28px);position:relative}
 .ready::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,var(--navy) 0 18px,var(--signal) 18px 36px)}
@@ -135,7 +137,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/" aria-current="page"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><span title="Coming next">Inbox · next</span></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
 
   <div class="hero">
     <div>
@@ -165,6 +167,17 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div class="ready-h"><div><span class="kick">Ready to run</span><h2 id="h-ready">What this contract still needs.</h2></div><div class="ready-n" id="ready-n" aria-live="polite">–</div></div>
     <ol class="rlist" id="rlist"></ol>
   </section>
+  <section class="card alerts" id="invite" aria-labelledby="h-invite">
+    <div><h3 id="h-invite"><small>Invite</small>Bring people in with one link</h3>
+    <p class="muted">Send a supplier or a delivery signer a link. They open it on their phone, a key is made there, and their details come back to you as a link that fills in the right form below. You still review and sign every registration, and you still confirm a supplier's payout account by phone.</p></div>
+    <div class="fields" style="margin-top:0">
+      <label>Invite<select id="i-kind"><option value="supplier">a supplier</option><option value="signer">a delivery signer</option></select></label>
+      <label id="i-sup-l">Supplier id<span>a-z, 0-9, '-', '_', '.'</span><input id="i-sup" placeholder="qingmar-steel" autocomplete="off"></label>
+      <label id="i-role-l" hidden>Role<span>e.g. storekeeper, weighbridge, inspector</span><input id="i-role" placeholder="weighbridge" autocomplete="off"></label>
+      <div class="row" style="margin-top:0"><button class="btn y" type="button" id="i-make">Make the invitation</button></div>
+      <div id="i-out"></div>
+    </div>
+  </section>
   <section class="card alerts" id="alerts" aria-labelledby="h-alerts">
     <div><h3 id="h-alerts"><small>Alerts</small>Everyone hears it on Telegram</h3>
     <p class="muted">Each person taps Start once. The buyer hears everything; a supplier hears about its own payout address (while a change is still in its 72-hour wait), its invoices and its payments; delivery signers hear when a signer is added. Only public on-chain facts are sent.</p></div>
@@ -183,7 +196,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 <script type="module">
 import * as C from "../crypto.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy } from "../chain.js";
 initMenu();
 
 const YOCTO = "1", TGAS = (n) => (BigInt(n) * 10n ** 12n).toString();
@@ -205,6 +218,7 @@ const FORMS = [
       if (!isSupplierId(id)) fail("Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
       if (!isPubKey(key)) fail("The signing key must look like ed25519:… (44 characters after the colon).");
       if (!isAccount(addr)) fail("The payout account must be a NEAR account id.");
+      if (S.needCall) fail("Tick the box once the supplier has confirmed this address by phone.");
       return { method: "register_supplier", args: { supplier_id: id, signing_key: key, route: { chain: "near", token: USDC, address: addr } } };
     },
     async readBack(a) { const s = await view(contract(), "get_supplier", { supplier_id: a.supplier_id }); return s && `${s.supplier_id} → ${s.route_on_file.address}\npayable from ${new Date(Number(BigInt(s.route_payable_from) / 1_000_000n)).toLocaleString()}`; },
@@ -397,7 +411,7 @@ function render() {
     </section>`).join(""));
   addLine("o-lines"); addLine("k-lines", true);
   $("out-agent").insertAdjacentHTML("beforebegin", `<div class="alist" id="a-keys"></div>`);
-  wireAgent();
+  wireAgent(); wireInvite();
   document.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addLine(b.dataset.add, b.dataset.dn)));
   document.querySelectorAll("[data-review]").forEach((b) => (b.onclick = () => review(b.dataset.review)));
   document.querySelectorAll("[data-sign]").forEach((b) => (b.onclick = () => sign(b.dataset.sign)));
@@ -494,6 +508,41 @@ async function checklist() {
 }
 
 const TG = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.9 4.3 18.7 19.4c-.2 1.1-.9 1.3-1.8.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.3-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13 1.4 11.5c-1-.3-1.1-1 .2-1.5L20.5 2.7c.9-.3 1.7.2 1.4 1.6Z"/></svg>';
+// ---------------------------------------------------------------- invitations out, details back
+function wireInvite() {
+  const kind = () => $("i-kind").value;
+  $("i-kind").onchange = () => { $("i-sup-l").hidden = kind() !== "supplier"; $("i-role-l").hidden = kind() !== "signer"; $("i-out").innerHTML = ""; };
+  $("i-make").onclick = () => {
+    const j = { contract: contract(), kind: kind() };
+    if (j.kind === "supplier") { j.supplier_id = $("i-sup").value.trim(); if (!isSupplierId(j.supplier_id)) { $("i-out").innerHTML = `<p class="err">Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'</p>`; return; } }
+    else { j.role = $("i-role").value.trim(); if (!isRole(j.role)) { $("i-out").innerHTML = `<p class="err">Role: 1 to 32 of a-z, 0-9, '-'.</p>`; return; } }
+    const link = new URL("../sign/#j=" + encodeLink(j), location.href).href;
+    $("i-out").innerHTML = `<div class="linkout"><code>${esc(link)}</code><div class="qr">${C.qrSvg(link)}</div></div><div class="row"><button class="btn" type="button" id="i-copy">Copy the link</button></div>`;
+    $("i-copy").onclick = (e) => copy(link, e.target);
+  };
+}
+/** A link sent back by an invited person: fill the right form, never sign anything. */
+function arrived() {
+  const a0 = new URLSearchParams(location.hash.slice(1)).get("a"); if (!a0) return;
+  let a; try { a = decodeLink(a0); } catch { return; }
+  history.replaceState(null, "", location.pathname + location.search);
+  if (!isAccount(a.contract) || !isPubKey(a.key)) return;
+  if (a.contract !== contract()) { const k = Object.entries(CONTRACTS).find(([, c]) => c === a.contract)?.[0]; if (!k) return; document.querySelector(`.switch button[data-c="${k}"]`)?.click(); }
+  if (a.kind === "supplier" && isSupplierId(a.supplier_id) && isAccount(a.address)) {
+    $("s-id").value = a.supplier_id; $("s-key").value = a.key; $("s-addr").value = a.address;
+    document.getElementById("inv-supplier")?.remove();
+    document.querySelector("#f-supplier .fields").insertAdjacentHTML("afterbegin", `<div id="inv-supplier"><div class="warn"><b>From an invitation.</b> ${esc(a.supplier_id)} asks to be paid to <b>${esc(a.address)}</b>. A link can be faked: call the supplier on a number you already had and read the address back before you sign.</div>
+      <label class="confirm"><input type="checkbox" id="s-called"> I called the supplier and they confirmed <b>${esc(a.address)}</b>.</label></div>`);
+    S.needCall = true; $("s-called").onchange = () => { S.needCall = !$("s-called").checked; };
+    $("s-addr").addEventListener("input", () => { if ($("s-addr").value.trim() !== a.address) { $("s-called").checked = false; S.needCall = true; } });
+    document.getElementById("f-supplier").scrollIntoView({ block: "start" });
+  } else if (a.kind === "signer" && isRole(a.role)) {
+    $("d-key").value = a.key; $("d-role").value = a.role;
+    document.querySelector("#f-signer .fields").insertAdjacentHTML("afterbegin", `<div class="warn"><b>From an invitation:</b> a ${esc(a.role)} key from someone's phone. Register it only if you sent that invitation to them.</div>`);
+    document.getElementById("f-signer").scrollIntoView({ block: "start" });
+  }
+}
+
 async function alertsCard() {
   const c = contract(), rows = [["buyer", "You, the buyer", "everything on " + c]];
   try { for (const id of await view(c, "get_supplier_ids")) rows.push([{ supplier: id }, "Supplier " + id, "send them this link"]); } catch {}
@@ -565,6 +614,7 @@ render();
 await refresh();
 await initWallet();
 await returning();
+arrived();
 </script>
 <script>
 /* "Try it" menu: a button that opens a list; Esc or a click outside closes it. */

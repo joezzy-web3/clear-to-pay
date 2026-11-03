@@ -36,6 +36,11 @@
 .out{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:18px;align-items:start}
 .out pre{margin:0;background:var(--deep);color:#C9D6E6;font:400 12.5px/1.6 var(--mono);padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}
 .qr{background:#fff;border:1px solid var(--line);padding:8px}.qr svg{display:block;width:100%;height:auto}
+.steps{margin:14px 0 0;padding-left:20px;display:grid;gap:8px;line-height:1.5}
+.steps li.done{color:var(--clear)}
+.field{display:grid;gap:6px;margin-top:16px;font:600 15px var(--body)}
+.field span{font:400 12.5px var(--mono);color:var(--mute)}
+.field input{font:400 16px var(--mono);padding:12px;border:1px solid var(--line);width:100%;min-width:0}
 .msg{padding:12px 14px;border-left:4px solid var(--held);background:#FFF6D6;line-height:1.5}
 .msg.bad{border-color:var(--seize);background:#FBECEA}.msg.ok{border-color:var(--clear);background:#E5F2EA}
 @media (max-width:640px){.out{grid-template-columns:1fr}.qr{max-width:240px}}
@@ -105,7 +110,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/" aria-current="page"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a></div></div></div>
     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign" aria-current="page">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><span title="Coming next">Inbox · next</span></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign" aria-current="page">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
 
   <div class="hero">
     <div>
@@ -121,6 +126,14 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   <div class="msg" id="nolink" hidden>This page signs a delivery note or an invoice from a link the buyer sends you. Open the link you were sent. Until then, you can set up your signing key below and send its public key to the buyer.</div>
 
   <article class="paper note" id="note" hidden aria-live="polite"></article>
+
+  <section class="card" id="join" hidden aria-labelledby="h-join">
+    <h3 id="h-join">You're invited</h3>
+    <p class="plain" id="join-p"></p>
+    <ol class="steps" id="join-steps"></ol>
+    <label class="field" id="join-addr-l" hidden>Your payout account on NEAR<span>where you want to be paid; the buyer will confirm it with you by phone</span><input id="join-addr" placeholder="yourcompany.near" autocomplete="off" spellcheck="false"></label>
+    <button class="btn signbtn" id="join-go" type="button" disabled style="margin-top:14px">Send my details to the buyer</button>
+  </section>
 
   <section class="card" id="checks-card" hidden>
     <h3>Checked on chain before you sign</h3>
@@ -178,7 +191,7 @@ function paintKey() {
       <div class="row" style="margin-top:0"><button class="btn ghost" id="copypub" type="button">Copy the public key</button><button class="btn ghost" id="forget" type="button">Forget this key</button></div>
       <p class="note" style="margin:0">The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key). It is safe to share; the secret half stays here.</p>`;
     $("copypub").onclick = (e) => copy(KEY.public_key, e.target);
-    $("forget").onclick = async () => { if (confirm("Forget this key on this phone? Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); } };
+    $("forget").onclick = async () => { if (confirm("Forget this key on this phone? Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); paintJoinState(); } };
   } else {
     el.innerHTML = `<p class="plain">No key on this phone yet. Make one here, or import the key file the buyer's team gave you (the <code>ctp-sign</code> JSON).</p>
       <div class="row" style="margin-top:0"><button class="btn" id="gen" type="button">Make a key on this phone</button><label class="btn ghost" for="file">Import a key file</label><input type="file" id="file" accept=".json,application/json" hidden></div>
@@ -195,8 +208,8 @@ function importKey(text) {
 async function setKey(k, fresh) {
   KEY = { public_key: k.public_key, secret_key: k.secret_key };
   if (!(await saveKey(KEY))) alert("This browser would not store the key (private mode?). It works until you close the page.");
-  paintKey(); check();
-  if (fresh) alert("Key made. Send its public key to the buyer to register before you sign anything.");
+  paintKey(); check(); paintJoinState();
+  if (fresh && !JOIN) alert("Key made. Send its public key to the buyer to register before you sign anything.");
 }
 
 // ---------------------------------------------------------------- the link
@@ -316,8 +329,59 @@ $("sign").addEventListener("click", async () => {
   showResult(KEY.public_key, C.signDigest(KEY.secret_key, digestOf(JOB)), false);
 });
 
+// ---------------------------------------------------------------- joining: an invitation from the buyer
+let JOIN = null;
+function parseJoin() {
+  const j = decodeLink(P.get("j"));
+  if (!isAccount(j.contract) || !["supplier", "signer"].includes(j.kind)) throw new Error("this invitation is damaged");
+  if (j.kind === "supplier" && !isSupplierId(j.supplier_id)) throw new Error("this invitation is damaged");
+  if (j.kind === "signer" && !isRole(j.role)) throw new Error("this invitation is damaged");
+  return { contract: j.contract, kind: j.kind, supplier_id: j.supplier_id || null, role: j.role || null };
+}
+function paintJoin() {
+  const j = JOIN, sup = j.kind === "supplier";
+  $("h1").innerHTML = sup ? "Join as the <span>supplier.</span>" : `Join as <span>${esc(j.role)}.</span>`;
+  $("sub").textContent = "The buyer uses Clear to Pay: invoices are paid only to an address you registered, only for goods signed as delivered. A few taps, then you're set.";
+  $("join-p").textContent = sup ? `The buyer at ${j.contract} wants to register you as supplier "${j.supplier_id}".` : `The buyer at ${j.contract} wants you to confirm deliveries as ${j.role}.`;
+  $("join-addr-l").hidden = !sup;
+  $("join").hidden = false;
+  $("join").before($("keycard")); // step 1 is the key, so it comes first
+  paintJoinState();
+}
+function paintJoinState() {
+  if (!JOIN) return;
+  const sup = JOIN.kind === "supplier", addr = $("join-addr").value.trim(), okAddr = !sup || isAccount(addr);
+  $("join-steps").innerHTML = `<li class="${KEY ? "done" : ""}">${KEY ? "Your key is ready on this phone." : "Make a key on this phone (above), or import one."}</li>`
+    + (sup ? `<li class="${okAddr && addr ? "done" : ""}">Type the NEAR account you want to be paid to.</li>` : "")
+    + `<li>Send your details back. The buyer reviews them and registers you with their wallet.</li>`;
+  $("join-go").disabled = !(KEY && okAddr && (!sup || addr));
+}
+function sendJoin() {
+  const sup = JOIN.kind === "supplier", a = { contract: JOIN.contract, kind: JOIN.kind, key: KEY.public_key };
+  if (sup) { a.supplier_id = JOIN.supplier_id; a.address = $("join-addr").value.trim(); } else a.role = JOIN.role;
+  const link = new URL("../setup/#a=" + encodeLink(a), location.href).href;
+  $("res-h").textContent = "Send this back to the buyer";
+  $("res-p").textContent = sup ? "Share the link, or let the buyer scan the QR code. When they call to confirm your payout account, it should match exactly." : "Share the link, or let the buyer scan the QR code. After they register your key, the delivery links they send you will sign with it.";
+  $("res-json").textContent = JSON.stringify(a, null, 1);
+  $("qr").innerHTML = C.qrSvg(link);
+  $("copy").textContent = "Copy details"; $("copy").onclick = (e) => copy(JSON.stringify(a), e.target);
+  $("copylink").onclick = (e) => copy(link, e.target);
+  $("share").onclick = async () => { if (navigator.share) { try { await navigator.share({ title: "Clear to Pay: my details", url: link }); } catch {} } else copy(link, $("share")); };
+  $("result").hidden = false; $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+  const al = alertLink(JOIN.contract, sup ? { supplier: JOIN.supplier_id } : "signers");
+  if (al) { $("tg").hidden = false; $("tg-a").href = al; $("tg-t").textContent = sup ? "Hear on Telegram the moment anyone tries to change your payout address, and when your invoices are decided and paid." : "Hear on Telegram when a delivery signer is added or removed."; }
+}
+$("join-addr").addEventListener("input", paintJoinState);
+$("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJoin(); });
+
 // ---------------------------------------------------------------- start
 (async () => {
+  if (P.get("j")) {
+    try { JOIN = parseJoin(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This invitation cannot be used: " + e.message + "."; }
+    KEY = await loadKey(); paintKey();
+    if (JOIN) { paintJoin(); $("live").className = "live on"; $("liveText").innerHTML = "<b>Invitation</b> · " + esc(JOIN.contract); }
+    return;
+  }
   try { JOB = parseJob(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This link cannot be used: " + e.message + "."; }
   KEY = await loadKey(); paintKey();
   if (!JOB) { if ($("nolink").className !== "msg bad") $("nolink").hidden = false; $("live").className = "live"; $("liveText").innerHTML = "<b>No link opened</b>"; $("h1").innerHTML = "Your <span>signing key.</span>"; return; }
