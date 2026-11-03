@@ -536,7 +536,7 @@ function paintAI() {
       <div><ul class="checks" id="checks">${CHECKS.map((c, i) => `<li class="wait" id="ck${i}"><i>·</i><div>${esc(c[0])}<small>${esc(c[1])}</small></div></li>`).join("")}</ul>
       <div class="row"><button class="btn" id="verify" type="button">Verify it in this browser</button><a class="btn ghost" href="../proof/reading-INV-2208.json" target="_blank" rel="noopener">The raw reading</a></div></div>
     </div>
-    <p class="note">The AI is never asked who to pay. Its reading feeds the invoice; the payee always comes from the contract's registry. Hardware checks (Intel TDX quote chain, NVIDIA GPU evidence) were run by the reader when it read: ${esc(r.hardware_summary?.how || "")}. This browser checks the signatures and bindings below.</p>`;
+    <p class="note">The AI is never asked who to pay. Its reading feeds the invoice; the payee always comes from the contract's registry. <b>What this browser checks:</b> the hashes, the enclave's signature, and that the hardware quote names that signing key and our fresh nonce (the seven checks above). <b>What it does not check:</b> that the quote itself was signed by genuine Intel TDX hardware, or the NVIDIA GPU evidence. The reader verified those certificate chains when it read the invoice (${esc(r.hardware_summary?.how || "dcap-qvl against Intel PCS; NVIDIA NRAS")}); re-check them offline with <code>read_invoice.py --verify</code>.</p>`;
   $("verify").onclick = verifyReading;
 }
 
@@ -546,7 +546,7 @@ const CHECKS = [
   ["The response we got is unchanged", "sha-256 of the response bytes = the hash the enclave signed"],
   ["The enclave signed exactly these two hashes", "signed text = model : request hash : response hash"],
   ["The signature comes from the enclave's key", "secp256k1 recovery of the signature = signing address"],
-  ["The hardware quote names that key and our fresh nonce", "report_data in the Intel TDX quote = signing address + nonce"],
+  ["The hardware quote names that key and our fresh nonce", "report_data inside the Intel TDX quote = signing address + nonce (the quote's Intel signature is checked by the reader, not here)"],
   ["The answer shown is the signed response", "the response's message = the fields on the left"],
 ];
 async function verifyReading() {

@@ -33,7 +33,12 @@ class W {
   constructor() { this.b = []; }
   u8(x) { this.b.push(x & 255); }
   u32(x) { for (let i = 0; i < 4; i++) this.u8(x >>> (8 * i)); }
-  big(x, n) { let v = BigInt(x); for (let i = 0; i < n; i++) { this.u8(Number(v & 255n)); v >>= 8n; } }
+  big(x, n) { // little-endian, n bytes; refuses (never truncates) a value that does not fit (CTP7-01)
+    if (typeof x === "string" && !/^(0|[1-9]\d*)$/.test(x)) throw new Error(`not a plain whole number: ${x}`);
+    let v = BigInt(x);
+    if (v < 0n || v >= 1n << BigInt(8 * n)) throw new Error(`${x} does not fit in ${8 * n} bits`);
+    for (let i = 0; i < n; i++) { this.u8(Number(v & 255n)); v >>= 8n; }
+  }
   bytes(a) { for (const x of a) this.u8(x); }
   vec(a) { this.u32(a.length); this.bytes(a); }
   str(s) { this.vec(enc.encode(s)); }

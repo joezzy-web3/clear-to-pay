@@ -171,7 +171,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 <script type="module">
 import * as C from "../crypto.js";
-import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
+import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 initMenu();
 
 // ---------------------------------------------------------------- the key, kept in IndexedDB for this site only
@@ -217,7 +217,7 @@ const P = new URLSearchParams(location.hash.slice(1));
 function parseJob() {
   if (P.get("n")) {
     const n = decodeLink(P.get("n"));
-    const okLines = Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isUint(String(l.qty)));
+    const okLines = Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isU64(l.qty));
     if (!isAccount(n.contract) || !isRef(n.order_id) || !isRef(n.note_id) || !okLines || !isRole(n.role) || !Number.isInteger(n.policy_version) || n.policy_version < 0 || n.policy_version > 4294967295) throw new Error("this delivery link is damaged or incomplete");
     const unit = typeof n.unit === "string" && /^[a-z]{1,6}$/i.test(n.unit) ? n.unit : "";
     return { kind: "delivery", contract: n.contract, role: n.role, policy_version: n.policy_version, unit,
@@ -227,8 +227,8 @@ function parseJob() {
     const x = decodeLink(P.get("i")), v = x.invoice || {};
     let doc; try { doc = C.base64.decode(x.document_hash); } catch { doc = null; }
     const route = v.payee || {};
-    const okLines = Array.isArray(v.lines) && v.lines.length >= 1 && v.lines.length <= 50 && v.lines.every((l) => isRef(l.sku) && isUint(String(l.qty)) && isUint(String(l.unit_price)));
-    if (!isAccount(x.contract) || !isSupplierId(v.supplier_id) || !isRef(v.invoice_number) || !isRef(v.order_id) || !isPrintable(v.token, 128) || !okLines || !isUint(String(v.total))
+    const okLines = Array.isArray(v.lines) && v.lines.length >= 1 && v.lines.length <= 50 && v.lines.every((l) => isRef(l.sku) && isU64(l.qty) && isU128(l.unit_price));
+    if (!isAccount(x.contract) || !isSupplierId(v.supplier_id) || !isRef(v.invoice_number) || !isRef(v.order_id) || !isPrintable(v.token, 128) || !okLines || !isU128(v.total)
         || !isPrintable(route.chain, 32) || !isPrintable(route.token, 128) || !isPrintable(route.address, 128) || !doc || doc.length !== 32) throw new Error("this invoice link is damaged or incomplete");
     const invoice = { supplier_id: v.supplier_id, invoice_number: v.invoice_number, order_id: v.order_id, token: v.token,
       lines: v.lines.map((l) => ({ sku: l.sku, qty: String(l.qty), unit_price: String(l.unit_price) })), total: String(v.total), payee: { chain: route.chain, token: route.token, address: route.address } };

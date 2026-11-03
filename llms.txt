@@ -13,6 +13,8 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - `scripts/attack-demo.sh` : a poisoned invoice, a fooled agent, and every refusal, logged
 - `scripts/baseline.sh` : the same invoice attacks against two allowlist guards and against Clear to Pay
 - `scripts/mutation-check.sh` : breaks three rules on purpose; a property test must catch each
+- `(cd tools/console-crypto && npm ci && npm test)` : the browser's crypto: golden digests, byte-for-byte parity with ctp-sign, NEAR transaction bytes against near-api-js, the enclave signature
+- `(cd workers/alerts && npm ci && npm test)` : the alerts worker's rules and an end-to-end run with a fake chain and a fake Telegram
 - `python3 reader/tools/read_invoice.py --verify docs/proof/reading-INV-2208.json` : re-checks a live AI reading's enclave signature offline
 
 ## Claims and where they are proven
@@ -24,7 +26,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - The AI's answer was signed inside an enclave over our exact bytes; the enclave's Intel TDX quote holds its signing address and our nonce, and the report names the pinned model; on every reading the quote's chain is verified to Intel's root and the GPU evidence by NVIDIA (its signed token checked); the enclave's signature covers the document's sha-256; and the software it ran (OS image, containers, the deployment that launched the model) must match `reader/software-pins.json`; new software is pinned only after that model passes the qualification run ([reader/ctp_reader/qualify.py](reader/ctp_reader/qualify.py)): [reader/ctp_reader/tee.py](reader/ctp_reader/tee.py), [reader/ctp_reader/model.py](reader/ctp_reader/model.py), [reader/tests/test_model.py](reader/tests/test_model.py); live reading in [docs/proof/reading-INV-2208.json](docs/proof/reading-INV-2208.json)
 - The agent's key cannot withdraw, attach money, change rules or move USDC directly; it can only submit invoices and send payments that already CLEARED, to the registered address: NEAR function-call key on `buyer.cleartopay.testnet`; refusals in [docs/testnet-proof.md](docs/testnet-proof.md)
 - After HELD, the AI drafts the supplier query from code-computed facts only; after SEIZED, no reply in the same thread: [reader/ctp_reader/query.py](reader/ctp_reader/query.py), [reader/tests/test_query.py](reader/tests/test_query.py)
-- Address changes (even ones proposed and cancelled between checks), new suppliers, new delivery signers and SEIZED invoices raise a Telegram alert during the 72-hour wait (polled every 15 s): [reader/ctp_reader/alerts.py](reader/ctp_reader/alerts.py), [reader/tests/test_alerts.py](reader/tests/test_alerts.py)
+- Address changes (even ones proposed and cancelled between checks), new suppliers, new delivery signers and SEIZED invoices raise a Telegram alert during the 72-hour wait (the local monitor polls every 15 s; the hosted worker reads each contract every 2 minutes): [reader/ctp_reader/alerts.py](reader/ctp_reader/alerts.py), [reader/tests/test_alerts.py](reader/tests/test_alerts.py)
 - Every threat, its defence and its test: [THREAT_MODEL.md](THREAT_MODEL.md), including what is not defended yet
 
 ## On chain (NEAR testnet)
@@ -40,7 +42,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 
 ## Not built yet (stated, not claimed)
 
-- Hardware-level check of the attestation report (Intel TDX quote, NVIDIA evidence); running the reader inside OutLayer
+- The Intel TDX and NVIDIA certificate chains checked in the browser (the reader checks them on every reading; Judge mode checks signatures and bindings only); running the reader inside OutLayer
 - Rendered-image check of PDFs; NEAR Intents cross-chain payouts; proof of control at supplier registration
 - Two colluding insiders in different roles can still confirm a false delivery
 

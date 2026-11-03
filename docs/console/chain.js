@@ -15,6 +15,11 @@ export const isSupplierId = (s) => typeof s === "string" && /^[a-z0-9._-]{1,64}$
 export const isRole = (s) => typeof s === "string" && /^[a-z0-9-]{1,32}$/.test(s);
 export const isAccount = (s) => typeof s === "string" && s.length >= 2 && s.length <= 64 && /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(s);
 export const isUint = (s) => typeof s === "string" && /^\d{1,39}$/.test(s);
+// Exact on-chain widths (CTP7-01): a JSON string of a plain whole number (no sign, no exponent, no leading zero), in range.
+const U64_MAX = (1n << 64n) - 1n, U128_MAX = (1n << 128n) - 1n;
+const plain = (s) => typeof s === "string" && /^(0|[1-9]\d{0,38})$/.test(s);
+export const isU64 = (s) => plain(s) && BigInt(s) <= U64_MAX;
+export const isU128 = (s) => plain(s) && BigInt(s) <= U128_MAX;
 export const isPubKey = (s) => typeof s === "string" && /^ed25519:[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(s);
 export const isPrintable = (s, max) => typeof s === "string" && s.length >= 1 && s.length <= max && /^[\x21-\x7e]+$/.test(s);
 

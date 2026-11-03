@@ -45,7 +45,10 @@ export async function snapshot(view, token, known = null) {
   const start = Object.keys(receipts).length;
   for (let i = start; i < Math.min(count, start + MAX_NEW_RECEIPTS); i++) {
     const r = await view("get_receipt", { receipt_id: i });
-    if (r) receipts[String(i)] = { verdict: r.verdict, reasons: r.reasons, invoice_number: r.invoice_number, supplier_id: r.supplier_id, amount: r.amount, order_id: r.order_id };
+    // A receipt below receipt_count always exists on chain. If a server answers "none", record that and move on,
+    // so one bad answer cannot stop every later receipt from being watched (CTP7-04); the buyer is told.
+    receipts[String(i)] = r ? { verdict: r.verdict, reasons: r.reasons, invoice_number: r.invoice_number, supplier_id: r.supplier_id, amount: r.amount, order_id: r.order_id }
+      : { verdict: "Unreadable", reasons: [], invoice_number: `receipt ${i}`, supplier_id: "", amount: "0", order_id: "" };
   }
   const payments = { ...(known.payments || {}) };
   for (const [i, r] of Object.entries(receipts)) {
@@ -96,6 +99,7 @@ export function changes(old, now) {
   for (const [i, r] of Object.entries(now.receipts)) {
     if (i in (old.receipts || {})) continue;
     const amt = `${usdc(r.amount)} USDC`, reasons = (r.reasons || []).join(", "), to = both(r.supplier_id);
+    if (r.verdict === "Unreadable") { out.push(A("ALARM", `Receipt #${i} could not be read from the RPC server (it answered "none" for a receipt that must exist). The watcher moved on; check receipt #${i} on the ledger now. ${LEDGER}`, ["buyer"])); continue; }
     if (r.verdict === "Seized") out.push(A("ALARM", `SEIZED invoice ${r.invoice_number} from ${r.supplier_id} (${amt}): ${reasons}. ${SEIZED_NEXT(r.invoice_number)} ${LEDGER}`, to));
     else if (r.verdict === "Held") {
       const steps = (r.reasons || []).filter((x) => BUYER_ACTIONS[x]).map((x) => BUYER_ACTIONS[x]);

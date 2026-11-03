@@ -237,7 +237,7 @@ const FORMS = [
       if (!ls.length || ls.length > 50) fail("An order needs 1 to 50 lines.");
       const out = ls.map(([sku, qty, price], n) => {
         if (!isRef(sku)) fail(`Line ${n + 1}: the item code is not valid.`);
-        if (!/^[1-9]\d{0,18}$/.test(qty)) fail(`Line ${n + 1}: quantity must be a whole number above 0.`);
+        if (!/^[1-9]\d{0,19}$/.test(qty) || BigInt(qty) > (1n << 64n) - 1n) fail(`Line ${n + 1}: quantity must be a whole number above 0, at most 18446744073709551615.`);
         const u = toUnits(price); if (!u || u === "0") fail(`Line ${n + 1}: price must be in USDC, up to 6 decimals, above 0.`);
         return { sku, qty, unit_price: u };
       });
@@ -316,7 +316,7 @@ const FORMS = [
       <p class="note" id="a-state">No key made yet.</p>`,
     build() {
       if (!AGENT.pub) fail("Make the key first (step 1).");
-      if (!AGENT.saved) fail("Download the key file first (step 2). The wallet step comes after, so the key is never lost.");
+      if (!AGENT.saved) fail("Download the key file and tick that you can see it (step 2). The wallet step comes after, so the key is never lost.");
       const n = toUnits($("a-allow").value, 24);
       if (!n || BigInt(n) < 5n * 10n ** 22n || BigInt(n) > 10n ** 24n) fail("Allowance: 0.05 to 1 NEAR.");
       const methodNames = ["submit_invoice", "execute_payment"];
@@ -369,10 +369,12 @@ async function removeKey(pub) {
     if (res) await done(FORMS.find((x) => x.id === "agent"), res.transaction?.hash || res.transaction_outcome?.id, {}, res.status?.Failure);
   } catch (e) { sessionStorage.removeItem("ctp-setup-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
 }
+addEventListener("beforeunload", (e) => { if (AGENT.secret && !AGENT.saved) { e.preventDefault(); e.returnValue = ""; } });
 function wireAgent() {
   $("a-make").onclick = () => {
+    if (AGENT.secret && !AGENT.saved && !confirm("Replace the key you made but have not confirmed saving?")) return;
     const k = C.newKeyFile(); AGENT.pub = k.public_key; AGENT.secret = k.secret_key; AGENT.saved = false;
-    $("a-dl").disabled = false;
+    $("a-dl").disabled = false; $("a-dl").textContent = "2 · Download it";
     $("a-state").innerHTML = `Key made: <code>${esc(short(k.public_key, 10))}</code>. Download it next.`;
     document.querySelector('[data-sign="agent"]').disabled = true;
   };
@@ -384,9 +386,12 @@ function wireAgent() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2) + "\n"], { type: "application/json" }));
     a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    AGENT.saved = true; AGENT.secret = null; // the page forgets it once it is yours
-    $("a-dl").disabled = true;
-    $("a-state").innerHTML = `Saved as <code>${esc(name)}</code>. On the agent's machine, set:<br><code>CTP_CONTRACT=${esc(contract())}</code><br><code>CTP_AGENT_ACCOUNT=${esc(acct)}</code><br><code>CTP_AGENT_KEY_FILE=/path/to/${esc(name)}</code><br>Then Review and sign: your wallet fences the key on chain.`;
+    // A click only starts a download (it may be cancelled or blocked): keep the key in memory until the
+    // person confirms the file is saved, and offer the download again until then (CTP7-02).
+    $("a-dl").textContent = "Download again";
+    $("a-state").innerHTML = `Downloading <code>${esc(name)}</code>. On the agent's machine, set:<br><code>CTP_CONTRACT=${esc(contract())}</code><br><code>CTP_AGENT_ACCOUNT=${esc(acct)}</code><br><code>CTP_AGENT_KEY_FILE=/path/to/${esc(name)}</code>
+      <label class="confirm"><input type="checkbox" id="a-saved"> I can see <b>${esc(name)}</b> in my files. (If not, download again; the key exists only on this page until you sign.)</label>`;
+    $("a-saved").onchange = () => { AGENT.saved = $("a-saved").checked; document.querySelector('[data-sign="agent"]').disabled = true; };
   };
 }
 
@@ -451,6 +456,7 @@ async function sign(id) {
 }
 async function done(f, hash, args, failure) {
   const out = $("out-" + f.id);
+  if (f.id === "agent" && !failure && args && args.public_key === AGENT.pub) { AGENT.secret = null; $("a-dl").disabled = true; } // fenced on chain: the page forgets it
   if (failure) { out.innerHTML = `<p class="err">The contract refused it: ${esc(JSON.stringify(failure).slice(0, 300))}</p>${hash ? `<a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a>` : ""}`; return; }
   let back = ""; try { back = (await f.readBack(args)) || ""; } catch {}
   out.innerHTML = `<div class="okline">Done. Read back from the contract:<br><code>${esc(back)}</code></div>${hash ? `<div class="row"><a class="btn" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a></div>` : ""}`;

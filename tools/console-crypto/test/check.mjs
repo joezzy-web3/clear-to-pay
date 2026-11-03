@@ -66,3 +66,14 @@ const vd = C.deliveryDigest("cleartopay.testnet", dn552, "weighbridge", 1);
 assert.ok(C.verifyDigest(nk.public_key, vd, C.signDigest(nk.secret_key, vd)));
 assert.ok(!C.verifyDigest(nk.public_key, C.deliveryDigest("cleartopay.testnet", dn552, "storekeeper", 1), C.signDigest(nk.secret_key, vd)));
 console.log("ok  key files, verification and QR");
+
+// 6. CTP7-01: integers are encoded at their exact width or refused, never truncated.
+const nq = (qty) => ({ order_id: "PO-1184", note_id: "DN-552", lines: [{ sku: "AH36-12mm", qty }] });
+const iv = (unit_price, total) => ({ ...goldenInvoice, lines: [{ sku: "AH36-12mm", qty: "10", unit_price }], total });
+assert.doesNotThrow(() => C.deliveryDigest("cleartopay.testnet", nq("18446744073709551615"), "weighbridge", 1)); // u64 max
+for (const bad of ["18446744073709551616", "-1", "1e3", "010", "1.5", " 10"]) assert.throws(() => C.deliveryDigest("cleartopay.testnet", nq(bad), "weighbridge", 1), undefined, bad);
+const U128 = "340282366920938463463374607431768211455";
+assert.doesNotThrow(() => C.invoiceDigest("cleartopay.testnet", iv(U128, U128), new Uint8Array(32)));
+assert.throws(() => C.invoiceDigest("cleartopay.testnet", iv("340282366920938463463374607431768211456", "1"), new Uint8Array(32)));
+assert.throws(() => C.invoiceDigest("cleartopay.testnet", iv("1", "340282366920938463463374607431768211456"), new Uint8Array(32)));
+console.log("ok  u64/u128 at their exact width: max accepted; max+1, negatives, exponents, leading zeros refused");

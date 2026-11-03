@@ -61,4 +61,12 @@ const view = async (m, a) => { calls.push(m); return ({ get_supplier_ids: ["qing
 const s1 = await snapshot(view, "usdc"); const s2 = await snapshot(view, "usdc", s1);
 assert.equal(calls.filter((c) => c === "get_receipt").length, 1); assert.equal(calls.filter((c) => c === "get_payment").length, 2);
 assert.equal(usdc("780000"), "0.78"); assert.equal(usdc("1"), "0.000001");
-console.log("ok  alert worker: 8 groups of checks pass");
+// 9. CTP7-04: a receipt the server says does not exist does not stall the cursor, and the buyer is told
+let n9 = 0;
+const view9 = async (m, a) => ({ get_supplier_ids: [], receipt_count: 3, get_receipt: a.receipt_id === 1 ? null : { verdict: "Held", reasons: [], invoice_number: "INV-" + a.receipt_id, supplier_id: "s", amount: "1", order_id: "PO" },
+  get_delivery_signers: [], get_funds: { available: "0", reserved: "0" } })[m] ?? (m === "get_receipt" ? null : undefined);
+const t1 = await snapshot(view9, "usdc");
+assert.deepEqual(Object.keys(t1.receipts), ["0", "1", "2"]); assert.equal(t1.receipts["1"].verdict, "Unreadable");
+const a9 = changes({ ...t1, receipts: {} }, t1);
+assert.ok(a9.some((x) => x.level === "ALARM" && /Receipt #1 could not be read/.test(x.text) && x.to.includes("buyer")));
+console.log("ok  alert worker: 9 groups of checks pass");

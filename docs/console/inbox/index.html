@@ -203,6 +203,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   <section aria-labelledby="h-inv">
     <div class="ib-h"><div><span class="kick">Invoices</span><h2 id="h-inv">What needs you.</h2></div>
       <div class="filters" role="group" aria-label="Show"><button type="button" data-f="todo" aria-pressed="true">Needs action</button><button type="button" data-f="all" aria-pressed="false">All</button></div></div>
+    <p class="msg" id="cap" hidden>This contract has more than 2,000 receipts; only the newest 2,000 are checked here. Older ones are on the ledger.</p>
     <div class="ilist" id="ilist"><p class="muted">Reading the contract…</p></div>
   </section>
 </div></main>
@@ -217,7 +218,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 <script type="module">
 import * as C from "../crypto.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isPrintable, decodeLink, fromUnits, initMenu, copy } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy } from "../chain.js";
 initMenu();
 
 const S = { c: (() => { try { return localStorage.getItem("ctp-inbox-contract") === "live" ? "live" : "demo"; } catch { return "demo"; } })(),
@@ -298,15 +299,39 @@ async function submitted(r) {
 }
 
 // ---------------------------------------------------------------- the list
+const MAX_RECEIPTS = 2000, PAGE = 30, VERDICTS = new Set(["Cleared", "Held", "Seized"]);
+const cacheKey = () => "ctp-inbox-receipts:" + contract();
+function readCache() {
+  try {
+    const o = JSON.parse(localStorage.getItem(cacheKey()) || "{}"), ok = {};
+    for (const [k, r] of Object.entries(o)) if (r && Number.isInteger(r.id) && String(r.id) === k && VERDICTS.has(r.verdict)) ok[k] = r;
+    return ok;
+  } catch { return {}; }
+}
+function writeCache(o) { try { localStorage.setItem(cacheKey(), JSON.stringify(o)); } catch {} }
 const isTodo = (r) => r.verdict === "Held" || r.verdict === "Seized" || (r.verdict === "Cleared" && r.payment && r.payment.status !== "Settled");
 async function load() {
   $("f-c").textContent = contract();
   try {
     S.owner = await view(contract(), "get_owner"); $("f-owner").textContent = S.owner;
-    const n = await view(contract(), "receipt_count"), ids = Array.from({ length: Math.min(n, 60) }, (_, i) => n - 1 - i), out = [];
-    for (let i = 0; i < ids.length; i += 8) out.push(...await Promise.all(ids.slice(i, i + 8).map((id) => view(contract(), "get_receipt", { receipt_id: id }))));
-    S.receipts = out.filter(Boolean);
-    await Promise.all(S.receipts.filter((r) => r.verdict === "Cleared").map(async (r) => { r.payment = await view(contract(), "get_payment", { receipt_id: r.id }).catch(() => null); }));
+    // Every receipt, not only the newest: an old unpaid invoice must never drop out of the queue (CTP7-05).
+    // Receipts never change once written, so this browser keeps the ones it has read and fetches only new ones.
+    const n = Number(await view(contract(), "receipt_count"));
+    if (n > MAX_RECEIPTS) $("cap").hidden = false;
+    const have = readCache(), missing = [];
+    for (let id = Math.max(0, n - MAX_RECEIPTS); id < n; id++) if (!have[id]) missing.push(id);
+    for (let i = 0; i < missing.length; i += 8) {
+      const got = await Promise.all(missing.slice(i, i + 8).map((id) => view(contract(), "get_receipt", { receipt_id: id }).catch(() => null)));
+      got.forEach((r) => { if (r && Number.isInteger(r.id)) have[r.id] = r; });
+      $("ilist").innerHTML = `<p class="muted">Reading receipts… ${Math.min(i + 8, missing.length)} of ${missing.length}</p>`;
+    }
+    writeCache(have);
+    S.receipts = Object.values(have).filter((r) => r.id < n).sort((a, b) => b.id - a.id);
+    // Settled is final, so a settled payment is kept with its receipt; every other payment is read again (a cancelled one can be paid again).
+    const cleared = S.receipts.filter((r) => r.verdict === "Cleared" && r.payment?.status !== "Settled");
+    for (let i = 0; i < cleared.length; i += 8) await Promise.all(cleared.slice(i, i + 8).map(async (r) => { r.payment = await view(contract(), "get_payment", { receipt_id: r.id }).catch(() => null); }));
+    writeCache(Object.fromEntries(S.receipts.map((r) => [r.id, r.payment?.status === "Settled" ? r : { ...r, payment: undefined }])));
+    S.shown = PAGE;
     const todo = S.receipts.filter(isTodo).length;
     $("f-todo").textContent = todo ? `${todo} need you` : "nothing waiting"; $("f-todo").className = todo ? "wait" : "ok";
     $("live").className = "live on"; $("liveText").innerHTML = "<b>Live</b> · NEAR testnet";
@@ -314,8 +339,10 @@ async function load() {
   paintWho(); paint();
 }
 function paint() {
-  const rs = S.receipts.filter((r) => S.filter === "all" || isTodo(r));
-  $("ilist").innerHTML = rs.length ? rs.map(card).join("") : `<div class="empty"><b>Nothing needs you.</b><span>Every invoice on ${esc(contract())} is paid or was refused for good.</span></div>`;
+  const all = S.receipts.filter((r) => S.filter === "all" || isTodo(r)), rs = all.slice(0, S.shown || PAGE);
+  $("ilist").innerHTML = rs.length ? rs.map(card).join("") + (all.length > rs.length ? `<div class="row"><button class="btn ghost" type="button" id="more">Show ${Math.min(PAGE, all.length - rs.length)} older (${all.length - rs.length} more)</button></div>` : "")
+    : `<div class="empty"><b>Nothing needs you.</b><span>Every invoice on ${esc(contract())} is paid or was refused for good.</span></div>`;
+  if ($("more")) $("more").onclick = () => { S.shown = (S.shown || PAGE) + PAGE; paint(); };
   document.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => act(b.dataset.act, Number(b.dataset.id))));
   document.querySelectorAll("[data-facts]").forEach((b) => (b.onclick = () => facts(Number(b.dataset.facts), b)));
 }
@@ -386,15 +413,15 @@ function parseBack(p) {
   const s = p.get("s"), k = p.get("k"); if (!s || !k || !/^ed25519:[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(k)) return null;
   if (p.get("n")) {
     const n = decodeLink(p.get("n"));
-    const ok = isAccount(n.contract) && isRef(n.order_id) && isRef(n.note_id) && isRole(n.role) && Number.isInteger(n.policy_version) && Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isUint(String(l.qty)));
+    const ok = isAccount(n.contract) && isRef(n.order_id) && isRef(n.note_id) && isRole(n.role) && Number.isInteger(n.policy_version) && Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isU64(l.qty));
     if (!ok) return null;
     const note = { order_id: n.order_id, note_id: n.note_id, lines: n.lines.map((l) => ({ sku: l.sku, qty: String(l.qty) })) };
     return C.verifyDigest(k, C.deliveryDigest(n.contract, note, n.role, n.policy_version), s) ? { kind: "delivery", contract: n.contract, note, role: n.role, policy_version: n.policy_version, key: k, signature: s } : { bad: true };
   }
   if (p.get("i")) {
     const x = decodeLink(p.get("i")), v = x.invoice || {}; let doc; try { doc = C.base64.decode(x.document_hash); } catch { return null; }
-    const okLines = Array.isArray(v.lines) && v.lines.length >= 1 && v.lines.length <= 50 && v.lines.every((l) => isRef(l.sku) && isUint(String(l.qty)) && isUint(String(l.unit_price)));
-    if (!isAccount(x.contract) || !isSupplierId(v.supplier_id) || !isRef(v.invoice_number) || !isRef(v.order_id) || !isPrintable(v.token, 128) || !okLines || !isUint(String(v.total)) || !v.payee || !isPrintable(v.payee.address, 128) || doc.length !== 32) return null;
+    const okLines = Array.isArray(v.lines) && v.lines.length >= 1 && v.lines.length <= 50 && v.lines.every((l) => isRef(l.sku) && isU64(l.qty) && isU128(l.unit_price));
+    if (!isAccount(x.contract) || !isSupplierId(v.supplier_id) || !isRef(v.invoice_number) || !isRef(v.order_id) || !isPrintable(v.token, 128) || !okLines || !isU128(v.total) || !v.payee || !isPrintable(v.payee.address, 128) || doc.length !== 32) return null;
     const invoice = { supplier_id: v.supplier_id, invoice_number: v.invoice_number, order_id: v.order_id, token: v.token, lines: v.lines.map((l) => ({ sku: l.sku, qty: String(l.qty), unit_price: String(l.unit_price) })), total: String(v.total), payee: { chain: String(v.payee.chain), token: String(v.payee.token), address: String(v.payee.address) } };
     return C.verifyDigest(k, C.invoiceDigest(x.contract, invoice, doc), s) ? { kind: "invoice", contract: x.contract, invoice, document_hash: x.document_hash, key: k, signature: s } : { bad: true };
   }
@@ -448,7 +475,7 @@ function setContract(k, reload = true) {
 }
 document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => setContract(b.dataset.c)));
 document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
-  S.filter = b.dataset.f; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); paint();
+  S.filter = b.dataset.f; S.shown = PAGE; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); paint();
 }));
 function paintWho() {
   $("acct").innerHTML = S.me ? `Signed in as <b>${esc(S.me)}</b>` : "Not connected";
