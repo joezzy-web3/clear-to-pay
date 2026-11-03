@@ -76,6 +76,11 @@ h1 span{color:var(--signal)}
 .tab.bad[aria-selected="true"] .pick{color:var(--seize)}
 .tab[aria-selected="false"] .pick::after{animation:nudge 1.6s ease-in-out infinite}
 @keyframes nudge{50%{opacity:.55}}
+.waitban{background:var(--deep);padding-bottom:20px;margin-top:-8px}
+.waitban div{display:flex;gap:14px;align-items:flex-start;background:var(--signal);color:var(--navy);border-radius:10px;padding:14px 18px}
+.waitban i{font:800 22px/1 var(--display);flex:none;width:28px;height:28px;border-radius:50%;background:var(--navy);color:var(--signal);display:grid;place-items:center;font-style:normal}
+.waitban p{font:400 15.5px/1.45 var(--body);margin:0}
+.waitban b{font-weight:700}
 @media (prefers-reduced-motion:reduce){.tab,.tab .pick::after{transition:none;animation:none}}
 @media (max-width:520px){.tab .pick{font-size:12px;letter-spacing:.04em}.tab .pick::after{content:"Tap to choose"}.tab[aria-selected="true"] .pick::after{content:"Selected"}}
 
@@ -323,6 +328,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <div class="tabs gut" role="tablist" aria-label="Pick an invoice" id="run">  <button class="tab" role="tab" id="tab-honest" aria-selected="true" data-case="honest"><span class="n">Invoice 01 · 01-clean.pdf</span><b>The honest invoice</b><small>10 t delivered, signed by the storekeeper and the weighbridge, billed at order price.</small><span class="pick" aria-hidden="true"></span></button>
   <button class="tab bad" role="tab" id="tab-attack" aria-selected="false" data-case="attack"><span class="n">Invoice 02 · 02-white-text-payee.pdf</span><b>The poisoned invoice</b><small>The same invoice, plus a line in white text telling the AI to pay a new account.</small><span class="pick" aria-hidden="true"></span></button>
 </div>
+<div class="waitban gut" id="waitban" role="status" hidden><div><i aria-hidden="true">!</i><p id="waitban-text"></p></div></div>
 
 <main class="gut"><div class="in run">
 
@@ -497,6 +503,13 @@ function paintSupplier() {
   const h = Math.max(0, (from - Date.now()) / 3.6e6);
   $("f-supplier").textContent = `72-hour wait: ${Math.floor(h / 24)}d ${Math.floor(h % 24)}h left`; $("f-supplier").className = "wait";
 }
+function payableFrom() {
+  const s = S.supplier; if (!s || s.payable_route) return null;
+  return new Date(Number(BigInt(s.route_payable_from) / 1_000_000n));
+}
+function whenText(d) {
+  return d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+}
 function paintCounts() {
   if (!S.cases) { $("f-left").textContent = "not signed yet"; return; }
   const left = S.cases.cases.filter((c) => !S.used.has(c.invoice.invoice_number)).length;
@@ -601,11 +614,15 @@ function paintSplit() {
   $("sp-agent-why").textContent = bad ? "Taken from the hidden white text. The agent kept the supplier's signed invoice and swapped only the payee." : "The address on the supplier's signed invoice.";
   $("sp-chain").textContent = reg;
   $("sp-gate").textContent = bad ? "≠" : "=";
+  const from = payableFrom();
+  const ban = $("waitban");
+  ban.hidden = bad || !from;
+  if (!ban.hidden) $("waitban-text").innerHTML = `<b>Can't be paid yet, by design.</b> Every new payout address waits 72 hours, and this demo supplier is new. Submit now and the contract says <b>HELD</b>. From <b>${esc(whenText(from))}</b> it clears and is paid. The poisoned invoice works now.`;
   const go = $("go");
   go.className = "btn " + (bad ? "r" : "y");
   if (!S.agent || !S.cases) { go.disabled = true; go.textContent = "Demo not set up yet"; $("go-note").textContent = "The demo key and signed invoices are published with the demo contract."; return; }
   go.disabled = S.busy;
-  go.textContent = S.busy ? "Sending…" : bad ? "Let a fooled agent submit it" : "Submit the honest invoice";
+  go.textContent = S.busy ? "Sending…" : bad ? "Let a fooled agent submit it" : from && !S.used.has(p.invoice.invoice_number) ? "Submit anyway · expect HELD" : "Submit the honest invoice";
   const inv = p.invoice;
   const waiting = S.supplier && !S.supplier.payable_route;
   $("go-note").textContent = bad
