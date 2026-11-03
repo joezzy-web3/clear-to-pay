@@ -229,6 +229,37 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .ghost .row{display:flex;gap:12px;flex-wrap:wrap}
 @keyframes sk{to{background-position:0 0}}
 @media (prefers-reduced-motion:reduce){.live.on i,.empty .seal,.flash,.sk{animation:none}}
+
+/* phones: the menu button (three lines) opens a panel that slides in from the right */
+.burger{display:none}
+.drawer,.scrim{display:none}
+@media (max-width:900px){
+  .burger{display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:10px;cursor:pointer;padding:0;flex:none}
+  .burger span{display:block;width:20px;height:2px;border-radius:2px;background:currentColor;box-shadow:0 -6px 0 currentColor,0 6px 0 currentColor}
+  .scrim{display:block;position:fixed;inset:0;z-index:90;background:rgba(7,17,34,.55);opacity:0;pointer-events:none;transition:opacity .25s}
+  .drawer{display:flex;flex-direction:column;position:fixed;top:0;right:0;bottom:0;z-index:91;width:min(86vw,340px);background:#0B1A33;color:#EEF1EC;
+    padding:18px 20px calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(102%);transition:transform .28s cubic-bezier(.2,.8,.2,1);
+    box-shadow:-30px 0 60px -20px rgba(0,0,0,.5);overflow-y:auto}
+  body.menu-open{overflow:hidden}
+  body.menu-open .scrim{opacity:1;pointer-events:auto}
+  body.menu-open .drawer{transform:none}
+  .drawer-top{display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid #1E3560}
+  .drawer-top b{font:800 22px/1 "Big Shoulders Display",Impact,sans-serif;letter-spacing:.01em}
+  .drawer-x{width:40px;height:40px;border:0;border-radius:10px;background:#13284A;color:#EEF1EC;font-size:22px;line-height:1;cursor:pointer}
+  .drawer nav{display:grid;gap:2px;margin-top:14px}
+  .drawer nav a{display:flex;justify-content:space-between;align-items:center;padding:14px 12px;border-radius:12px;color:#EEF1EC;text-decoration:none;
+    font:800 24px/1.1 "Big Shoulders Display",Impact,sans-serif;letter-spacing:.01em}
+  .drawer nav a::after{content:"\2192";font:500 16px/1 ui-monospace,monospace;color:#9FB0C6}
+  .drawer nav a:hover,.drawer nav a:focus-visible{background:#13284A}
+  .drawer nav a.hot{background:#F4C20D;color:#10264A;margin:6px 0}
+  .drawer nav a.hot::after{color:#10264A}
+  .drawer nav a[aria-current]{color:#F4C20D}
+  .drawer small{display:block;margin:18px 12px 6px;font:500 11.5px/1 ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#9FB0C6}
+  .drawer-foot{margin-top:auto;padding-top:18px;border-top:1px solid #1E3560;display:flex;gap:10px;flex-wrap:wrap}
+  .drawer-foot a{font:500 13.5px/1 "Instrument Sans",Arial,sans-serif;color:#EEF1EC;text-decoration:none;padding:10px 12px;border-radius:10px;background:#13284A}
+}
+@media (prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
+@media (max-width:900px){.burger{color:#EEF1EC;background:#13284A;box-shadow:inset 0 0 0 1px #24406B}}
 </style>
 
 </head>
@@ -237,7 +268,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   <nav class="nav">
     <a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay<span class="crumb">/ Ledger</span></a>
     <div class="links"><a href="#receipts">Receipts</a><a href="#supplier">Address lock</a><a href="#verify">Verify a document</a><a href="#reads">How it reads</a><a href="../inspect/">Inspect an invoice</a></div>
-    <span class="navr"><a class="near" href="https://near.org" target="_blank" rel="noopener" title="Built on NEAR"><img src="../near.png" alt="" width="22" height="22"><span>Built on NEAR</span></a><a class="back" id="home" href="../">&larr;<span> Back to the site</span></a></span>
+    <span class="navr"><a class="near" href="https://near.org" target="_blank" rel="noopener" title="Built on NEAR"><img src="../near.png" alt="" width="22" height="22"><span>Built on NEAR</span></a><a class="back" id="home" href="../">&larr;<span> Back to the site</span></a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
   <div class="htext" id="top">
     <div>
@@ -754,5 +785,27 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 })();
 </script>
 
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="#receipts" aria-current="page">Receipts</a><a href="../inspect/" class="hot">Inspect an invoice</a><a href="#verify">Verify a document</a><a href="#supplier">Address lock</a><a href="#reads">How it reads</a><a href="../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+<script>
+(() => {
+  const b = document.getElementById("burger"), d = document.getElementById("drawer"), s = document.getElementById("scrim");
+  if (!b || !d) return;
+  const set = (open) => {
+    document.body.classList.toggle("menu-open", open);
+    b.setAttribute("aria-expanded", String(open));
+    d.setAttribute("aria-hidden", String(!open));
+    d.inert = !open;
+    if (open) d.querySelector("a,button").focus(); else b.focus({ preventScroll: true });
+  };
+  d.inert = true;
+  b.addEventListener("click", () => set(true));
+  s.addEventListener("click", () => set(false));
+  document.getElementById("drawer-x").addEventListener("click", () => set(false));
+  d.querySelectorAll("nav a").forEach((a) => a.addEventListener("click", () => set(false)));
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("menu-open")) set(false); });
+  addEventListener("resize", () => { if (innerWidth > 900 && document.body.classList.contains("menu-open")) set(false); });
+})();
+</script>
 </body>
 </html>
