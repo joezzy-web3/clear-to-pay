@@ -13,4 +13,4 @@ BOT_USERNAME = "CleartoPayAlertsBOT"
 
 [[kv_namespaces]]
 binding = "STATE"
-id = "PUT_THE_KV_ID_HERE"
+id = "48b9f95aef754844b3e4a2b3f9f3754b"
