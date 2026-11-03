@@ -111,6 +111,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 @media (max-width:900px){.alerts{grid-template-columns:1fr}.arow{grid-template-columns:1fr auto}.arow .btn.ghost{grid-column:1/-1;justify-self:start}}
 .confirm{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font:500 14.5px/1.45 var(--body)}
 .confirm input{width:auto;margin-top:3px}
+.rolecard{display:grid;gap:10px;border-left:6px solid var(--signal)}
+.rolecard h2{font-size:clamp(30px,4vw,48px);max-width:none;margin:6px 0 0}
+.rolecard p{margin:0;max-width:62ch;line-height:1.55}
+body.not-buyer #forms > :not(#rolecard){display:none!important}
 /* the checklist: the contract's own state, one line per thing a company sets up */
 .ready{background:var(--card);border:1px solid var(--line);padding:clamp(18px,2.6vw,28px);position:relative}
 .ready::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,var(--navy) 0 18px,var(--signal) 18px 36px)}
@@ -163,6 +167,12 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 
 <main class="gut"><div class="in forms" id="forms">
+  <section class="card rolecard" id="rolecard" hidden aria-live="polite">
+    <span class="kick">Not your page</span>
+    <h2 id="rc-h">These are the buyer's controls.</h2>
+    <p id="rc-p"></p>
+    <div class="row"><a class="btn y" href="../sign/" id="rc-go">Go to your page →</a><button class="btn ghost" type="button" id="rc-show">Show the buyer's forms anyway</button></div>
+  </section>
   <section class="ready" id="ready" aria-labelledby="h-ready">
     <div class="ready-h"><div><span class="kick">Ready to run</span><h2 id="h-ready">What this contract still needs.</h2></div><div class="ready-n" id="ready-n" aria-live="polite">–</div></div>
     <ol class="rlist" id="rlist"></ol>
@@ -619,6 +629,21 @@ async function returning() {
   await done(f, hash, p.args, failure);
 }
 
+// Buyer setup is the buyer's page: a delivery signer or a supplier is sent to theirs instead.
+const ROLE_TEXT = {
+  signer: "You confirm deliveries. You never register suppliers or set limits: the buyer does that, with their wallet. Your page shows your key, whether the buyer has registered it, and opens the delivery links they send you.",
+  supplier: "You are paid by this contract. The buyer registers you and your payout address; you sign your invoices. Your page shows your company as the contract sees it: your payout address, any pending change, your invoices and payments.",
+};
+let showAnyway = false;
+function roleView(role) {
+  const other = !showAnyway && (role === "signer" || role === "supplier");
+  document.body.classList.toggle("not-buyer", other); $("rolecard").hidden = !other;
+  if (other) $("rc-p").textContent = ROLE_TEXT[role];
+}
+addEventListener("ctp-role", (e) => roleView(e.detail));
+$("rc-show").onclick = () => { showAnyway = true; roleView(null); };
+try { roleView(localStorage.getItem("ctp-role")); } catch {}
+
 render();
 await refresh();
 await initWallet();
@@ -647,7 +672,7 @@ arrived();
 /* Console bar: remember who is using it, and mark the pages for that role. */
 (() => {
   const FOR = { buyer: ["judge", "setup", "inbox"], signer: ["sign"], supplier: ["sign"] };
-  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Open the signing link the buyer sends you; your page is Sign. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign (the buyer's invoice link), plus Telegram alerts."};
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Your page is Sign: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign: your company as the contract sees it, your invoices and payments, and your alerts."};
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
@@ -664,6 +689,7 @@ arrived();
         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
       }
     }
+    dispatchEvent(new CustomEvent("ctp-role", { detail: role })); // pages show what this role needs
   };
   document.querySelectorAll(".roles button").forEach((b) => b.addEventListener("click", () => {
     role = role === b.dataset.role ? null : b.dataset.role;

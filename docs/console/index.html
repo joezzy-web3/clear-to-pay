@@ -759,7 +759,7 @@ $("go").addEventListener("click", go);
 /* Console bar: remember who is using it, and mark the pages for that role. */
 (() => {
   const FOR = { buyer: ["judge", "setup", "inbox"], signer: ["sign"], supplier: ["sign"] };
-  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Open the signing link the buyer sends you; your page is Sign. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign (the buyer's invoice link), plus Telegram alerts."};
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Your page is Sign: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign: your company as the contract sees it, your invoices and payments, and your alerts."};
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
@@ -776,6 +776,7 @@ $("go").addEventListener("click", go);
         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
       }
     }
+    dispatchEvent(new CustomEvent("ctp-role", { detail: role })); // pages show what this role needs
   };
   document.querySelectorAll(".roles button").forEach((b) => b.addEventListener("click", () => {
     role = role === b.dataset.role ? null : b.dataset.role;

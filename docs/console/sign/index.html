@@ -36,6 +36,26 @@
 .out{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:18px;align-items:start}
 .out pre{margin:0;background:var(--deep);color:#C9D6E6;font:400 12.5px/1.6 var(--mono);padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}
 .qr{background:#fff;border:1px solid var(--line);padding:8px}.qr svg{display:block;width:100%;height:auto}
+.home{display:grid;gap:14px}
+.home-h{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.switch2{display:flex;gap:4px}
+.switch2 button{font:600 13.5px var(--body);border:0;padding:8px 12px;cursor:pointer;background:var(--cell);color:var(--navy);box-shadow:inset 0 0 0 1px var(--line)}
+.switch2 button[aria-pressed="true"]{background:var(--navy);color:var(--paper);box-shadow:none}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pick button{display:grid;gap:4px;text-align:left;border:0;cursor:pointer;padding:16px;background:var(--cell);box-shadow:inset 0 0 0 1px var(--line);font:inherit;color:var(--navy)}
+.pick button:hover{box-shadow:inset 0 0 0 2px var(--navy)}
+.pick b{font:800 22px/1.1 var(--display)}.pick span{font:400 13.5px/1.4 var(--body);color:var(--mute)}
+.stat{display:grid;gap:0;font:400 14px/1.45 var(--mono)}
+.stat div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.stat span{color:var(--mute)}.stat b{font-weight:500;text-align:right;overflow-wrap:anywhere}
+.stat b.ok{color:var(--clear)}.stat b.wait{color:var(--held)}.stat b.bad{color:var(--seize)}
+.minis{display:grid;gap:6px}
+.mini{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 10px;background:var(--cell);border:1px solid var(--line);font:400 13.5px var(--body)}
+.mini .v{font:800 15px var(--display);letter-spacing:.04em;color:#fff;padding:4px 6px;text-align:center}
+.mini .v.Cleared{background:var(--clear)}.mini .v.Held{background:var(--held)}.mini .v.Seized{background:var(--seize)}
+.mini small{font:400 12px var(--mono);color:var(--mute)}
+.alarm{padding:12px 14px;background:#FBECEA;border-left:4px solid var(--seize);line-height:1.5}
+@media (max-width:520px){.pick{grid-template-columns:1fr}.mini{grid-template-columns:auto minmax(0,1fr)}.mini > :last-child{grid-column:2}}
 .steps{margin:14px 0 0;padding-left:20px;display:grid;gap:8px;line-height:1.5}
 .steps li.done{color:var(--clear)}
 .field{display:grid;gap:6px;margin-top:16px;font:600 15px var(--body)}
@@ -125,6 +145,12 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <main class="gut"><div class="wrap" id="main">
   <div class="msg" id="nolink" hidden>This page signs a delivery note or an invoice from a link the buyer sends you. Open the link you were sent. Until then, you can set up your signing key below and send its public key to the buyer.</div>
 
+  <section class="card home" id="home" hidden aria-live="polite">
+    <div class="home-h"><h3 id="home-h">Your status</h3>
+      <div class="switch2" role="group" aria-label="Contract"><button type="button" data-c="demo">Demo</button><button type="button" data-c="live">Live</button></div></div>
+    <div id="home-body"></div>
+  </section>
+
   <article class="paper note" id="note" hidden aria-live="polite"></article>
 
   <section class="card" id="join" hidden aria-labelledby="h-join">
@@ -171,6 +197,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 <script type="module">
 import * as C from "../crypto.js";
+import { CONTRACTS } from "../chain.js";
 import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 initMenu();
 
@@ -191,7 +218,7 @@ function paintKey() {
       <div class="row" style="margin-top:0"><button class="btn ghost" id="copypub" type="button">Copy the public key</button><button class="btn ghost" id="forget" type="button">Forget this key</button></div>
       <p class="note" style="margin:0">The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key). It is safe to share; the secret half stays here.</p>`;
     $("copypub").onclick = (e) => copy(KEY.public_key, e.target);
-    $("forget").onclick = async () => { if (confirm("Forget this key on this phone? Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); paintJoinState(); } };
+    $("forget").onclick = async () => { if (confirm("Forget this key on this phone? Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); paintJoinState(); paintHome(); } };
   } else {
     el.innerHTML = `<p class="plain">No key on this phone yet. Make one here, or import the key file the buyer's team gave you (the <code>ctp-sign</code> JSON).</p>
       <div class="row" style="margin-top:0"><button class="btn" id="gen" type="button">Make a key on this phone</button><label class="btn ghost" for="file">Import a key file</label><input type="file" id="file" accept=".json,application/json" hidden></div>
@@ -208,7 +235,7 @@ function importKey(text) {
 async function setKey(k, fresh) {
   KEY = { public_key: k.public_key, secret_key: k.secret_key };
   if (!(await saveKey(KEY))) alert("This browser would not store the key (private mode?). It works until you close the page.");
-  paintKey(); check(); paintJoinState();
+  paintKey(); check(); paintJoinState(); paintHome();
   if (fresh && !JOIN) alert("Key made. Send its public key to the buyer to register before you sign anything.");
 }
 
@@ -330,6 +357,71 @@ $("sign").addEventListener("click", async () => {
   showResult(KEY.public_key, C.signDigest(KEY.secret_key, digestOf(JOB)), false);
 });
 
+// ---------------------------------------------------------------- home: each role's own page when no link is open
+let HOME = false, ROLE = (() => { try { return localStorage.getItem("ctp-role"); } catch { return null; } })();
+let NET = (() => { try { return localStorage.getItem("ctp-sign-contract") === "live" ? "live" : "demo"; } catch { return "demo"; } })();
+const HC = () => CONTRACTS[NET];
+const H72 = 72n * 3600n * 1_000_000_000n;
+const nsDate = (ns) => new Date(Number(BigInt(ns) / 1_000_000n)).toLocaleString([], { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+function pickRole(r) { const b = document.querySelector(`.roles button[data-role="${r}"]`); if (b && b.getAttribute("aria-pressed") !== "true") b.click(); }
+addEventListener("ctp-role", (e) => { ROLE = e.detail; if (HOME) paintHome(); });
+document.querySelectorAll(".switch2 button").forEach((b) => b.addEventListener("click", () => { NET = b.dataset.c; try { localStorage.setItem("ctp-sign-contract", NET); } catch {} paintHome(); }));
+async function paintHome() {
+  if (!HOME) return;
+  document.querySelectorAll(".switch2 button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.c === NET)));
+  const box = $("home-body");
+  if (ROLE !== "signer" && ROLE !== "supplier") {
+    $("home-h").textContent = "Who are you here?";
+    box.innerHTML = `<div class="pick"><button type="button" data-p="signer"><b>I confirm deliveries</b><span>Storekeeper, weighbridge, inspector: you sign what actually arrived.</span></button>
+      <button type="button" data-p="supplier"><b>I'm the supplier</b><span>You sign your invoices and watch your payout address and payments.</span></button></div>
+      <p class="note">The buyer's own pages are <a href="../setup/">Buyer setup</a> and the <a href="../inbox/">Inbox</a>.</p>`;
+    box.querySelectorAll("[data-p]").forEach((b) => (b.onclick = () => pickRole(b.dataset.p)));
+    return;
+  }
+  const c = HC(), al = ROLE === "signer" ? alertLink(c, "signers") : null;
+  box.innerHTML = `<p class="muted">Reading ${esc(c)}…</p>`;
+  try {
+    if (ROLE === "signer") {
+      $("home-h").textContent = "Your delivery-signer status";
+      const signers = await view(c, "get_delivery_signers"), me = KEY && signers.find((x) => x.key === KEY.public_key);
+      const roles = [...new Set(signers.map((x) => x.role))];
+      box.innerHTML = `<div class="stat">
+          <div><span>Your key</span><b>${KEY ? esc(short(KEY.public_key, 10)) : "none on this phone yet"}</b></div>
+          <div><span>Registered by the buyer</span><b class="${me ? "ok" : "wait"}">${me ? "yes, as " + esc(me.role) : KEY ? "not yet: send the buyer your public key" : "make or import a key first"}</b></div>
+          <div><span>Roles on this contract</span><b>${esc(roles.join(", ") || "none yet")}</b></div></div>
+        <p class="plain">When goods arrive, the buyer sends you a delivery link. Open it here, check the note against what you received, and tap Sign. ${me ? "Your key is ready for that." : ""}</p>
+        ${al ? `<div class="row"><a class="btn" href="${esc(al)}" target="_blank" rel="noopener" style="background:#229ED9">Get alerts on Telegram</a></div>` : ""}`;
+      return;
+    }
+    // supplier: find the company whose registered key is this phone's key
+    $("home-h").textContent = "Your company, as the contract sees it";
+    const ids = await view(c, "get_supplier_ids");
+    const sups = (await Promise.all(ids.slice(0, 50).map((id) => view(c, "get_supplier", { supplier_id: id }).catch(() => null)))).filter(Boolean);
+    const mine = KEY && sups.find((x) => x.signing_key === KEY.public_key);
+    if (!mine) {
+      box.innerHTML = `<div class="stat"><div><span>Your key</span><b>${KEY ? esc(short(KEY.public_key, 10)) : "none on this phone yet"}</b></div>
+        <div><span>Registered as a supplier</span><b class="wait">${KEY ? "not on " + esc(c) : "make or import your key first"}</b></div></div>
+        <p class="plain">Your company appears here once the buyer registers your key. If the buyer sent you an invitation link, open it here first.</p>`;
+      return;
+    }
+    const now = BigInt(Date.now()) * 1_000_000n, from = BigInt(mine.route_payable_from), p = mine.pending;
+    const n = Number(await view(c, "receipt_count")), ids2 = Array.from({ length: Math.min(n, 100) }, (_, i) => n - 1 - i), rs = [];
+    for (let i = 0; i < ids2.length; i += 10) rs.push(...await Promise.all(ids2.slice(i, i + 10).map((id) => view(c, "get_receipt", { receipt_id: id }).catch(() => null))));
+    const inv = rs.filter((r) => r && r.supplier_id === mine.supplier_id).slice(0, 10);
+    await Promise.all(inv.filter((r) => r.verdict === "Cleared").map(async (r) => { r.payment = await view(c, "get_payment", { receipt_id: r.id }).catch(() => null); }));
+    const sal = alertLink(c, { supplier: mine.supplier_id });
+    box.innerHTML = `<div class="stat">
+        <div><span>Company</span><b>${esc(mine.supplier_id)}</b></div>
+        <div><span>Paid to</span><b>${esc(mine.route_on_file.address)}</b></div>
+        <div><span>Payable</span><b class="${mine.payable_route ? "ok" : "wait"}">${mine.payable_route ? "yes, since " + esc(nsDate(from)) : "from " + esc(nsDate(from)) + " (72-hour wait)"}</b></div>
+        <div><span>Address changes</span><b class="${p ? "bad" : "ok"}">${p ? "one pending" : "none pending"}</b></div></div>
+      ${p ? `<div class="alarm"><b>A payout address change is pending:</b> ${esc(mine.route_on_file.address)} → <b>${esc(p.route.address)}</b>, proposed ${esc(nsDate(p.proposed_at))}, ${p.approved ? "approved by the buyer" : "not approved"}; earliest effect ${esc(nsDate(BigInt(p.proposed_at) + H72))}. Did not ask for this? Call the buyer now on a number you already have.</div>` : ""}
+      <h3 style="font:800 22px var(--display);margin:6px 0 0">Your latest invoices</h3>
+      <div class="minis">${inv.length ? inv.map((r) => `<div class="mini"><span class="v ${esc(r.verdict)}">${esc(r.verdict.toUpperCase())}</span><span>${esc(r.invoice_number)} · ${esc(fromUnits(r.amount))} USDC<br><small>${esc((r.reasons || []).join(", ") || "every rule held")}</small></span><small>${r.payment ? esc(r.payment.status === "Settled" ? "paid" : r.payment.status.toLowerCase()) : ""}</small></div>`).join("") : `<p class="muted">No invoices from ${esc(mine.supplier_id)} yet.</p>`}</div>
+      ${sal ? `<div class="row"><a class="btn" href="${esc(sal)}" target="_blank" rel="noopener" style="background:#229ED9">Get alerts on Telegram</a></div>` : ""}`;
+  } catch { box.innerHTML = `<p class="err">Could not read ${esc(c)}. Try again in a moment.</p>`; }
+}
+
 // ---------------------------------------------------------------- joining: an invitation from the buyer
 let JOIN = null;
 function parseJoin() {
@@ -385,7 +477,14 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
   }
   try { JOB = parseJob(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This link cannot be used: " + e.message + "."; }
   KEY = await loadKey(); paintKey();
-  if (!JOB) { if ($("nolink").className !== "msg bad") $("nolink").hidden = false; $("live").className = "live"; $("liveText").innerHTML = "<b>No link opened</b>"; $("h1").innerHTML = "Your <span>signing key.</span>"; return; }
+  if (!JOB) {
+    if ($("nolink").className === "msg bad") { $("nolink").hidden = false; return; }
+    HOME = true; $("home").hidden = false; $("home").before($("keycard"));
+    $("live").className = "live on"; $("liveText").innerHTML = "<b>Your page</b> · NEAR testnet";
+    $("h1").innerHTML = "Your <span>page.</span>";
+    $("sub").textContent = "Your signing key, and where you stand with the buyer, read live from the contract. When the buyer sends you a link, open it here.";
+    paintHome(); return;
+  }
   paintJob();
   const s = P.get("s"), k = P.get("k");
   if (s && k) {
@@ -418,7 +517,7 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
 /* Console bar: remember who is using it, and mark the pages for that role. */
 (() => {
   const FOR = { buyer: ["judge", "setup", "inbox"], signer: ["sign"], supplier: ["sign"] };
-  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Open the signing link the buyer sends you; your page is Sign. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign (the buyer's invoice link), plus Telegram alerts."};
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Your page is Sign: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign: your company as the contract sees it, your invoices and payments, and your alerts."};
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
@@ -435,6 +534,7 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
       }
     }
+    dispatchEvent(new CustomEvent("ctp-role", { detail: role })); // pages show what this role needs
   };
   document.querySelectorAll(".roles button").forEach((b) => b.addEventListener("click", () => {
     role = role === b.dataset.role ? null : b.dataset.role;
