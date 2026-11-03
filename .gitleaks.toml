@@ -26,6 +26,11 @@ regexes = [
   '''^40599fb284f43953bb356b09080fd803c960fc10285ad90eca462ca711ad4acb$''',
   '''^0100209952f70411906bda19c396b7cf08371a6b94207628438c0df7c1a68daae27e5400080001000100010003$''',
   '''^010020e4e354364111f2295e2d2ed97ce1103c9fdcb261459ec626d9bd8a6e15f0d11600080001000100010003$''',
+  # The Judge mode demo key (docs/console/agent.json): PUBLIC on purpose, fenced to judge.cleartopay.testnet
+  '''^ed25519:4MxjNqybe8A9vhsvFDi996Sz1V8e3pMNZi1tbMBy9t8EvKNSsvrNrx4GvT7K3jdz26qmT7oP5TpS5HknNQYM2Com$''',
+  '''^4MxjNqybe8A9vhsvFDi996Sz1V8e3pMNZi1tbMBy9t8EvKNSsvrNrx4GvT7K3jdz26qmT7oP5TpS5HknNQYM2Com$''',
+  '''^ed25519:FkAMyguSm7jG4Twu1E7vbbhDJVR4kroFYNsxkRQsKsiB$''',
+  '''^FkAMyguSm7jG4Twu1E7vbbhDJVR4kroFYNsxkRQsKsiB$''',
 ]
 
 [[rules]]

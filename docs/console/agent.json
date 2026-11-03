@@ -1,0 +1,7 @@
+{
+  "note": "PUBLIC demo key, published on purpose. Fenced on chain: receiver judge.cleartopay.testnet, methods submit_invoice and execute_payment, gas allowance only. It cannot attach a deposit.",
+  "account_id": "judge-buyer.cleartopay.testnet",
+  "contract": "judge.cleartopay.testnet",
+  "public_key": "ed25519:FkAMyguSm7jG4Twu1E7vbbhDJVR4kroFYNsxkRQsKsiB",
+  "secret_key": "ed25519:4MxjNqybe8A9vhsvFDi996Sz1V8e3pMNZi1tbMBy9t8EvKNSsvrNrx4GvT7K3jdz26qmT7oP5TpS5HknNQYM2Com"
+}
