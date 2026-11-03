@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Clear to Pay Inbox</title>
+<meta name="description" content="Every invoice the agent submitted and what to do next: pay, cancel or retry with the buyer's wallet; facts and a note for the supplier when an invoice is held; signatures sent back from phones, checked and ready for the agent.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../console.css">
+<link rel="stylesheet" href="../wallet.css">
+<style>
+/* Buyer setup: a ledger of forms. Each card is one contract call: fill it, read exactly what will be signed, sign, read it back. */
+.hero{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);align-items:end}
+.hero .facts::before{content:"Contract · read live"}
+.who{display:grid;gap:10px;margin-top:22px}
+.switch{display:flex;gap:8px;flex-wrap:wrap}
+.switch button{font:600 15px var(--body);border:0;padding:11px 16px;cursor:pointer;color:var(--paper);background:#13284A;box-shadow:inset 0 0 0 2px #24406B;text-align:left}
+.switch button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
+.switch small{display:block;font:400 12px var(--mono);opacity:.75;margin-top:2px}
+.acct{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font:500 14px var(--mono);color:var(--nmute)}
+.acct b{color:var(--paper);font-weight:500}
+.forms{padding-block:clamp(30px,5vw,56px) clamp(56px,8vw,96px);display:grid;gap:clamp(16px,2.4vw,22px)}
+.f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(16px,3vw,32px)}
+.f h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.fields{display:grid;gap:12px;margin-top:16px}
+.fields label{display:grid;gap:6px;font:500 13.5px var(--body)}
+.fields label span{font:400 12.5px var(--mono);color:var(--mute)}
+input,select{font:400 15px var(--mono);padding:11px 12px;border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:0;width:100%;min-width:0}
+input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
+.linegrid{display:grid;gap:8px}
+.lrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.7fr) minmax(0,.9fr) 40px;gap:6px}
+.lrow.dn{grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) 40px}
+.x{border:1px solid var(--line);background:#fff;cursor:pointer;font-size:18px}
+.side2{display:grid;gap:12px;align-content:start}
+.preview{background:var(--deep);color:#C9D6E6;font:400 12.5px/1.6 var(--mono);padding:14px 16px;margin:0;white-space:pre-wrap;overflow-wrap:anywhere;min-height:120px}
+.preview b{color:var(--signal);font-weight:500}
+.now{font:400 13px/1.5 var(--mono);color:var(--mute);background:var(--cell);border:1px solid var(--line);padding:10px 12px;overflow-wrap:anywhere;white-space:pre-wrap}
+.err{color:var(--seize);font:500 14px/1.45 var(--body)}
+.okline{padding:10px 12px;background:#E5F2EA;border-left:4px solid var(--clear);line-height:1.5}
+.warn{padding:10px 12px;background:#FFF6D6;border-left:4px solid var(--held);line-height:1.5;font-size:14.5px}
+.linkout{display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:12px;align-items:start}
+.linkout code{display:block;background:var(--cell);border:1px solid var(--line);padding:10px;overflow-wrap:anywhere;font-size:12px}
+.qr{background:#fff;border:1px solid var(--line);padding:6px}.qr svg{display:block;width:100%;height:auto}
+@media (max-width:900px){.hero{grid-template-columns:1fr}.hero-side{justify-items:stretch}.facts b{overflow-wrap:anywhere;min-width:0}.f{grid-template-columns:1fr}.lrow{grid-template-columns:minmax(0,1fr) minmax(0,.6fr) minmax(0,.8fr) 36px}}
+
+/* the shared nav: four words, a "Try it" menu and one solid button */
+.nav{flex-wrap:nowrap}
+.links{flex-wrap:nowrap!important;align-items:center}
+.links a,.links .trybtn{white-space:nowrap}
+.try{position:relative}
+.trybtn{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.trybtn svg{transition:transform .15s}
+.trybtn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.trymenu{position:absolute;top:calc(100% + 10px);right:-8px;z-index:80;width:min(380px,calc(100vw - 32px));background:#fff;color:#10264A;
+  border-radius:14px;padding:8px;box-shadow:0 0 0 1px rgba(16,38,74,.10),0 30px 60px -20px rgba(11,26,51,.55)}
+.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#F4C20D 16px 32px)}
+.trymenu[hidden]{display:none}
+.links .trymenu a{display:grid;gap:3px;padding:12px 14px;border-radius:10px;color:#10264A!important;background:none!important;backdrop-filter:none!important;text-decoration:none;white-space:normal}
+.links .trymenu a:hover,.links .trymenu a:focus-visible{background:#EEF1EC!important}
+.trymenu b{font:600 15px "Instrument Sans",Arial,sans-serif}
+.trymenu small{font:400 13px/1.4 "Instrument Sans",Arial,sans-serif;color:#55657C}
+.trymenu a[aria-current] b::after{content:" · you are here";font-weight:400;color:#55657C}
+.navlive{display:inline-flex;align-items:center;gap:8px;font:600 14.5px/1 "Instrument Sans",Arial,sans-serif;text-decoration:none;padding:11px 16px;border-radius:10px;white-space:nowrap}
+.navlive:hover{filter:brightness(1.06)}
+.navlive i{width:8px;height:8px;border-radius:50%;background:#127A4A;box-shadow:0 0 0 3px rgba(18,122,74,.2)}
+@media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
+@media (max-width:900px){.navlive{display:none}}
+.fnear{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-weight:600;color:inherit}
+.fnear img{border-radius:5px;display:block}
+.links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
+.links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
+.navlive{background:var(--signal);color:var(--navy)}
+
+/* way home: the logo, a clickable page label, and a quiet Home link */
+.brand{display:flex;align-items:center;gap:6px;min-width:0}
+a.crumb{text-decoration:none;padding:6px 8px;border-radius:8px;white-space:nowrap}
+a.crumb:hover{color:var(--paper);background:#13284A}
+.homelink{font:500 14.5px var(--body);color:var(--nmute);text-decoration:none;padding:8px 10px;border-radius:8px;white-space:nowrap}
+.homelink:hover{color:var(--paper);background:#13284A}
+@media (max-width:900px){.homelink{display:none}}
+
+/* the Console bar: its pages, and who you are */
+.cbar{background:#13284A;color:var(--paper);border-radius:14px;box-shadow:inset 0 0 0 1px #24406B;margin-top:16px}
+.cbar-in{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 10px 8px 16px}
+.cbar-k{font:500 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-right:4px}
+.ctabs{display:flex;gap:2px;flex-wrap:wrap}
+.ctabs a,.ctabs span{position:relative;font:600 14px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}
+.ctabs a:hover{color:var(--paper);background:#1B3358}
+.ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
+.ctabs span{opacity:.55;font-weight:500}
+.ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+.ctabs a.dim{opacity:.35}
+.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+.ctabs a.for[aria-current]{color:var(--navy)}
+.rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
+.rolehint a{color:var(--signal)}
+.roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
+.roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
+.roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
+.roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
+@media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
+
+.alerts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(16px,3vw,32px)}
+.alerts h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.alist{display:grid;gap:8px;align-content:start}
+.arow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--line);background:var(--cell)}
+.arow b{font:600 15px var(--body)}.arow small{display:block;font:400 12.5px var(--mono);color:var(--mute)}
+.tgbtn{display:inline-flex;align-items:center;gap:8px;background:#229ED9;color:#fff!important;text-decoration:none;font:600 14px var(--body);padding:10px 14px;white-space:nowrap}
+.tgbtn svg{flex:none}
+@media (max-width:900px){.alerts{grid-template-columns:1fr}.arow{grid-template-columns:1fr auto}.arow .btn.ghost{grid-column:1/-1;justify-self:start}}
+.confirm{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font:500 14.5px/1.45 var(--body)}
+.confirm input{width:auto;margin-top:3px}
+/* the checklist: the contract's own state, one line per thing a company sets up */
+.ready{background:var(--card);border:1px solid var(--line);padding:clamp(18px,2.6vw,28px);position:relative}
+.ready::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,var(--navy) 0 18px,var(--signal) 18px 36px)}
+.ready-h{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.ready h2{font-size:clamp(32px,4vw,52px);max-width:none}
+.ready-n{font:800 clamp(44px,6vw,72px)/1 var(--display)}
+.ready-n small{font:500 13px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);display:block;text-align:right}
+.rlist{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.rlist li a,.rlist li div{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start;padding:13px 14px;border:1px solid var(--line);text-decoration:none;color:var(--navy);background:var(--cell);height:100%}
+.rlist li a:hover{border-color:var(--navy)}
+.rlist i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#E2E7E1;margin-top:1px}
+.rlist .ok i{background:var(--clear)}.rlist .ok i::after{content:"";width:8px;height:4.5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:translateY(-1px) rotate(-45deg)}
+.rlist .wait i{background:var(--signal)}.rlist .wait i::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--navy)}
+.rlist .todo i::after{content:"";width:7px;height:7px;border-radius:50%;border:2px solid var(--mute)}
+.rlist b{font:600 15px var(--body);display:block}
+.rlist small{font:400 12.5px/1.45 var(--mono);color:var(--mute);display:block;margin-top:3px;overflow-wrap:anywhere}
+.rlist code{font-size:11.5px}
+
+/* Inbox: one card per invoice, the verdict as a coloured stub, the next step in plain words */
+.inbox{padding-block:clamp(30px,5vw,56px) clamp(56px,8vw,96px);display:grid;gap:clamp(28px,4vw,44px)}
+.ib-h{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.ib-h h2{font-size:clamp(34px,4.4vw,56px);max-width:none}
+.kick{display:inline-block;font:500 12.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;background:var(--navy);color:var(--paper);padding:8px 12px}
+.filters{display:flex;gap:6px}
+.filters button{font:600 14px var(--body);border:0;padding:10px 14px;cursor:pointer;background:#fff;color:var(--navy);box-shadow:inset 0 0 0 1px var(--line)}
+.filters button[aria-pressed="true"]{background:var(--navy);color:var(--paper);box-shadow:none}
+.ilist{display:grid;gap:12px}
+.ic{display:grid;grid-template-columns:168px minmax(0,1fr);background:#fff;border:1px solid var(--line);min-width:0}
+.ic-l{display:grid;align-content:start;gap:6px;padding:18px 16px;color:#fff}
+.ic.CLEARED .ic-l{background:var(--clear)}.ic.HELD .ic-l{background:var(--held)}.ic.SEIZED .ic-l{background:var(--seize)}
+.vd{font:800 27px/1 var(--display);letter-spacing:.03em}
+.ic-l small{font:400 12px var(--mono);opacity:.85}
+.ic-m{padding:18px clamp(16px,2.4vw,24px);display:grid;gap:8px;min-width:0}
+.ic-m h3{font:800 26px/1.1 var(--display);margin:0}.ic-m h3 span{font:400 13px var(--mono);color:var(--mute);margin-left:8px;letter-spacing:0}
+.rs{margin:0;display:flex;gap:6px;flex-wrap:wrap}.rs code{background:var(--cell);border:1px solid var(--line);padding:3px 7px;font-size:12px}
+.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.do{margin:0;padding:12px 14px;background:#FBECEA;border-left:4px solid var(--seize);line-height:1.5}
+.acts{margin:0;padding-left:18px;display:grid;gap:6px;line-height:1.5}
+.pay{margin:0;font:500 15px var(--body)}
+.draft{margin:8px 0 0;background:var(--cell);border:1px solid var(--line);padding:12px 14px;font:400 13px/1.55 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.empty{display:grid;gap:4px;padding:28px;background:#fff;border:1px dashed var(--line);text-align:center}.empty b{font:800 26px var(--display)}.empty span{color:var(--mute)}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.sc{background:#fff;border:1px solid var(--line);padding:16px 18px;display:grid;gap:8px;align-content:start;position:relative}
+.sc.ready{border-color:var(--clear);box-shadow:inset 4px 0 0 var(--clear)}
+.sc h3{font:800 24px/1.1 var(--display);margin:0}.sc h3 span{display:block;font:400 12.5px var(--mono);color:var(--mute);margin-top:4px}
+.msg{padding:12px 14px;border-left:4px solid var(--held);background:#FFF6D6;line-height:1.5}.msg.bad{border-color:var(--seize);background:#FBECEA}.msg.ok{border-color:var(--clear);background:#E5F2EA}
+@media (max-width:640px){.ic{grid-template-columns:1fr}.ic-l{grid-auto-flow:column;justify-content:space-between;align-items:center;padding:12px 16px}.vd{font-size:24px}}
+</style>
+</head>
+<body>
+<header class="top gut"><div class="in">
+  <nav class="nav">
+    <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Inbox</a></span>
+    <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../../console/inbox/" aria-current="page"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
+    <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+  </nav>
+  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/inbox/" data-page="inbox" aria-current="page">Inbox</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+
+  <div class="hero">
+    <div>
+      <span class="live" id="live"><i></i><span id="liveText"><b>Connecting</b> · NEAR testnet</span></span>
+      <h1>Your <span>inbox.</span></h1>
+      <p class="sub">Every invoice the agent submitted, newest first, and what happens next. Held: who must act and what to ask. Seized: don't reply. Cleared: pay, cancel or retry with your wallet.</p>
+      <div class="who">
+        <div class="switch" role="group" aria-label="Contract">
+          <button type="button" data-c="demo" aria-pressed="true">Demo contract<small>judge.cleartopay.testnet</small></button>
+          <button type="button" data-c="live" aria-pressed="false">Live contract<small>guard.cleartopay.testnet</small></button>
+        </div>
+        <div class="acct"><span id="acct">Not connected</span><button class="btn y" id="connect" type="button">Connect wallet</button><button class="btn ghost" id="disconnect" type="button" hidden style="color:var(--paper);box-shadow:inset 0 0 0 2px #24406B">Disconnect</button></div>
+      </div>
+    </div>
+    <div class="hero-side"><div class="facts" aria-label="Contract">
+      <div><span>Contract</span><b id="f-c">–</b></div>
+      <div><span>Owner (the buyer)</span><b id="f-owner">–</b></div>
+      <div><span>You</span><b id="f-you">–</b></div>
+      <div><span>Waiting on you</span><b id="f-todo">–</b></div>
+    </div></div>
+  </div>
+</div></header>
+
+
+<main class="gut"><div class="in inbox" id="main">
+  <div class="msg" id="arrive" hidden></div>
+  <section class="sigs" id="sigs" hidden aria-labelledby="h-sigs">
+    <div class="ib-h"><div><span class="kick">Sent back</span><h2 id="h-sigs">Signatures from phones.</h2></div><button class="btn ghost" type="button" id="sig-clear">Forget these</button></div>
+    <p class="muted">Each one was checked in this browser against the note or invoice and the signer's key on chain. When a note has every role it needs, copy it for the agent.</p>
+    <div class="sgrid" id="sgrid"></div>
+  </section>
+
+  <section aria-labelledby="h-inv">
+    <div class="ib-h"><div><span class="kick">Invoices</span><h2 id="h-inv">What needs you.</h2></div>
+      <div class="filters" role="group" aria-label="Show"><button type="button" data-f="todo" aria-pressed="true">Needs action</button><button type="button" data-f="all" aria-pressed="false">All</button></div></div>
+    <div class="ilist" id="ilist"><p class="muted">Reading the contract…</p></div>
+  </section>
+</div></main>
+<section class="closer gut" aria-label="Closing"><div class="in">
+  <span class="tg t1">The AI reads.</span>
+  <span class="tg t2">Code decides.</span>
+  <p><a href="../">Judge mode</a> · <a href="../../ledger/">Every receipt on the ledger</a> · <a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">Source on GitHub</a></p>
+</div></section>
+<div class="gut" style="background:var(--paper)"><footer class="in"><span><a class="fnear" href="https://near.org" target="_blank" rel="noopener"><img src="../../near.png" alt="" width="20" height="20">Built on NEAR</a> · Clear to Pay · built for the NEAR Hackathon · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></span><span>Testnet only. Qingmar Steel Co. is fictional.</span></footer></div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/">Sign a delivery</a><a href="../../console/setup/">Buyer setup</a><a href="../../console/inbox/" aria-current="page">Inbox</a><a href="../../ledger/">Live ledger</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><a href="../../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+
+<script type="module">
+import * as C from "../crypto.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isPrintable, decodeLink, fromUnits, initMenu, copy } from "../chain.js";
+initMenu();
+
+const S = { c: (() => { try { return localStorage.getItem("ctp-inbox-contract") === "live" ? "live" : "demo"; } catch { return "demo"; } })(),
+  owner: null, me: null, wallet: null, selector: null, modal: null, filter: "todo", receipts: [], tx: {} };
+const contract = () => CONTRACTS[S.c];
+const usd = (u) => fromUnits(u) + " USDC";
+const ARCHIVAL = "https://archival-rpc.testnet.fastnear.com";
+
+// ---------------------------------------------------------------- what to do next, per reason (reader/ctp_reader/query.py)
+const SUPPLIER_FIXES = new Set(["quantity_exceeds_delivery", "quantity_exceeds_order", "price_mismatch", "total_mismatch", "line_not_on_order", "duplicate_line", "token_mismatch", "unknown_order", "order_supplier_mismatch", "zero_amount", "delivery_order_mismatch"]);
+const BUYER_ACTIONS = {
+  delivery_signatures_missing: "The delivery note has not been confirmed by every role the order requires. Ask the missing signer to check the goods and sign the note; then resubmit.",
+  invalid_delivery_signature: "A delivery signature does not verify. Ask the signers to sign the note again with their registered keys.",
+  delivery_signer_role_not_allowed: "A signer's role is not allowed for this order. Get the note signed by the roles the order requires.",
+  duplicate_delivery_signer: "The same signer signed twice. A second, different role must sign.",
+  duplicate_delivery_role: "Two signers share one role. A signer in a different role must sign.",
+  unknown_storekeeper: "A delivery signer is not registered. Use a registered signer, or register this one first.",
+  over_invoice_limit: "The invoice is above the per-invoice limit. Approve a higher limit deliberately, or pay it outside the agent.",
+  over_period_limit: "The supplier's limit for this period is used up. Wait for the next period, or raise the limit deliberately.",
+  limits_not_set: "No spending limits are set, so nothing can clear. Set limits first.",
+  payee_not_yet_payable: "The supplier's address is still in its 72-hour wait. Resubmit after the time shown on the ledger.",
+  unknown_supplier: "This supplier is not registered. Register it (its address then waits 72 hours) before paying.",
+  arithmetic_overflow: "The numbers are impossibly large. Treat the document as suspect.",
+};
+const SEIZED_NEXT = (n) => `Do not reply to the message this invoice came with, and do not use any contact details in it. Contact the supplier by a phone number or address already on file and ask whether they sent invoice ${n}. Nothing was paid, and this document can never be paid.`;
+
+/** Facts, supplier asks and buyer actions: a port of query.plan(). invoice/delivery come from the submitted transaction. */
+function plan(r, inv, dn, order) {
+  const reasons = r.reasons || [], number = r.invoice_number, facts = [], asks = [];
+  if (inv) {
+    const ol = Object.fromEntries((order?.lines || []).map((l) => [l.sku, l]));
+    const invoiced = Object.fromEntries((order?.lines || []).map((l, i) => [l.sku, order.invoiced[i]]));
+    const delivered = Object.fromEntries((dn?.lines || []).map((l) => [l.sku, BigInt(l.qty)]));
+    const note = dn?.note_id || "the delivery note";
+    for (const ln of inv.lines) {
+      const sku = ln.sku, qty = BigInt(ln.qty), price = BigInt(ln.unit_price), got = delivered[sku] ?? 0n;
+      if (reasons.includes("quantity_exceeds_delivery") && qty > got) { facts.push(`${sku}: invoice ${number} bills ${qty}; signed delivery note ${note} confirms ${got}.`); asks.push(`a corrected invoice for ${sku} that bills ${got}, or the delivery note for the rest`); }
+      if (reasons.includes("quantity_exceeds_order") && ol[sku]) { const left = BigInt(ol[sku].qty) - BigInt(invoiced[sku] || 0); if (qty > left) { facts.push(`${sku}: invoice ${number} bills ${qty}; order ${inv.order_id} has ${left} left to invoice.`); asks.push(`a corrected invoice for ${sku} within the ${left} left on the order`); } }
+      if (reasons.includes("price_mismatch") && ol[sku] && BigInt(ol[sku].unit_price) !== price) { facts.push(`${sku}: invoice ${number} charges ${usd(price)} per unit; order ${inv.order_id} agreed ${usd(ol[sku].unit_price)}.`); asks.push(`a corrected invoice for ${sku} at the order price of ${usd(ol[sku].unit_price)}`); }
+      if (reasons.includes("line_not_on_order") && order && !ol[sku]) { facts.push(`${sku} on invoice ${number} is not on order ${inv.order_id}.`); asks.push(`the order reference that covers ${sku}, or an invoice without it`); }
+    }
+    if (reasons.includes("total_mismatch")) { const sum = inv.lines.reduce((t, l) => t + BigInt(l.qty) * BigInt(l.unit_price), 0n); facts.push(`Invoice ${number} states a total of ${usd(inv.total)}; its lines add up to ${usd(sum)}.`); asks.push("a corrected total"); }
+  }
+  const detailed = new Set(["quantity_exceeds_delivery", "quantity_exceeds_order", "price_mismatch", "total_mismatch", "line_not_on_order"]);
+  for (const x of reasons) if (SUPPLIER_FIXES.has(x) && (!inv || !detailed.has(x))) { facts.push(`Invoice ${number}: ${x.replace(/_/g, " ")}.`); asks.push("a corrected invoice"); }
+  const buyer = reasons.filter((x) => BUYER_ACTIONS[x]).map((x) => BUYER_ACTIONS[x]);
+  for (const x of reasons) if (!SUPPLIER_FIXES.has(x) && !BUYER_ACTIONS[x]) buyer.push(`Check reason \`${x}\` on the ledger before doing anything else.`);
+  return { facts, asks: [...new Set(asks)], buyer };
+}
+const draft = (number, p) => `Hello,\n\nWe could not clear invoice ${number} yet. What we found:\n- ${p.facts.join("\n- ")}\n\nPlease send ${p.asks.join("; ")}. Nothing else is needed from you.\n\nThank you,\nAccounts team`;
+
+// ---------------------------------------------------------------- the submitted transaction behind a receipt
+async function txIndex() {
+  if (S.tx[contract()]) return S.tx[contract()];
+  const m = {};
+  try {
+    const r = await fetch(`https://api-testnet.nearblocks.io/v1/account/${encodeURIComponent(contract())}/txns?method=submit_invoice&per_page=100`);
+    const j = await r.json();
+    for (const tx of j.txns || []) { if (!/^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(tx.transaction_hash || "")) continue;
+      for (const ts of [tx.block_timestamp, tx.receipt_block?.block_timestamp, tx.receipt_outcome?.block_timestamp]) if (ts != null && /^\d{1,25}$/.test(String(ts))) m[String(ts)] = tx.transaction_hash; }
+  } catch {}
+  return (S.tx[contract()] = m);
+}
+async function submitted(r) {
+  const hash = (await txIndex())[String(r.decided_at)]; if (!hash) return null;
+  for (const url of [ARCHIVAL, null]) {
+    try {
+      const res = url ? await (await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "tx", params: { tx_hash: hash, sender_account_id: S.owner, wait_until: "NONE" } }) })).json().then((j) => j.result)
+        : await rpc("tx", { tx_hash: hash, sender_account_id: S.owner, wait_until: "NONE" });
+      const fc = res.transaction.actions.map((a) => a.FunctionCall).find((f) => f && f.method_name === "submit_invoice");
+      const a = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(fc.args), (c) => c.charCodeAt(0))));
+      // only use it if it is the same invoice the receipt names
+      if (a.invoice?.invoice_number !== r.invoice_number || a.invoice?.order_id !== r.order_id || String(a.invoice?.total) !== String(r.amount)) return { hash };
+      return { hash, invoice: a.invoice, delivery: a.delivery };
+    } catch {}
+  }
+  return { hash };
+}
+
+// ---------------------------------------------------------------- the list
+const isTodo = (r) => r.verdict === "Held" || r.verdict === "Seized" || (r.verdict === "Cleared" && r.payment && r.payment.status !== "Settled");
+async function load() {
+  $("f-c").textContent = contract();
+  try {
+    S.owner = await view(contract(), "get_owner"); $("f-owner").textContent = S.owner;
+    const n = await view(contract(), "receipt_count"), ids = Array.from({ length: Math.min(n, 60) }, (_, i) => n - 1 - i), out = [];
+    for (let i = 0; i < ids.length; i += 8) out.push(...await Promise.all(ids.slice(i, i + 8).map((id) => view(contract(), "get_receipt", { receipt_id: id }))));
+    S.receipts = out.filter(Boolean);
+    await Promise.all(S.receipts.filter((r) => r.verdict === "Cleared").map(async (r) => { r.payment = await view(contract(), "get_payment", { receipt_id: r.id }).catch(() => null); }));
+    const todo = S.receipts.filter(isTodo).length;
+    $("f-todo").textContent = todo ? `${todo} need you` : "nothing waiting"; $("f-todo").className = todo ? "wait" : "ok";
+    $("live").className = "live on"; $("liveText").innerHTML = "<b>Live</b> · NEAR testnet";
+  } catch (e) { $("live").className = "live err"; $("liveText").innerHTML = "<b>Could not read the contract</b>"; S.receipts = []; }
+  paintWho(); paint();
+}
+function paint() {
+  const rs = S.receipts.filter((r) => S.filter === "all" || isTodo(r));
+  $("ilist").innerHTML = rs.length ? rs.map(card).join("") : `<div class="empty"><b>Nothing needs you.</b><span>Every invoice on ${esc(contract())} is paid or was refused for good.</span></div>`;
+  document.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => act(b.dataset.act, Number(b.dataset.id))));
+  document.querySelectorAll("[data-facts]").forEach((b) => (b.onclick = () => facts(Number(b.dataset.facts), b)));
+}
+const STAT = { Authorized: "Waiting to be paid", Reserved: "Money set aside", Submitted: "Transfer on its way", Settled: "Paid", Failed: "Transfer failed; money back in the pool", Expired: "Expired after 7 days; money back in the pool", Cancelled: "Cancelled by the buyer" };
+function card(r) {
+  const v = r.verdict.toUpperCase(), when = new Date(Number(BigInt(r.decided_at) / 1_000_000n)).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  let body = "", who = "";
+  if (v === "SEIZED") { who = "Buyer · do not reply"; body = `<p class="do">${esc(SEIZED_NEXT(r.invoice_number))}</p>`; }
+  else if (v === "HELD") {
+    const p = plan(r, null, null, null), sup = (r.reasons || []).some((x) => SUPPLIER_FIXES.has(x)), buy = (r.reasons || []).some((x) => BUYER_ACTIONS[x]);
+    who = [buy && "You", sup && "The supplier"].filter(Boolean).join(" + ") + " to act";
+    body = `${p.buyer.length ? `<ul class="acts">${p.buyer.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}${sup ? `<div class="row"><button class="btn ghost" type="button" data-facts="${r.id}">Facts and a note to the supplier</button></div><div id="fx-${r.id}"></div>` : ""}`;
+  } else {
+    const p = r.payment, st = p?.status || "Authorized";
+    who = st === "Settled" ? "Done" : "You to act";
+    const btn = (a, t, cls = "") => `<button class="btn ${cls}" type="button" data-act="${a}" data-id="${r.id}">${t}</button>`;
+    const buttons = st === "Authorized" ? btn("execute_payment", "Pay now", "y") + btn("cancel_payment", "Cancel", "ghost")
+      : ["Failed", "Expired", "Cancelled"].includes(st) ? btn("reauthorize_payment", "Pay again, to the registered address", "y")
+      : st === "Submitted" && Date.now() - Number(BigInt(p.updated_at) / 1_000_000n) > 24 * 3.6e6 ? btn("resolve_stuck_payment", "Resolve: ask the token for the truth", "ghost") : "";
+    body = `<p class="pay">${esc(STAT[st] || st)}${p?.recipient ? ` · to ${esc(p.recipient.address)}` : ""}${p?.attempt > 1 ? ` · attempt ${p.attempt}` : ""}</p>${buttons ? `<div class="row">${buttons}</div>` : ""}<div id="ax-${r.id}"></div>`;
+  }
+  return `<article class="ic ${v}"><div class="ic-l"><span class="vd">${v}</span><small>#${r.id} · ${esc(when)}</small></div>
+    <div class="ic-m"><h3>${esc(r.invoice_number)} <span>${esc(r.supplier_id)} · ${esc(r.order_id)} · ${esc(usd(r.amount))}</span></h3>
+    ${r.reasons?.length ? `<p class="rs">${r.reasons.map((x) => `<code>${esc(x)}</code>`).join(" ")}</p>` : ""}<p class="who">${esc(who)}</p>${body}</div></article>`;
+}
+async function facts(id, btn) {
+  const r = S.receipts.find((x) => x.id === id), out = $("fx-" + id); btn.disabled = true; out.innerHTML = `<p class="muted">Reading the submitted invoice…</p>`;
+  const s = await submitted(r);
+  const order = await view(contract(), "get_order", { order_id: r.order_id }).catch(() => null);
+  const p = plan(r, s?.invoice || null, s?.delivery || null, order);
+  const text = draft(r.invoice_number, p);
+  out.innerHTML = `<ul class="acts">${p.facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
+    <pre class="draft">${esc(text)}</pre><div class="row"><button class="btn" type="button" id="cp-${id}">Copy the note</button>${s?.hash ? `<a class="btn ghost" href="${TX(s.hash)}" target="_blank" rel="noopener">The submission on NearBlocks</a>` : ""}</div>
+    <p class="note">Facts come from the receipt, the order and the submitted invoice, computed here. The note asks only for documents; it never mentions payment details. Send it on a channel you already use with this supplier.</p>`;
+  $("cp-" + id).onclick = (e) => copy(text, e.target);
+}
+
+// ---------------------------------------------------------------- payment actions, signed by the buyer's wallet
+const ACT = { execute_payment: { dep: "0", gas: 150, ask: "Pay this invoice now? The contract pays only the supplier's registered address, and only if every rule still holds." },
+  cancel_payment: { dep: "1", gas: 50, ask: "Cancel this payment? The money stays in the pool; you can authorise it again later." },
+  reauthorize_payment: { dep: "1", gas: 150, ask: "Pay again? It goes to the supplier's address that is payable now (an approved change is respected)." },
+  resolve_stuck_payment: { dep: "1", gas: 100, ask: "Ask the token contract whether this transfer arrived, and record the answer?" } };
+async function act(method, id) {
+  const out = $("ax-" + id), a = ACT[method];
+  if (!S.wallet) { out.innerHTML = `<p class="err">Connect the buyer's wallet first.</p>`; return; }
+  if (S.me !== S.owner) { out.innerHTML = `<p class="err">Only the buyer account can do this (${esc(S.owner)}).</p>`; return; }
+  if (!confirm(a.ask)) return;
+  try {
+    sessionStorage.setItem("ctp-inbox-pending", JSON.stringify({ id, method }));
+    out.innerHTML = `<p class="muted">Waiting for your wallet…</p>`;
+    const res = await S.wallet.signAndSendTransaction({ receiverId: contract(), actions: [{ type: "FunctionCall", params: { methodName: method, args: { receipt_id: id }, gas: (BigInt(a.gas) * 10n ** 12n).toString(), deposit: a.dep } }] });
+    sessionStorage.removeItem("ctp-inbox-pending");
+    if (res) after(id, res.transaction?.hash || res.transaction_outcome?.id, res.status?.Failure);
+  } catch (e) { sessionStorage.removeItem("ctp-inbox-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
+}
+async function after(id, hash, failure) {
+  await load();
+  const out = $("ax-" + id); if (!out) return;
+  out.innerHTML = failure ? `<p class="err">The contract refused it: ${esc(JSON.stringify(failure).slice(0, 240))}</p>` : `<p class="okline">Done. Status read back from the contract above.</p>`;
+  if (hash) out.insertAdjacentHTML("beforeend", `<div class="row"><a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a></div>`);
+}
+
+// ---------------------------------------------------------------- signatures sent back from phones (sign/ → here)
+const SK = "ctp-inbox-sigs";
+const readSigs = () => { try { return JSON.parse(localStorage.getItem(SK) || "[]"); } catch { return []; } };
+const writeSigs = (x) => { try { localStorage.setItem(SK, JSON.stringify(x.slice(-50))); } catch {} };
+function parseBack(p) {
+  const s = p.get("s"), k = p.get("k"); if (!s || !k || !/^ed25519:[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(k)) return null;
+  if (p.get("n")) {
+    const n = decodeLink(p.get("n"));
+    const ok = isAccount(n.contract) && isRef(n.order_id) && isRef(n.note_id) && isRole(n.role) && Number.isInteger(n.policy_version) && Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isUint(String(l.qty)));
+    if (!ok) return null;
+    const note = { order_id: n.order_id, note_id: n.note_id, lines: n.lines.map((l) => ({ sku: l.sku, qty: String(l.qty) })) };
+    return C.verifyDigest(k, C.deliveryDigest(n.contract, note, n.role, n.policy_version), s) ? { kind: "delivery", contract: n.contract, note, role: n.role, policy_version: n.policy_version, key: k, signature: s } : { bad: true };
+  }
+  if (p.get("i")) {
+    const x = decodeLink(p.get("i")), v = x.invoice || {}; let doc; try { doc = C.base64.decode(x.document_hash); } catch { return null; }
+    const okLines = Array.isArray(v.lines) && v.lines.length >= 1 && v.lines.length <= 50 && v.lines.every((l) => isRef(l.sku) && isUint(String(l.qty)) && isUint(String(l.unit_price)));
+    if (!isAccount(x.contract) || !isSupplierId(v.supplier_id) || !isRef(v.invoice_number) || !isRef(v.order_id) || !isPrintable(v.token, 128) || !okLines || !isUint(String(v.total)) || !v.payee || !isPrintable(v.payee.address, 128) || doc.length !== 32) return null;
+    const invoice = { supplier_id: v.supplier_id, invoice_number: v.invoice_number, order_id: v.order_id, token: v.token, lines: v.lines.map((l) => ({ sku: l.sku, qty: String(l.qty), unit_price: String(l.unit_price) })), total: String(v.total), payee: { chain: String(v.payee.chain), token: String(v.payee.token), address: String(v.payee.address) } };
+    return C.verifyDigest(k, C.invoiceDigest(x.contract, invoice, doc), s) ? { kind: "invoice", contract: x.contract, invoice, document_hash: x.document_hash, key: k, signature: s } : { bad: true };
+  }
+  return null;
+}
+function arrived() {
+  const p = new URLSearchParams(location.hash.slice(1)); if (!p.get("s")) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  let got; try { got = parseBack(p); } catch { got = null; }
+  if (!got || got.bad) { $("arrive").hidden = false; $("arrive").className = "msg bad"; $("arrive").textContent = "A signature arrived but it does not match what it claims to sign. It was not kept."; return; }
+  const all = readSigs().filter((x) => !(x.key === got.key && x.signature === got.signature));
+  all.push({ ...got, at: Date.now() }); writeSigs(all);
+  $("arrive").hidden = false; $("arrive").className = "msg ok";
+  $("arrive").textContent = got.kind === "delivery" ? `Signature received: ${got.role} signed delivery note ${got.note.note_id} (order ${got.note.order_id}). Checked.` : `Signature received: the supplier signed invoice ${got.invoice.invoice_number}. Checked.`;
+  const k = Object.entries(CONTRACTS).find(([, c]) => c === got.contract)?.[0]; if (k && k !== S.c) setContract(k, false);
+}
+async function paintSigs() {
+  const all = readSigs().filter((x) => x.contract === contract());
+  $("sigs").hidden = !all.length; if (!all.length) return;
+  let signers = [], sups = {};
+  try { signers = await view(contract(), "get_delivery_signers"); } catch {}
+  const notes = {}, cards = [];
+  for (const x of all.filter((x) => x.kind === "delivery")) { const id = `${x.note.order_id}|${x.note.note_id}|${x.policy_version}`; (notes[id] ||= { note: x.note, pv: x.policy_version, sigs: [] }).sigs.push(x); }
+  for (const g of Object.values(notes)) {
+    let policy = { required: 2, version: g.pv }; try { policy = await view(contract(), "get_delivery_policy", { order_id: g.note.order_id }); } catch {}
+    const rows = g.sigs.map((x) => { const reg = signers.find((s) => s.key === x.key); return { x, ok: reg && reg.role === x.role }; });
+    const roles = [...new Set(rows.filter((r) => r.ok).map((r) => r.x.role))], stale = policy.version !== g.pv, ready = !stale && roles.length >= policy.required;
+    const forAgent = { delivery: g.note, delivery_signatures: rows.filter((r) => r.ok).map((r) => ({ key: r.x.key, signature: r.x.signature })) };
+    cards.push(`<article class="sc ${ready ? "ready" : ""}"><h3>${esc(g.note.note_id)} <span>order ${esc(g.note.order_id)}</span></h3>
+      <ul class="checks">${rows.map((r) => `<li class="${r.ok ? "ok" : "no"}"><i></i><div>${esc(r.x.role)}<small>${r.ok ? esc(short(r.x.key, 8)) + " · registered" : "this key is not registered with this role"}</small></div></li>`).join("")}</ul>
+      <p class="who">${stale ? "Signed under an older delivery policy: ask for new signatures." : ready ? `Ready: ${roles.join(" + ")}.` : `${roles.length} of ${policy.required} roles. Still needed: another role.`}</p>
+      ${ready ? `<div class="row"><button class="btn y" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div>` : ""}</article>`);
+  }
+  for (const x of all.filter((x) => x.kind === "invoice")) {
+    let ok = false; try { const s = await view(contract(), "get_supplier", { supplier_id: x.invoice.supplier_id }); ok = s && s.signing_key === x.key; } catch {}
+    const forAgent = { invoice: x.invoice, supplier_signature: x.signature, document_hash: x.document_hash };
+    cards.push(`<article class="sc ${ok ? "ready" : ""}"><h3>${esc(x.invoice.invoice_number)} <span>${esc(x.invoice.supplier_id)} · ${esc(usd(x.invoice.total))} → ${esc(x.invoice.payee.address)}</span></h3>
+      <ul class="checks"><li class="${ok ? "ok" : "no"}"><i></i><div>Supplier's signature<small>${ok ? "the supplier's registered key" : "not the supplier's registered key"}</small></div></li></ul>
+      ${ok ? `<div class="row"><button class="btn y" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div>` : ""}</article>`);
+  }
+  $("sgrid").innerHTML = cards.join("");
+  document.querySelectorAll("[data-agent]").forEach((b) => (b.onclick = () => copy(b.dataset.agent, b)));
+}
+$("sig-clear").onclick = () => { if (confirm("Forget the signatures kept in this browser for " + contract() + "?")) { writeSigs(readSigs().filter((x) => x.contract !== contract())); paintSigs(); } };
+
+// ---------------------------------------------------------------- contract switch, wallet
+function setContract(k, reload = true) {
+  S.c = k; try { localStorage.setItem("ctp-inbox-contract", k); } catch {}
+  document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === k)));
+  if (reload) { load(); paintSigs(); }
+}
+document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => setContract(b.dataset.c)));
+document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
+  S.filter = b.dataset.f; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); paint();
+}));
+function paintWho() {
+  $("acct").innerHTML = S.me ? `Signed in as <b>${esc(S.me)}</b>` : "Not connected";
+  $("f-you").textContent = S.me ? (S.me === S.owner ? "the buyer ✓" : "not the buyer") : "–";
+  $("connect").hidden = !!S.me; $("disconnect").hidden = !S.me;
+}
+async function initWallet() {
+  try {
+    const W = await import("../wallet.js");
+    S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMyNearWallet(), W.setupMeteorWallet()] });
+    S.modal = W.setupModal(S.selector, { description: "Sign in with the buyer's account to pay, cancel or retry invoices." });
+    const sync = async () => { const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0]; S.me = a ? a.accountId : null; S.wallet = S.me ? await S.selector.wallet() : null; paintWho(); };
+    S.selector.store.observable.subscribe(sync); await sync();
+  } catch (e) { $("acct").textContent = "The wallet could not load: " + e.message; }
+}
+$("connect").onclick = () => (S.modal ? S.modal.show() : initWallet().then(() => S.modal && S.modal.show()));
+$("disconnect").onclick = async () => { try { await S.wallet.signOut(); } catch {} S.me = null; S.wallet = null; paintWho(); };
+async function returning() {
+  const q = new URLSearchParams(location.search), p = JSON.parse(sessionStorage.getItem("ctp-inbox-pending") || "null");
+  if (!p || (!q.get("transactionHashes") && !q.get("errorCode"))) return;
+  sessionStorage.removeItem("ctp-inbox-pending"); history.replaceState(null, "", location.pathname + location.hash);
+  if (q.get("errorCode")) return;
+  const hash = q.get("transactionHashes").split(",").pop();
+  let failure = null; try { const t = await rpc("tx", { tx_hash: hash, sender_account_id: S.me || S.owner, wait_until: "EXECUTED_OPTIMISTIC" }); failure = t.status?.Failure || null; } catch {}
+  await after(p.id, hash, failure);
+}
+
+setContract(S.c, false);
+arrived();
+await load(); paintSigs();
+await initWallet();
+await returning();
+</script>
+<script>
+/* "Try it" menu: a button that opens a list; Esc or a click outside closes it. */
+(() => {
+  const b = document.getElementById("trybtn"), m = document.getElementById("trymenu");
+  if (!b || !m) return;
+  const set = (open, focus) => { b.setAttribute("aria-expanded", String(open)); m.hidden = !open; if (open && focus) m.querySelector("a").focus(); };
+  b.addEventListener("click", () => set(b.getAttribute("aria-expanded") !== "true"));
+  b.addEventListener("keydown", (e) => { if (e.key === "ArrowDown") { e.preventDefault(); set(true, true); } });
+  m.addEventListener("keydown", (e) => {
+    const a = [...m.querySelectorAll("a")], i = a.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); a[(i + 1) % a.length].focus(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); a[(i - 1 + a.length) % a.length].focus(); }
+  });
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && b.getAttribute("aria-expanded") === "true") { set(false); b.focus(); } });
+  addEventListener("click", (e) => { if (!b.contains(e.target) && !m.contains(e.target)) set(false); });
+  m.addEventListener("focusout", (e) => { if (!m.contains(e.relatedTarget) && e.relatedTarget !== b) set(false); });
+})();
+</script>
+<script>
+/* Console bar: remember who is using it, and mark the pages for that role. */
+(() => {
+  const FOR = { buyer: ["judge", "setup", "inbox"], signer: ["sign"], supplier: ["sign"] };
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Open the signing link the buyer sends you; your page is Sign. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign (the buyer's invoice link), plus Telegram alerts."};
+  let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
+  const paint = () => {
+    document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
+    document.querySelectorAll(".ctabs a[data-page]").forEach((a) => {
+      const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
+      a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
+    });
+    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
+    if (h) {
+      h.hidden = !role;
+      if (role) {
+        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+        h.textContent = HINT[role] + (mineHere ? "" : " ");
+        if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
+      }
+    }
+  };
+  document.querySelectorAll(".roles button").forEach((b) => b.addEventListener("click", () => {
+    role = role === b.dataset.role ? null : b.dataset.role;
+    try { role ? localStorage.setItem("ctp-role", role) : localStorage.removeItem("ctp-role"); } catch {}
+    paint();
+  }));
+  paint();
+})();
+</script>
+</body>
+</html>

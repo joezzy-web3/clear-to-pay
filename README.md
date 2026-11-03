@@ -172,10 +172,10 @@ The rule is the same everywhere: whoever benefits from saying "delivered" is nev
 | As it happens | Buyer and supplier | Get a Telegram message for every address change, new delivery signer, verdict and payment. Each person taps **Get alerts** once: the buyer hears everything, a supplier hears about its own address, invoices and payments. | A Cloudflare Worker, every minute, no PC needed ([workers/alerts](workers/alerts/README.md)); `reader/tools/alerts.py` for local runs |
 | Any time | Anyone (finance, the supplier, an auditor) | Opens the ledger: each receipt (the latest 200), its reasons and transaction; drops a document to find its receipt. | [Live ledger](https://joezzy-web3.github.io/clear-to-pay/ledger/) |
 
-**Honestly, today:** setup, delivery signing and invoice signing run in the browser. Still on the command line: reading invoices (the AI key cannot live in a web page) and handling a HELD or CLEARED-but-unpaid invoice (the inbox is next). The signer pages keep keys in browser storage: demo grade (see THREAT_MODEL.md §7).
+**Honestly, today:** setup, delivery signing and invoice signing run in the browser. Still on the command line: reading invoices (the AI key cannot live in a web page). The [Inbox](https://clear-to-pay.vercel.app/console/inbox/) shows every invoice's next step: HELD gives the facts and a note to the supplier, SEIZED says do not reply, CLEARED-but-unpaid can be paid, cancelled or retried with the wallet; signatures sent back from phones arrive there checked. The signer pages keep keys in browser storage: demo grade (see THREAT_MODEL.md §7).
 
 **Next, so nobody needs a terminal** (planned, not claimed):
-- **Inbox:** every invoice and its next step; execute, cancel or reauthorise a payment with the wallet. Address approvals and supplier address changes in the browser. Wallet message signing (NEP-413) replaces browser-stored signer keys.
+- **Address approvals and supplier address changes in the browser. Wallet message signing (NEP-413) replaces browser-stored signer keys.
 - **"Inspect an invoice":** a guided walk-through on the site, with no wallet: pick an attack and watch each check stop it.
 - **Proof of control:** the supplier's payout account signs once at registration, so a mistyped or swapped address cannot even be registered.
 

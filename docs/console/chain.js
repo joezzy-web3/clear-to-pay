@@ -52,8 +52,8 @@ export async function rpc(method, params, ms = 15000) {
   throw last;
 }
 const b64json = (o) => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(o))));
-export async function view(contract, method, args = {}) {
-  const r = await rpc("query", { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: b64json(args) });
+export async function view(contract, method, args = {}, finality = "final") {
+  const r = await rpc("query", { request_type: "call_function", finality, account_id: contract, method_name: method, args_base64: b64json(args) });
   return JSON.parse(new TextDecoder().decode(Uint8Array.from(r.result)));
 }
 
