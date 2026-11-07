@@ -516,6 +516,7 @@ function sendInvoice(c, mine) {
       const err = (m) => { $("si-err").hidden = false; $("si-err").textContent = m; };
       try {
         const f = $("si-pdf").files[0];
+        if (!$("si-no").value.trim()) { $("si-no").focus(); return err("Type the invoice number, exactly as it appears on your PDF (for example INV-2301)."); }
         if (!f) return err("Attach the invoice PDF.");
         if (f.size > 10_000_000) return err("A PDF up to 10 MB, please.");
         const invoice = buildInvoice({ supplier_id: mine.supplier_id, invoice_number: $("si-no").value.trim(), order_id: id, order, qtys: read(), route });

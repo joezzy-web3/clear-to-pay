@@ -546,7 +546,7 @@ async function paintSigs() {
   S.invs = invs; S.readyNotes = readyNotes;
   $("sgrid").innerHTML = cards.join("");
   document.querySelectorAll("[data-agent]").forEach((b) => (b.onclick = () => copy(b.dataset.agent, b)));
-  document.querySelectorAll("[data-ai]").forEach((f) => (f.onchange = () => f.files[0] && aiCheck(+f.dataset.ai, f.files[0])));
+  document.querySelectorAll("[data-ai]").forEach((f) => (f.onchange = () => { const file = f.files[0]; f.value = ""; if (file) aiCheck(+f.dataset.ai, file); })); // value cleared: choosing the same PDF again retries
   document.querySelectorAll("[data-submit]").forEach((b) => (b.onclick = () => submitOne(+b.dataset.submit)));
 }
 
@@ -572,7 +572,10 @@ async function aiCheck(k, file) {
     const cmp = [{ ok: !!r.ok, label: "The reading is signed and attested", detail: r.ok ? "the enclave's key, NEAR AI's signature, OutLayer's attestation" : "a check failed; open the details" }]
       .concat(compareReading(r.reading && r.reading.extraction, x.invoice));
     set({ match: cmp.every((c) => c.ok), cmp, checks: r.checks, att: r.attestation });
-  } catch (e) { set({ error: (e.name === "AbortError" ? "The reader took too long." : e.message || String(e)) + " You can still submit: the contract checks every rule." }); }
+  } catch (e) {
+    const m = e.message || String(e), busy = /HTTP 5\d\d|unavailable|overloaded|bad_gateway|timed? ?out/i.test(m);
+    set({ error: (e.name === "AbortError" ? "The reader took too long." : busy ? "NEAR AI's model is unavailable right now (" + ((m.match(/HTTP \d{3}/) || ["busy"])[0]) + "). Try again in a minute: choose the PDF again. Nothing was decided." : m) + " You can also submit without it: the contract checks every rule." });
+  }
 }
 async function submitOne(k) {
   const x = S.invs[k], out = $("sx-" + k), note = S.readyNotes.find((n) => n.note.order_id === x.invoice.order_id);
