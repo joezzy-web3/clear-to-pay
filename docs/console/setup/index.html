@@ -199,6 +199,7 @@ label.confirm.big{padding-left:48px!important}
 .clinks a.for::after{content:"";position:absolute;top:5px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
 .clinks a.dim{opacity:.4}
 .cbar .roles{margin-left:0}
+.wz-recent{margin:10px 0 16px;padding:12px 14px;background:var(--cell,#F4F6F2);border-left:3px solid var(--signal,#E6BE4F)}.wz-recent b{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}.wz-recent .row{margin-top:8px;gap:8px;flex-wrap:wrap}.wz-recent .on{background:var(--navy,#10264A);color:#fff}
 </style>
 <link rel="stylesheet" href="../polish.css">
 </head>
@@ -250,6 +251,7 @@ label.confirm.big{padding-left:48px!important}
     <div class="wz-top"><div><span class="kick">New order</span><h2 id="wz-h">One order, one signature.</h2>
       <p class="muted">Supplier, items, who confirms delivery, limits. Nothing opens your wallet until the last step, and then it opens once.</p></div>
       <div class="wz-side"><span class="muted" id="wz-saved" aria-live="polite"></span><button class="btn ghost sm" type="button" id="wz-reset">Start over</button></div></div>
+    <div id="wz-recent"></div>
     <ol class="wz-steps" id="wz-steps" aria-label="Steps"></ol>
     <h3 class="wz-title" id="wz-title"></h3>
     <div id="wz-body"></div>
@@ -389,15 +391,16 @@ const FORMS = [
     async make() {
       const order = $("k-order").value.trim(), note = $("k-note").value.trim(), role = $("k-role").value, unit = $("k-unit").value.trim();
       if (!isRef(order) || !isRef(note)) fail("Order and note ids: 1 to 64 of A-Z, a-z, 0-9, '-', '_', '.', '/'.");
-      if (!isRole(role)) fail("Register a delivery signer first, then choose its role.");
+      if (role !== "*" && !isRole(role)) fail("Register a delivery signer first, then choose its role.");
       if (unit && !/^[a-z]{1,6}$/i.test(unit)) fail("Unit: up to 6 letters.");
       const ls = lines("k-lines").map(([sku, qty], n) => { if (!isRef(sku) || !/^[1-9]\d{0,18}$/.test(qty)) fail(`Line ${n + 1}: item code and a whole quantity.`); return { sku, qty }; });
       if (!ls.length) fail("Add what was delivered.");
       const o = await view(contract(), "get_order", { order_id: order }); if (!o) fail("No such order on " + contract() + ".");
       const p = await view(contract(), "get_delivery_policy", { order_id: order });
-      const n = { contract: contract(), order_id: order, note_id: note, lines: ls, role, policy_version: p.version };
-      if (unit) n.unit = unit;
-      return new URL("../sign/#n=" + encodeLink(n), location.href).href;
+      const roles = role === "*" ? p.roles : [role];
+      if (!roles.length) fail("This order has no delivery roles set.");
+      return roles.map((r) => { const n = { contract: contract(), order_id: order, note_id: note, lines: ls, role: r, policy_version: p.version }; if (unit) n.unit = unit;
+        return { role: r, note, order, link: new URL("../sign/#n=" + encodeLink(n), location.href).href }; });
     } },
 
   { id: "token", kicker: "Payments", title: "Allow a token",
@@ -494,7 +497,7 @@ function wireAgent() {
   };
 }
 
-function fillRoles(signers) { const sel = $("k-role"); if (sel) sel.innerHTML = [...new Set(signers.map((s) => s.role))].map((r) => `<option>${esc(r)}</option>`).join(""); }
+function fillRoles(signers) { const sel = $("k-role"); if (sel) sel.innerHTML = `<option value="*">Every role this order needs</option>` + [...new Set(signers.map((s) => s.role))].map((r) => `<option>${esc(r)}</option>`).join(""); }
 function addLine(id, dn) {
   const box = $(id), row = document.createElement("div");
   row.className = "lrow" + (dn ? " dn" : "");
@@ -564,10 +567,14 @@ async function done(f, hash, args, failure) {
 async function makeLink(id) {
   const f = FORMS.find((x) => x.id === id), out = $("out-" + id);
   try {
-    const link = await f.make();
-    $("pv-" + id).textContent = "Signing link for " + $("k-role").value + ":\n" + link;
-    out.innerHTML = `<div class="linkout"><code>${esc(link)}</code><div class="qr">${C.qrSvg(link)}</div></div><div class="row"><button class="btn" type="button" id="cl">Copy the link</button><a class="btn ghost" href="${esc(link)}" target="_blank" rel="noopener">Open it</a></div>`;
-    $("cl").onclick = (e) => copy(link, e.target);
+    const links = await f.make();
+    $("pv-" + id).textContent = links.map((x) => `Signing link for ${x.role}:\n${x.link}`).join("\n\n");
+    out.innerHTML = `<p class="muted">${links.length > 1 ? `${links.length} links, one per role. ` : ""}Send each to the right person. When they tap Sign, it reaches your Inbox by itself.</p>` + links.map((x, i) => {
+      const msg = `Please check delivery ${x.note} (order ${x.order}) and sign it as ${x.role}: ${x.link}`;
+      return `<div class="rolelink"><h4 class="h4" style="margin:14px 0 6px">${esc(x.role)}</h4><div class="linkout"><code>${esc(x.link)}</code><div class="qr">${C.qrSvg(x.link)}</div></div>
+        <div class="row"><button class="btn" type="button" data-cl="${i}">Copy the link</button><a class="btn ghost" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Send on WhatsApp</a>${navigator.share ? `<button class="btn ghost" type="button" data-sh="${i}">Share…</button>` : ""}</div></div>`; }).join("");
+    out.querySelectorAll("[data-cl]").forEach((b) => (b.onclick = (e) => copy(links[+b.dataset.cl].link, e.target)));
+    out.querySelectorAll("[data-sh]").forEach((b) => (b.onclick = async () => { const x = links[+b.dataset.sh]; try { await navigator.share({ title: "Sign delivery " + x.note, text: `Sign delivery ${x.note} as ${x.role}`, url: x.link }); } catch {} }));
   } catch (e) { out.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
@@ -644,8 +651,8 @@ function openAdvanced(id, pre) {
     $("k-order").value = pre.order; $("k-note").value = pre.order.replace(/^PO/i, "DN") + "-1";
     const box = $("k-lines"); box.querySelectorAll(".lrow").forEach((r) => r.remove());
     for (const l of pre.lines) { addLine("k-lines", true); const r = [...box.querySelectorAll(".lrow")].pop().querySelectorAll("input"); r[0].value = l.sku; r[1].placeholder = "received"; }
-    setTimeout(() => { const sel = $("k-role"); if (sel && pre.roles[0]) sel.value = pre.roles[0]; }, 600);
-    $("out-link").innerHTML = `<p class="warn">Fill in what actually arrived, line by line, then make one link per role: ${esc(pre.roles.join(", "))}.</p>`;
+    setTimeout(() => { const sel = $("k-role"); if (sel) sel.value = "*"; }, 600);
+    $("out-link").innerHTML = `<p class="warn">Fill in what actually arrived, line by line, then make the links: one for each role (${esc(pre.roles.join(", "))}), all at once.</p>`;
   }
   document.getElementById("f-" + id)?.scrollIntoView({ block: "start", behavior: "smooth" });
 }

@@ -30,4 +30,13 @@ Then open `https://ctp-alerts.<you>.workers.dev/register` once: it points the bo
 webhook's secret is derived from the bot token, so there is nothing else to set. Once you have subscribed with the
 button, stop `reader/tools/alerts.py`, or your old chat gets each alert twice.
 
+## The signature relay (`/relay`)
+
+The same worker carries signatures from phones to the buyer's Inbox, so nobody copies links by hand. After a
+delivery signer or the supplier taps Sign, their page posts the send-back link (`n=…&s=…&k=…` or `i=…`) to
+`/relay?net=live|demo`; the buyer's Inbox reads `/relay?net=…` every 15 seconds and checks every item against the
+chain before keeping it. Only that link shape is accepted (12 KB at most), each is kept once, for 30 days.
+Nothing in it is secret: it is the signature the contract will check anyway. The Console finds the worker
+through `RELAY` in `docs/console/chain.js`; until it is set, signatures travel by link and QR code only.
+
 Commands in the bot: `/status` (your alerts), `/stop` (end them).

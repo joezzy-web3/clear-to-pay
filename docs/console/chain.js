@@ -115,3 +115,19 @@ export function walletFix(w) {
     const v = t[k]; return typeof v === "function" ? v.bind(t) : v;
   } });
 }
+
+/** The signature relay (workers/alerts, route /relay): signed send-back links travel from phones to the
+ *  buyer's Inbox without anyone carrying them. Public data only; the Inbox verifies every item on chain. */
+export const RELAY = "https://ctp-alerts.cleartopay.workers.dev"; // your alerts worker, e.g. https://ctp-alerts.<you>.workers.dev (until set, signatures travel by link only)
+export const relayNet = (contract) => Object.entries(CONTRACTS).find(([, c]) => c === contract)?.[0] || null;
+export async function relaySend(contract, hash) {
+  const net = relayNet(contract); if (!RELAY.startsWith("https://") || !net) return false;
+  try { const r = await fetch(`${RELAY}/relay?net=${net}`, { method: "POST", body: hash }); return r.ok; } catch { return false; }
+}
+export async function relayIds(net) {
+  if (!RELAY.startsWith("https://")) return [];
+  const r = await fetch(`${RELAY}/relay?net=${net}`, { cache: "no-store" }); return r.ok ? (await r.json()).ids || [] : [];
+}
+export async function relayGet(net, id) {
+  const r = await fetch(`${RELAY}/relay?net=${net}&id=${id}`, { cache: "no-store" }); return r.ok ? r.text() : null;
+}

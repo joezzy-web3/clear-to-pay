@@ -226,7 +226,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <script type="module">
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
-import { CONTRACTS, walletFix } from "../chain.js";
+import { CONTRACTS, walletFix, relaySend } from "../chain.js";
 import { rpc } from "../chain.js";
 import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 import { buildInvoice } from "../invoice-flow.js";
@@ -380,6 +380,12 @@ function showResult(key, sig, returned) {
   $("copylink").onclick = (e) => copy(link, e.target);
   $("share").onclick = async () => { if (navigator.share) { try { await navigator.share({ title: "Signed " + (JOB.kind === "delivery" ? JOB.note.note_id : JOB.invoice.invoice_number), url: link }); } catch {} } else copy(link, $("share")); };
   $("result").hidden = false;
+  if (!returned) { // carry it to the buyer's Inbox by itself; the link, QR and share stay as the fallback
+    $("res-p").textContent = "Sending it to the buyer's Inbox…";
+    relaySend(JOB.contract, link.split("#")[1]).then((ok) => { $("res-p").innerHTML = ok
+      ? "<b>Sent to the buyer's Inbox.</b> It appears there by itself within a minute, already checked. Nothing else to do. If the buyer asks, the link and QR code below are the same signature."
+      : "Could not reach the buyer's Inbox automatically. Send this back to the buyer: share the link (it opens their Inbox, already checked), show the QR code, or copy it."; });
+  }
   if (returned) { $("res-h").textContent = "Signature received"; $("res-p").textContent = "This signature checks out for this exact " + (JOB.kind === "delivery" ? "note and role" : "invoice") + ". Paste the JSON into the agent's submission."; $("signsec").hidden = true; }
   $("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }

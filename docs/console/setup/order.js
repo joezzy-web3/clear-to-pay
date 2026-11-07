@@ -22,6 +22,17 @@ const blank = () => ({ v: 1, step: 1, back: false, max: 1,
 let K, D, X = null; // K: the page (S, contract, net, refresh, openAdvanced); D: the draft; X: what the chain holds now
 const key = () => "ctp-order-draft:" + K.contract();
 function load() { try { const d = JSON.parse(localStorage.getItem(key()) || "null"); return d && d.v === 1 ? { ...blank(), ...d } : blank(); } catch { return blank(); } }
+// the orders signed from this browser, newest first: any of them can be reopened, and a new order started at any time
+const hkey = () => "ctp-order-history:" + K.contract();
+const pastOrders = () => { try { return JSON.parse(localStorage.getItem(hkey()) || "[]"); } catch { return []; } };
+function remember(done) { try { localStorage.setItem(hkey(), JSON.stringify([done, ...pastOrders().filter((h) => h.plan.po !== done.plan.po)].slice(0, 10))); } catch {} }
+function paintRecent() {
+  const h = pastOrders(), box = $("wz-recent"); if (!box) return;
+  if (!h.length) { box.innerHTML = ""; return; }
+  box.innerHTML = `<div class="wz-recent"><b>Your recent orders</b><div class="row">${h.map((x, i) => `<button class="btn ghost sm ${D.done && D.done.plan.po === x.plan.po ? "on" : ""}" type="button" data-hist="${i}">${esc(x.plan.po)} · ${esc(usdUnits(x.plan.total))}</button>`).join("")}<button class="btn sm" type="button" id="wz-new2">+ New order</button></div></div>`;
+  box.querySelectorAll("[data-hist]").forEach((b) => (b.onclick = () => { D = { ...blank(), done: h[+b.dataset.hist], step: 5, max: 5 }; save(); paint(); $("wiz").scrollIntoView({ block: "start" }); }));
+  $("wz-new2").onclick = () => { if (D.done || confirm("Start a new order? The draft in this browser is cleared.")) { D = blank(); save(); paint(); } };
+}
 function save() { try { localStorage.setItem(key(), JSON.stringify(D)); $("wz-saved").textContent = "Draft saved in this browser"; } catch { $("wz-saved").textContent = "This browser would not keep the draft"; } }
 const fail = (step, m) => { const e = new Error(m); e.step = step; throw e; };
 const usdUnits = (u) => fromUnits(u) + " USDC";
@@ -290,7 +301,8 @@ function paintDone(b) {
   b.querySelectorAll("[data-rl]").forEach((x) => (x.onclick = () => showLink($("wz-rlout"), rolePageLink("signer", x.dataset.rl), `Copy the ${x.dataset.rl}'s link`)));
   $("wz-dlink").onclick = () => K.openAdvanced("link", { order: p.po, lines: p.lines, roles: p.roles });
   $("wz-adv").onclick = () => K.openAdvanced("pool");
-  $("wz-new").onclick = () => { if (confirm("Start a new order? This one stays on chain; only the form is cleared.")) { D = blank(); save(); paint(); } };
+  remember(d); // orders signed before this list existed join it when opened
+  $("wz-new").onclick = () => { D = blank(); save(); paint(); }; // this order stays on chain and under "Your recent orders"
   readBack(p);
 }
 async function readBack(p) {
@@ -336,9 +348,9 @@ async function finished(hash, failure, unknown = false) {
   }
   const s = D.signing; D.signing = null;
   if (failure || !s) { save(); paint(); $("wz-msg").innerHTML = `<p class="err">Nothing was changed: the contract refused the transaction${failure ? ": " + esc(JSON.stringify(failure).slice(0, 260)) : ""}.</p>${hash ? `<a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a>` : ""}`; return; }
-  D.done = { hash, at: Date.now(), contract: K.contract(), buyer: K.S.me || K.S.owner, plan: s.plan }; D.step = 5; save();
+  D.done = { hash, at: Date.now(), contract: K.contract(), buyer: K.S.me || K.S.owner, plan: s.plan }; D.step = 5; save(); remember(D.done);
   await snapshot().catch(() => {});
-  const cs = X && X.suppliers.find((x) => x.id === s.plan.sup.id); if (cs) { D.done.chainFrom = cs.from; save(); } // CTP8-07: the chain's time, not this browser's
+  const cs = X && X.suppliers.find((x) => x.id === s.plan.sup.id); if (cs) { D.done.chainFrom = cs.from; save(); remember(D.done); } // CTP8-07: the chain's time, not this browser's
   paint(); K.refresh();
 }
 /** Back from a redirect wallet (MyNearWallet): the page reloads with ?transactionHashes=… */
@@ -370,7 +382,7 @@ let msgTimer;
 function msg(t, bad) { const m = $("wz-msg"); m.innerHTML = `<p class="${bad ? "err" : "okline"}">${esc(t)}</p>`; clearTimeout(msgTimer); if (!bad) msgTimer = setTimeout(() => (m.innerHTML = ""), 6000); }
 function paint() {
   if (!X) return;
-  stepper();
+  stepper(); paintRecent();
   const b = $("wz-body"); $("wz-msg").innerHTML = "";
   if (D.done) { $("wz-title").textContent = "Order authorised"; paintDone(b); $("wz-nav").hidden = true; return; }
   $("wz-title").textContent = STEPS[D.step - 1];
@@ -397,7 +409,7 @@ export async function init(ctx) {
   await reload();
 }
 export async function reload() {
-  D = load(); X = null; $("wz-body").innerHTML = `<p class="muted">Reading ${esc(K.contract())}…</p>`;
+  D = load(); X = null; paintRecent(); $("wz-body").innerHTML = `<p class="muted">Reading ${esc(K.contract())}…</p>`;
   try { await snapshot(); paint(); } catch { $("wz-body").innerHTML = `<p class="err">Could not read the contract. Try again in a moment.</p>`; }
 }
 /** An invitation reply opened as a link (setup/#a=…): it fills the wizard; it never signs anything. */

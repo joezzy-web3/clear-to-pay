@@ -245,7 +245,7 @@ import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { compareReading, submitArgs } from "../invoice-flow.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix, relayIds, relayGet } from "../chain.js";
 initMenu();
 
 const S = { c: (() => { try { return localStorage.getItem("ctp-inbox-contract") === "live" ? "live" : "demo"; } catch { return "demo"; } })(),
@@ -503,17 +503,38 @@ function parseBack(p) {
   }
   return null;
 }
+function keep(got, how) {
+  const all = readSigs().filter((x) => !(x.key === got.key && x.signature === got.signature)), fresh = all.length === readSigs().length;
+  all.push({ ...got, at: Date.now() }); writeSigs(all);
+  $("arrive").hidden = false; $("arrive").className = "msg ok";
+  $("arrive").textContent = (got.kind === "delivery" ? `Signature received${how}: ${got.role} signed delivery note ${got.note.note_id} (order ${got.note.order_id}). Checked.` : `Signature received${how}: the supplier signed invoice ${got.invoice.invoice_number}. Checked.`);
+  return fresh;
+}
 function arrived() {
   const p = new URLSearchParams(location.hash.slice(1)); if (!p.get("s")) return;
   history.replaceState(null, "", location.pathname + location.search);
   let got; try { got = parseBack(p); } catch { got = null; }
   if (!got || got.bad) { $("arrive").hidden = false; $("arrive").className = "msg bad"; $("arrive").textContent = "A signature arrived but it does not match what it claims to sign. It was not kept."; return; }
-  const all = readSigs().filter((x) => !(x.key === got.key && x.signature === got.signature));
-  all.push({ ...got, at: Date.now() }); writeSigs(all);
-  $("arrive").hidden = false; $("arrive").className = "msg ok";
-  $("arrive").textContent = got.kind === "delivery" ? `Signature received: ${got.role} signed delivery note ${got.note.note_id} (order ${got.note.order_id}). Checked.` : `Signature received: the supplier signed invoice ${got.invoice.invoice_number}. Checked.`;
+  keep(got, "");
   const k = Object.entries(CONTRACTS).find(([, c]) => c === got.contract)?.[0]; if (k && k !== S.c) setContract(k, false);
 }
+// ---------------------------------------------------------------- the relay: signatures arrive by themselves
+const SEEN = "ctp-inbox-relay-seen";
+async function pollRelay() {
+  if (document.hidden) return;
+  const net = S.c; let seen; try { seen = new Set(JSON.parse(localStorage.getItem(SEEN) || "[]")); } catch { seen = new Set(); }
+  let ids = []; try { ids = await relayIds(net); } catch { return; }
+  let added = false;
+  for (const id of ids.filter((i) => !seen.has(net + ":" + i)).slice(0, 25)) {
+    let got = null; try { const t = await relayGet(net, id); got = t ? parseBack(new URLSearchParams(t)) : null; } catch {}
+    seen.add(net + ":" + id); // checked once: a bad or foreign item is dropped, never shown as received
+    if (got && !got.bad && got.contract === contract() && keep(got, " (sent from their phone)")) added = true;
+  }
+  try { localStorage.setItem(SEEN, JSON.stringify([...seen].slice(-500))); } catch {}
+  if (added) paintSigs();
+}
+setInterval(pollRelay, 15000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pollRelay(); });
 async function paintSigs() {
   const all = readSigs().filter((x) => x.contract === contract());
   $("sigs").hidden = !all.length; if (!all.length) return;
@@ -679,6 +700,7 @@ try { roleView(localStorage.getItem("ctp-role")); } catch {}
 banner("buyer");
 try { if (!["signer", "supplier"].includes(localStorage.getItem("ctp-role"))) guide("buyer"); } catch { guide("buyer"); }
 setContract(S.c, false);
+pollRelay();
 arrived();
 const walletReady = initWallet();
 await load(); paintSigs();

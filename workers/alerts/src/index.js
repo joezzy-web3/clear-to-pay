@@ -4,6 +4,7 @@
 // - Telegram calls /telegram when someone taps Start on a "Get alerts" link from the Console.
 // Secrets: TELEGRAM_BOT_TOKEN only (wrangler secret put). The webhook's secret is derived
 // from it, so there is nothing else to keep in sync. No NEAR keys: public views only.
+import { relay } from "./relay.js";
 import { snapshot, changes, format, parseStart, recipients } from "./core.js";
 
 const RPCS = ["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org"];
@@ -101,6 +102,7 @@ export default {
   },
   async fetch(req, env) {
     const url = new URL(req.url);
+    if (url.pathname === "/relay") return relay(req, env, url); // signatures carried from phones to the buyer's Inbox
     if (req.method === "POST" && url.pathname === "/telegram") {
       if (req.headers.get("X-Telegram-Bot-Api-Secret-Token") !== (await webhookSecret(env))) return new Response("forbidden", { status: 403 });
       try { await onUpdate(env, await req.json()); } catch {}
