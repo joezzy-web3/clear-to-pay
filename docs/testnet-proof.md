@@ -150,3 +150,11 @@ Qingmar became payable at 23:29 Lagos, after its 72-hour wait. `first-payment.sh
 - The USDC transfer and its callback: payment 3 **Settled**, attempt 1, recipient qingmar.cleartopay.testnet, about 1.3 s after it was authorised (`authorized_at` 1793658841693085022, `updated_at` 1793658843033974384).
 - After: pool 72.20 USDC available, 0 reserved; qingmar.cleartopay.testnet holds 7.80 USDC. The pool fell by exactly 7.80 and the supplier rose by exactly 7.80; the script checks both and stops otherwise.
 
+## The reader inside OutLayer's TEE (7 Nov 2026)
+
+Project `cleartopay-reader.testnet/reader` on `outlayer.testnet`, code from release [`outlayer-v0.1.0`](https://github.com/joezzy-web3/clear-to-pay/releases/tag/outlayer-v0.1.0), WASM sha256 `e11834078a135e4ff98df8e52f3dbba934f5b499fe3a43a20e29788b2d96c66d` (CI builds it twice and compares). Proof files in [`proof/outlayer/`](proof/outlayer/), re-checked by `node tools/console-crypto/test/outlayer.mjs`.
+
+- The enclave's key: `{"op":"public_key"}` returned `51d8788daae1aa4d55897b426d66810764efd6e0eb883157805ed87394f74d83`, prompt `11e8da92139223cd`: [GhAPBS7U…](https://testnet.nearblocks.io/txns/GhAPBS7UjAmYdYbRC31zkce8b8f3FaDqy6zWdGZwiNyN); OutLayer's attestation names `executed_wasm_sha256` = the release.
+- The clean sample, read live on chain: qingmar-steel, INV-2208, PO-1184, 10 × 0.78, total 7.80, nothing held, NEAR AI's signature verified in the enclave (model signer `0xfdbd7952…`, the same enclave as the CLI's saved reading): [3Te3VGQ4…](https://testnet.nearblocks.io/txns/3Te3VGQ42YGNyDxmeP9dqJtVQnWmL5WZTmNsnZXTr4oZ). 2.8 s, about 0.0013 testnet NEAR.
+- The poisoned sample (its white-text line removed by the scan): the same fields, no payee: [7fJcav8p…](https://testnet.nearblocks.io/txns/7fJcav8pfVxeDUDZipFWD2xTZStYFxMUdkyxR1AtZy74).
+- The clean sample over HTTPS, with the published payment key (the browser's route): call `720b7b5a…`, [attestation](https://testnet-api.outlayer.ai/attestations/by-call/720b7b5a-8870-4e44-9490-ccbf64c1edec). The output's sha-256 equals the attestation's `output_hash`, and the Intel TDX quote's REPORTDATA is the sha-256 of the task (WASM hash, input and output hashes, caller, project, time).

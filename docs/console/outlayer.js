@@ -6,7 +6,7 @@ import * as C from "./crypto.js";
 import { view, esc } from "./chain.js";
 import { READER, PAYMENT_WORDS, checkReading, checkAttestation } from "./outlayer-verify.js";
 
-const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/";
+const PDFJS = new URL("./vendor/pdfjs-4.10.38/", import.meta.url).href; // pdfjs-dist 4.10.38 from npm, kept here byte for byte (SHA256SUMS)
 const CONTRACT = "judge.cleartopay.testnet";
 const MAX_BYTES = 2_000_000, MAX_PAGES = 5, MAX_TEXT = 40_000;
 const $ = (id) => document.getElementById(id);

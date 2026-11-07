@@ -27,6 +27,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - The agent's key cannot withdraw, attach money, change rules or move USDC directly; it can only submit invoices and send payments that already CLEARED, to the registered address: NEAR function-call key on `buyer.cleartopay.testnet`; refusals in [docs/testnet-proof.md](docs/testnet-proof.md)
 - After HELD, the AI drafts the supplier query from code-computed facts only; after SEIZED, no reply in the same thread: [reader/ctp_reader/query.py](reader/ctp_reader/query.py), [reader/tests/test_query.py](reader/tests/test_query.py)
 - Address changes (even ones proposed and cancelled between checks), new suppliers, new delivery signers and SEIZED invoices raise a Telegram alert during the 72-hour wait (the local monitor polls every 15 s; the hosted worker reads each contract every 2 minutes): [reader/ctp_reader/alerts.py](reader/ctp_reader/alerts.py), [reader/tests/test_alerts.py](reader/tests/test_alerts.py)
+- The reader also runs inside OutLayer's TEE (experimental, Judge mode "Your own invoice"): same prompt and model, the NEAR AI key sealed as a project secret, each reading signed by an enclave-derived key, and OutLayer's attestation names our reproducible WASM (`e11834078a135e4ff98df8e52f3dbba934f5b499fe3a43a20e29788b2d96c66d`) and the output's hash: [outlayer/README.md](outlayer/README.md), proof files [docs/proof/outlayer/](docs/proof/outlayer/), checked by `node tools/console-crypto/test/outlayer.mjs`; 13 Rust tests in `outlayer/`
 - Every threat, its defence and its test: [THREAT_MODEL.md](THREAT_MODEL.md), including what is not defended yet
 
 ## On chain (NEAR testnet)
@@ -42,8 +43,8 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 
 ## Not built yet (stated, not claimed)
 
-- The Intel TDX and NVIDIA certificate chains checked in the browser (the reader checks them on every reading; Judge mode checks signatures and bindings only); running the reader inside OutLayer
-- Rendered-image check of PDFs; NEAR Intents cross-chain payouts; proof of control at supplier registration
+- The Intel TDX and NVIDIA certificate chains checked in the browser (the CLI reader checks them on every reading; Judge mode checks signatures and bindings only; the OutLayer route checks NEAR AI's signature and quote binding in the enclave, not NVIDIA)
+- NEAR Intents cross-chain payouts; a shared list of seized addresses; proof of control is optional (NEP-413), not required by the contract
 - Two colluding insiders in different roles can still confirm a false delivery
 
 ## Main files
