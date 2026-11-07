@@ -132,9 +132,74 @@ body.not-buyer #forms > :not(#rolecard){display:none!important}
 .rlist b{font:600 15px var(--body);display:block}
 .rlist small{font:400 12.5px/1.45 var(--mono);color:var(--mute);display:block;margin-top:3px;overflow-wrap:anywhere}
 .rlist code{font-size:11.5px}
+.whelp{display:grid;gap:6px;margin-top:4px;padding:12px 14px;background:#13284A;box-shadow:inset 3px 0 0 var(--signal);font:400 14px/1.5 var(--body);color:var(--paper);max-width:60ch}
+.whelp code{color:var(--signal)}
+
+/* New order wizard */
+.wiz{display:grid;gap:14px;position:relative;border-top:6px solid var(--navy)}
+.wz-top{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-end}
+.wiz h2{font-size:clamp(32px,4.2vw,54px);max-width:none;margin:6px 0 4px}
+.wz-side{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn.sm{padding:8px 12px;font-size:13.5px}.btn.big{padding:16px 26px;font-size:17px}
+.wz-steps{list-style:none;margin:4px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.wz-steps button{width:100%;display:flex;gap:8px;align-items:center;border:0;cursor:pointer;background:var(--cell);color:var(--navy);box-shadow:inset 0 0 0 1px var(--line);padding:10px;font:600 14px var(--body);text-align:left}
+.wz-steps button b{display:grid;place-items:center;min-width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font:600 13px var(--mono)}
+.wz-steps button[aria-current]{background:var(--navy);color:var(--paper);box-shadow:none}.wz-steps button[aria-current] b{background:var(--signal);color:var(--navy);box-shadow:none}
+.wz-steps button:disabled{opacity:.45;cursor:not-allowed}
+.wz-title{font:800 clamp(26px,3vw,36px)/1.05 var(--display);margin:6px 0 0}
+.seg{display:flex;gap:8px;flex-wrap:wrap}.seg label{display:flex;gap:8px;align-items:center;padding:10px 14px;background:var(--cell);box-shadow:inset 0 0 0 1px var(--line);font:600 14.5px var(--body);cursor:pointer}
+.seg input{width:auto}
+.two{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr);gap:clamp(14px,3vw,28px);margin-top:12px}
+.invbox{background:var(--cell);border:1px dashed var(--line);padding:14px 16px;display:grid;gap:8px;align-content:start}
+textarea{font:400 13.5px var(--mono);padding:10px;border:1px solid var(--line);width:100%;min-width:0;resize:vertical}
+.confirm.big{padding:12px 14px;background:#FFF6D6;border-left:4px solid var(--held)}
+.lrow3{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.6fr) minmax(0,.8fr) 40px;gap:6px}
+.lrow3 small{grid-column:1/-1;font:400 12px var(--mono);color:var(--mute);margin:-2px 0 4px}
+.lrow2{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,.8fr) 40px;gap:6px}
+.tot{margin-left:auto;font:500 15px var(--body)}.tot b{font:800 24px var(--display)}
+.picks{display:grid;gap:6px}.pickrow{display:flex!important;gap:10px;align-items:center;padding:10px 12px;background:var(--cell);border:1px solid var(--line);cursor:pointer}
+.pickrow input{width:auto}.pickrow b{font:600 15px var(--body)}.pickrow small{display:block;font:400 12px var(--mono);color:var(--mute)}
+.grid2{grid-template-columns:1fr 1fr}
+.rv{border:1px solid var(--line);padding:14px 16px;display:grid;gap:8px;background:#fff}
+.rv-h{display:flex;justify-content:space-between;align-items:center;gap:12px}.rv h4{font:800 22px var(--display);margin:0}
+.kv2{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:6px 16px;margin:0;font-size:14.5px}
+.kv2 dt{color:var(--mute);font:400 13px var(--mono)}.kv2 dd{margin:0;overflow-wrap:anywhere}
+.tag{font:500 11px var(--mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;background:var(--signal);color:var(--navy);padding:2px 6px}.tag.reg{background:#E2E7E1;color:var(--mute)}
+.lt{width:100%;border-collapse:collapse;font-size:14px}.lt th,.lt td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}.lt th{font:500 12px var(--mono);color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+.lt tfoot td{border-bottom:0;font-weight:600}.lt td:last-child,.lt th:last-child{text-align:right}
+.rv.tx{background:var(--cell);border-left:4px solid var(--navy)}
+.acts2{margin:0;padding-left:20px;display:grid;gap:4px;font-size:14.5px}
+.atomic{margin:4px 0 0;padding:10px 12px;background:#E5F2EA;border-left:4px solid var(--clear);line-height:1.5}
+.okline.big{font-size:16px;padding:14px 16px}
+.h4{font:800 22px var(--display);margin:8px 0 0}
+.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--navy);text-decoration:underline;cursor:pointer}
+.adv{border:1px solid var(--line);background:#fff}
+.adv > summary{cursor:pointer;padding:16px 18px;font:600 15px var(--body);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.adv-body{display:grid;gap:clamp(16px,2.4vw,22px);padding:0 clamp(10px,2vw,18px) 18px}
+@media (max-width:900px){.two{grid-template-columns:1fr}.wz-steps{grid-template-columns:repeat(5,minmax(0,1fr))}.wz-steps button{flex-direction:column;justify-content:center;font-size:0;padding:8px 4px}.wz-steps button b{font-size:13px}.grid2{grid-template-columns:1fr}.lt{font-size:13px}.lt th:nth-child(4),.lt td:nth-child(4){display:none}}
+@media (max-width:520px){.lrow3{grid-template-columns:minmax(0,1fr) minmax(0,.6fr) minmax(0,.8fr) 34px}.tot{margin-left:0;width:100%}}
+/* the purchase order: printed (Save as PDF) only */
+#po{display:none}
+@media print{
+  body > *:not(#po){display:none!important}
+  body{background:#fff!important}
+  #po{display:block!important;color:#10264A;font:400 11pt/1.45 "Instrument Sans",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{margin:16mm}
+  #po .wm{position:fixed;top:44%;left:-20%;right:-20%;text-align:center;white-space:nowrap;transform:rotate(-28deg);font:800 46pt/1 "Big Shoulders Display",Impact,sans-serif;letter-spacing:.04em;color:rgba(196,43,28,.16);z-index:0;pointer-events:none}
+  #po .wm.ok{color:rgba(18,122,74,.13)}
+  .po-h{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3pt solid #10264A;padding-bottom:8pt;margin-bottom:12pt}
+  .po-h span,.po-no span{display:block;font:500 9pt "IBM Plex Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:#55657C}
+  .po-brand{font:800 22pt "Big Shoulders Display",Impact,sans-serif}.po-no{text-align:right}.po-no b{font:800 22pt "Big Shoulders Display",Impact,sans-serif}
+  .po-cols{display:grid;grid-template-columns:1fr 1fr;gap:18pt;margin:10pt 0}
+  #po h5{font:500 8.5pt "IBM Plex Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:#55657C;margin:6pt 0 2pt}#po p{margin:0}
+  .po-t{width:100%;border-collapse:collapse;margin:10pt 0}.po-t th{font:500 8.5pt "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.08em;text-align:left;border-bottom:1pt solid #10264A;padding:5pt 4pt}
+  .po-t td{padding:5pt 4pt;border-bottom:.5pt solid #D5DCD7}.po-t td:not(:first-child),.po-t th:not(:first-child){text-align:right}.po-t tfoot td{font-weight:700;border-bottom:0;border-top:1pt solid #10264A}
+  .po-f{margin-top:16pt;padding-top:8pt;border-top:.5pt solid #D5DCD7;font:400 8.5pt/1.5 "IBM Plex Mono",monospace;color:#55657C;word-break:break-all}
+}
 </style>
 </head>
 <body>
+<div class="rband" id="rband" data-r="buyer"></div>
 <header class="top gut"><div class="in">
   <nav class="nav">
     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Buyer setup</a></span>
@@ -154,6 +219,10 @@ body.not-buyer #forms > :not(#rolecard){display:none!important}
           <button type="button" data-c="live" aria-pressed="false">Live contract<small>guard.cleartopay.testnet</small></button>
         </div>
         <div class="acct"><span id="acct">Not connected</span><button class="btn y" id="connect" type="button">Connect wallet</button><button class="btn ghost" id="disconnect" type="button" hidden style="color:var(--paper);box-shadow:inset 0 0 0 2px #24406B">Disconnect</button></div>
+        <div class="whelp" id="whelp" hidden><b>Nothing opened?</b>
+          <span><b>Meteor extension:</b> click the Meteor icon in your browser's toolbar; the request waits there. Make sure Meteor is unlocked and set to <b>Testnet</b>, with the buyer account imported.</span>
+          <span><b>No extension:</b> choose Meteor or MyNearWallet again and allow pop-ups for this site (the icon at the right of the address bar).</span>
+          <span>Only the buyer account can sign here: <code id="whelp-owner">the contract's owner</code>.</span></div>
       </div>
     </div>
     <div class="hero-side"><div class="facts" aria-label="Contract">
@@ -168,15 +237,33 @@ body.not-buyer #forms > :not(#rolecard){display:none!important}
 
 <main class="gut"><div class="in forms" id="forms">
   <section class="card rolecard" id="rolecard" hidden aria-live="polite">
-    <span class="kick">Not your page</span>
+    <span class="kick">The buyer's page</span>
     <h2 id="rc-h">These are the buyer's controls.</h2>
     <p id="rc-p"></p>
-    <div class="row"><a class="btn y" href="../sign/" id="rc-go">Go to your page →</a><button class="btn ghost" type="button" id="rc-show">Show the buyer's forms anyway</button></div>
+    <div class="row"><a class="btn y" href="../sign/" id="rc-go">Go to the Sign page →</a><button class="btn ghost" type="button" id="rc-show">Show the buyer's forms anyway</button></div>
+  </section>
+  <section class="card wiz" id="wiz" aria-labelledby="wz-h">
+    <div class="wz-top"><div><span class="kick">New order</span><h2 id="wz-h">One order, one signature.</h2>
+      <p class="muted">Supplier, items, who confirms delivery, limits. Nothing opens your wallet until the last step, and then it opens once.</p></div>
+      <div class="wz-side"><span class="muted" id="wz-saved" aria-live="polite"></span><button class="btn ghost sm" type="button" id="wz-reset">Start over</button></div></div>
+    <ol class="wz-steps" id="wz-steps" aria-label="Steps"></ol>
+    <h3 class="wz-title" id="wz-title"></h3>
+    <div id="wz-body"></div>
+    <div id="wz-msg" aria-live="polite"></div>
+    <div class="row wz-nav" id="wz-nav"><button class="btn ghost" type="button" id="wz-prev">Back</button><button class="btn y" type="button" id="wz-next">Next</button></div>
   </section>
   <section class="ready" id="ready" aria-labelledby="h-ready">
     <div class="ready-h"><div><span class="kick">Ready to run</span><h2 id="h-ready">What this contract still needs.</h2></div><div class="ready-n" id="ready-n" aria-live="polite">–</div></div>
     <ol class="rlist" id="rlist"></ol>
   </section>
+  <section class="card alerts" id="alerts" aria-labelledby="h-alerts">
+    <div><h3 id="h-alerts"><small>Alerts</small>Everyone hears it on Telegram</h3>
+    <p class="muted">Each person taps Start once. The buyer hears everything; a supplier hears about its own payout address (while a change is still in its 72-hour wait), its invoices and its payments; delivery signers hear when a signer is added. Only public on-chain facts are sent.</p></div>
+    <div class="alist" id="alist"></div>
+  </section>
+  <div class="msg warn" id="notowner" hidden></div>
+  <details class="adv" id="advanced"><summary><span class="kick">Advanced</span> One change at a time: fixes, the pool, the agent's key, single invitations</summary>
+    <div class="adv-body" id="adv-body">
   <section class="card alerts" id="invite" aria-labelledby="h-invite">
     <div><h3 id="h-invite"><small>Invite</small>Bring people in with one link</h3>
     <p class="muted">Send a supplier or a delivery signer a link. They open it on their phone, a key is made there, and their details come back to you as a link that fills in the right form below. You still review and sign every registration, and you still confirm a supplier's payout account by phone.</p></div>
@@ -188,13 +275,9 @@ body.not-buyer #forms > :not(#rolecard){display:none!important}
       <div id="i-out"></div>
     </div>
   </section>
-  <section class="card alerts" id="alerts" aria-labelledby="h-alerts">
-    <div><h3 id="h-alerts"><small>Alerts</small>Everyone hears it on Telegram</h3>
-    <p class="muted">Each person taps Start once. The buyer hears everything; a supplier hears about its own payout address (while a change is still in its 72-hour wait), its invoices and its payments; delivery signers hear when a signer is added. Only public on-chain facts are sent.</p></div>
-    <div class="alist" id="alist"></div>
-  </section>
-  <div class="msg warn" id="notowner" hidden></div>
+    </div></details>
 </div></main>
+<div id="po" aria-hidden="true"></div>
 <section class="closer gut" aria-label="Closing"><div class="in">
   <span class="tg t1">The AI reads.</span>
   <span class="tg t2">Code decides.</span>
@@ -206,6 +289,8 @@ body.not-buyer #forms > :not(#rolecard){display:none!important}
 
 <script type="module">
 import * as C from "../crypto.js";
+import { banner, guide } from "../roles.js";
+import * as W from "./order.js";
 import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy } from "../chain.js";
 initMenu();
 
@@ -416,7 +501,7 @@ function addLine(id, dn) {
 }
 
 function render() {
-  $("forms").insertAdjacentHTML("beforeend", FORMS.map((f) => `
+  $("adv-body").insertAdjacentHTML("beforeend", FORMS.map((f) => `
     <section class="card f" id="f-${f.id}" aria-labelledby="h-${f.id}">
       <div><h3 id="h-${f.id}"><small>${f.kicker}</small>${f.title}</h3><p class="muted">${f.help}</p>${f.warn ? `<p class="warn">${f.warn}</p>` : ""}<div class="fields">${f.fields}</div></div>
       <div class="side2"><div class="now" id="now-${f.id}" ${f.now ? "" : "hidden"}>…</div>
@@ -487,7 +572,7 @@ async function makeLink(id) {
 const ORDERS_API = (c) => `https://api-testnet.nearblocks.io/v1/account/${encodeURIComponent(c)}/txns?method=create_order&per_page=25`;
 async function checklist() {
   const c = contract(), rows = [];
-  const go = (id) => `#f-${id}`;
+  const go = (id) => (["supplier", "order", "limits", "signer"].includes(id) ? "#wiz" : `#f-${id}`); // what the wizard covers goes there
   try {
     const [ids, limits, signers, tokens, funds] = await Promise.all([view(c, "get_supplier_ids"), view(c, "get_limits"), view(c, "get_delivery_signers"),
       view(c, "get_allowed_tokens"), view(c, "get_funds", { token: USDC })]);
@@ -520,6 +605,7 @@ async function checklist() {
   const done = rows.filter((r) => r[0] === "ok").length;
   $("h-ready").textContent = done === rows.length ? "Ready. The agent can submit." : "What this contract still needs.";
   $("ready-n").innerHTML = `${done}<span style="color:var(--mute)">/${rows.length}</span><small>ready</small>`;
+  setTimeout(() => $("rlist").querySelectorAll('a[href^="#f-"]').forEach((a) => (a.onclick = (e) => { e.preventDefault(); openAdvanced(a.getAttribute("href").slice(3)); })), 0);
   $("rlist").innerHTML = rows.map(([st, id, t, d]) => `<li class="${st}">${id ? `<a href="${go(id)}">` : "<div>"}<i aria-hidden="true"></i><span><b>${esc(t)}</b><small>${esc(d)}</small></span>${id ? "</a>" : "</div>"}</li>`).join("");
 }
 
@@ -543,20 +629,20 @@ function arrived() {
   let a; try { a = decodeLink(a0); } catch { return; }
   history.replaceState(null, "", location.pathname + location.search);
   if (!isAccount(a.contract) || !isPubKey(a.key)) return;
-  if (a.contract !== contract()) { const k = Object.entries(CONTRACTS).find(([, c]) => c === a.contract)?.[0]; if (!k) return; document.querySelector(`.switch button[data-c="${k}"]`)?.click(); }
-  if (a.kind === "supplier" && isSupplierId(a.supplier_id) && isAccount(a.address)) {
-    $("s-id").value = a.supplier_id; $("s-key").value = a.key; $("s-addr").value = a.address;
-    document.getElementById("inv-supplier")?.remove();
-    document.querySelector("#f-supplier .fields").insertAdjacentHTML("afterbegin", `<div id="inv-supplier"><div class="warn"><b>From an invitation.</b> ${esc(a.supplier_id)} asks to be paid to <b>${esc(a.address)}</b>. A link can be faked: call the supplier on a number you already had and read the address back before you sign.</div>
-      <label class="confirm"><input type="checkbox" id="s-called"> I called the supplier and they confirmed <b>${esc(a.address)}</b>.</label></div>`);
-    S.needCall = true; $("s-called").onchange = () => { S.needCall = !$("s-called").checked; };
-    $("s-addr").addEventListener("input", () => { if ($("s-addr").value.trim() !== a.address) { $("s-called").checked = false; S.needCall = true; } });
-    document.getElementById("f-supplier").scrollIntoView({ block: "start" });
-  } else if (a.kind === "signer" && isRole(a.role)) {
-    $("d-key").value = a.key; $("d-role").value = a.role;
-    document.querySelector("#f-signer .fields").insertAdjacentHTML("afterbegin", `<div class="warn"><b>From an invitation:</b> a ${esc(a.role)} key from someone's phone. Register it only if you sent that invitation to them.</div>`);
-    document.getElementById("f-signer").scrollIntoView({ block: "start" });
+  if (a.contract !== contract()) { const k = Object.entries(CONTRACTS).find(([, c]) => c === a.contract)?.[0]; if (!k) return; S.c = k; sessionStorage.setItem("ctp-setup-contract", k); document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === k))); }
+  W.reload().then(() => W.fromReply(a)); // a reply fills the New order wizard; it never signs anything
+}
+/** Open the Advanced cards at one of them, optionally pre-filled (the delivery-link builder after an order). */
+function openAdvanced(id, pre) {
+  $("advanced").open = true;
+  if (id === "link" && pre) {
+    $("k-order").value = pre.order; $("k-note").value = pre.order.replace(/^PO/i, "DN") + "-1";
+    const box = $("k-lines"); box.querySelectorAll(".lrow").forEach((r) => r.remove());
+    for (const l of pre.lines) { addLine("k-lines", true); const r = [...box.querySelectorAll(".lrow")].pop().querySelectorAll("input"); r[0].value = l.sku; r[1].placeholder = "received"; }
+    setTimeout(() => { const sel = $("k-role"); if (sel && pre.roles[0]) sel.value = pre.roles[0]; }, 600);
+    $("out-link").innerHTML = `<p class="warn">Fill in what actually arrived, line by line, then make one link per role: ${esc(pre.roles.join(", "))}.</p>`;
   }
+  document.getElementById("f-" + id)?.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
 async function alertsCard() {
@@ -583,6 +669,8 @@ async function refresh() {
   paintWho();
 }
 function paintWho() {
+  setTimeout(() => document.dispatchEvent(new CustomEvent("ctp-who")), 0);
+  if ($("whelp-owner") && S.owner) $("whelp-owner").textContent = S.owner;
   $("acct").innerHTML = S.me ? `Signed in as <b>${esc(S.me)}</b>` : "Not connected";
   $("f-you").textContent = S.me ? (S.me === S.owner ? "the buyer ✓" : "not the buyer") : "–";
   $("connect").hidden = !!S.me; $("disconnect").hidden = !S.me;
@@ -595,23 +683,41 @@ document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("c
   document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
   document.querySelectorAll(".preview").forEach((p) => (p.textContent = "Review shows exactly what your wallet will sign."));
   document.querySelectorAll("[data-sign]").forEach((s) => (s.disabled = true));
-  refresh();
+  refresh(); W.reload();
 }));
 document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === S.c)));
 
-async function initWallet() {
-  try {
-    const W = await import("../wallet.js");
-    S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMyNearWallet(), W.setupMeteorWallet()] });
-    S.modal = W.setupModal(S.selector, { description: "Sign in with the buyer's account to change Clear to Pay settings." });
-    const sync = async () => {
-      const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
-      S.me = a ? a.accountId : null; S.wallet = S.me ? await S.selector.wallet() : null; paintWho();
-    };
-    S.selector.store.observable.subscribe(sync); await sync();
-  } catch (e) { $("acct").textContent = "The wallet could not load: " + e.message; }
+let walletLoading = null;
+function initWallet() {
+  // The wallet code is large (about 1.8 MB, less when compressed): load it once, and say so while it loads.
+  if (walletLoading) return walletLoading;
+  const btn = $("connect"); btn.disabled = true; btn.textContent = "Loading the wallet…";
+  walletLoading = (async () => {
+    try {
+      const W = await import("../wallet.js");
+      S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMyNearWallet(), W.setupMeteorWallet()] });
+      S.modal = W.setupModal(S.selector, { description: "Sign in with the buyer's account to change Clear to Pay settings." });
+      S.modal.on("onHide", () => { if (!S.me) $("whelp").hidden = false; });
+      const sync = async () => {
+        const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
+        S.me = a ? a.accountId : null; S.wallet = S.me ? await S.selector.wallet() : null;
+        if (S.me) $("whelp").hidden = true;
+        paintWho();
+      };
+      S.selector.store.observable.subscribe(sync); await sync();
+      btn.disabled = false; btn.textContent = "Connect wallet";
+    } catch (e) {
+      walletLoading = null; btn.disabled = false; btn.textContent = "Try again";
+      $("acct").textContent = "The wallet could not load (" + (e.message || e) + "). Check your connection and try again.";
+    }
+  })();
+  return walletLoading;
 }
-$("connect").onclick = () => (S.modal ? S.modal.show() : initWallet().then(() => S.modal && S.modal.show()));
+$("connect").onclick = async () => {
+  await initWallet(); if (!S.modal) return;
+  S.modal.show();
+  clearTimeout(S.helpTimer); S.helpTimer = setTimeout(() => { if (!S.me) $("whelp").hidden = false; }, 9000);
+};
 $("disconnect").onclick = async () => { try { await S.wallet.signOut(); } catch {} S.me = null; S.wallet = null; paintWho(); };
 
 // Back from a redirect wallet: ?transactionHashes=… or ?errorCode=…
@@ -620,6 +726,12 @@ async function returning() {
   if (!p || (!q.get("transactionHashes") && !q.get("errorCode"))) return;
   sessionStorage.removeItem("ctp-setup-pending");
   history.replaceState(null, "", location.pathname + location.hash);
+  if (p.id === "wizard") {
+    if (q.get("errorCode")) return W.returned(null, null, q.get("errorCode"));
+    const h = q.get("transactionHashes").split(",").pop(); let fl = null;
+    try { const t = await rpc("tx", { tx_hash: h, sender_account_id: S.me || S.owner, wait_until: "EXECUTED_OPTIMISTIC" }); fl = t.status?.Failure || null; } catch {}
+    return W.returned(h, fl, null);
+  }
   const f = FORMS.find((x) => x.id === p.id); if (!f) return;
   document.getElementById("f-" + f.id).scrollIntoView({ block: "start" });
   if (q.get("errorCode")) { $("out-" + f.id).innerHTML = `<p class="err">The wallet did not sign (${esc(q.get("errorCode"))}).</p>`; return; }
@@ -631,8 +743,8 @@ async function returning() {
 
 // Buyer setup is the buyer's page: a delivery signer or a supplier is sent to theirs instead.
 const ROLE_TEXT = {
-  signer: "You confirm deliveries. You never register suppliers or set limits: the buyer does that, with their wallet. Your page shows your key, whether the buyer has registered it, and opens the delivery links they send you.",
-  supplier: "You are paid by this contract. The buyer registers you and your payout address; you sign your invoices. Your page shows your company as the contract sees it: your payout address, any pending change, your invoices and payments.",
+  signer: "You confirm deliveries. You never register suppliers or set limits: the buyer does that, with their wallet. The Delivery signer page shows your key, whether the buyer has registered it, and opens the delivery links they send you.",
+  supplier: "You are paid by this contract. The buyer registers you and your payout address; you sign your invoices. The Supplier page shows your company as the contract sees it: your payout address, any pending change, your invoices and payments.",
 };
 let showAnyway = false;
 function roleView(role) {
@@ -644,9 +756,13 @@ addEventListener("ctp-role", (e) => roleView(e.detail));
 $("rc-show").onclick = () => { showAnyway = true; roleView(null); };
 try { roleView(localStorage.getItem("ctp-role")); } catch {}
 
+banner("buyer");
+try { if (!["signer", "supplier"].includes(localStorage.getItem("ctp-role"))) guide("buyer"); } catch { guide("buyer"); }
 render();
+const walletReady = initWallet(); // start loading the wallet at once, in parallel with the contract reads
 await refresh();
-await initWallet();
+await W.init({ S, contract, net: () => S.c, refresh, openAdvanced });
+await walletReady;
 await returning();
 arrived();
 </script>
@@ -672,7 +788,7 @@ arrived();
 /* Console bar: remember who is using it, and mark the pages for that role. */
 (() => {
   const FOR = { buyer: ["judge", "setup", "inbox"], signer: ["sign"], supplier: ["sign"] };
-  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Your page is Sign: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign: your company as the contract sees it, your invoices and payments, and your alerts."};
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. The Sign page is the Delivery signer page: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. The Sign page is the Supplier page: your company as the contract sees it, your invoices and payments, and your alerts."};
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));

@@ -37,6 +37,11 @@
 .out pre{margin:0;background:var(--deep);color:#C9D6E6;font:400 12.5px/1.6 var(--mono);padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}
 .qr{background:#fff;border:1px solid var(--line);padding:8px}.qr svg{display:block;width:100%;height:auto}
 .home{display:grid;gap:14px}
+.explain{display:grid;gap:10px;border-left:6px solid #9FB0C6}
+.ex{margin:0;padding-left:22px;display:grid;gap:10px;line-height:1.55;font-size:15.5px}
+.ex li::marker{font:800 18px var(--display)}
+.signedlog{display:grid;gap:6px}.signedlog div{display:flex;justify-content:space-between;gap:10px;padding:9px 10px;background:var(--cell);border:1px solid var(--line);font:400 13.5px var(--body)}
+.signedlog small{font:400 12px var(--mono);color:var(--mute)}
 .home-h{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .switch2{display:flex;gap:4px}
 .switch2 button{font:600 13.5px var(--body);border:0;padding:8px 12px;cursor:pointer;background:var(--cell);color:var(--navy);box-shadow:inset 0 0 0 1px var(--line)}
@@ -124,6 +129,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 </style>
 </head>
 <body>
+<div class="rband" id="rband" data-r="pick"></div>
 <header class="top gut"><div class="in">
   <nav class="nav">
     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Sign</a></span>
@@ -146,7 +152,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   <div class="msg" id="nolink" hidden>This page signs a delivery note or an invoice from a link the buyer sends you. Open the link you were sent. Until then, you can set up your signing key below and send its public key to the buyer.</div>
 
   <section class="card home" id="home" hidden aria-live="polite">
-    <div class="home-h"><h3 id="home-h">Your status</h3>
+    <div class="home-h"><h3 id="home-h">Status</h3>
       <div class="switch2" role="group" aria-label="Contract"><button type="button" data-c="demo">Demo</button><button type="button" data-c="live">Live</button></div></div>
     <div id="home-body"></div>
   </section>
@@ -164,6 +170,18 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   <section class="card" id="checks-card" hidden>
     <h3>Checked on chain before you sign</h3>
     <ul class="checks" id="checks"></ul>
+  </section>
+
+  <section class="card explain" id="explain" hidden aria-labelledby="h-explain">
+    <h3 id="h-explain">How your signing key works</h3>
+    <ol class="ex">
+      <li><b>This phone made you a signing key.</b> The private part never leaves this phone. Nobody, including the buyer, will ever ask you for it.</li>
+      <li><b>Tap Send to buyer, once.</b> It sends only the public part, so the buyer can add you as the <span class="as-role">storekeeper (or weighbridge)</span>.</li>
+      <li><b>When goods arrive,</b> the buyer sends you a delivery link. Open it <b>on this phone</b>, check the note against what you received, and tap <b>Sign delivery</b>. Then tap <b>Send back</b>.</li>
+      <li><b>New phone or cleared browser?</b> Make a new key here and send it again; the buyer removes the old one.</li>
+    </ol>
+    <div class="row" style="margin-top:4px"><button class="btn y" type="button" id="send-buyer" disabled>Send to buyer</button><span class="muted" id="send-note">Make your key below first.</span></div>
+    <div id="send-out"></div>
   </section>
 
   <section class="card keybox" id="keycard" aria-labelledby="h-key">
@@ -197,6 +215,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 <script type="module">
 import * as C from "../crypto.js";
+import { banner, guide } from "../roles.js";
 import { CONTRACTS } from "../chain.js";
 import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 initMenu();
@@ -216,7 +235,7 @@ function paintKey() {
   if (KEY) {
     el.innerHTML = `<p class="plain">This phone signs with:</p><code id="pub">${esc(KEY.public_key)}</code>
       <div class="row" style="margin-top:0"><button class="btn ghost" id="copypub" type="button">Copy the public key</button><button class="btn ghost" id="forget" type="button">Forget this key</button></div>
-      <p class="note" style="margin:0">The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key). It is safe to share; the secret half stays here.</p>`;
+      <p class="note" style="margin:0">${ROLE === "supplier" ? "The buyer registers this public key once, as your company's key." : ROLE === "signer" ? "The buyer registers this public key once, as a delivery signer with your role." : "The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key)."} It is safe to share; the secret half stays here.</p>`;
     $("copypub").onclick = (e) => copy(KEY.public_key, e.target);
     $("forget").onclick = async () => { if (confirm("Forget this key on this phone? Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); paintJoinState(); paintHome(); } };
   } else {
@@ -235,7 +254,7 @@ function importKey(text) {
 async function setKey(k, fresh) {
   KEY = { public_key: k.public_key, secret_key: k.secret_key };
   if (!(await saveKey(KEY))) alert("This browser would not store the key (private mode?). It works until you close the page.");
-  paintKey(); check(); paintJoinState(); paintHome();
+  paintKey(); check(); paintJoinState(); paintHome(); if (HOME) paintRole();
   if (fresh && !JOIN) alert("Key made. Send its public key to the buyer to register before you sign anything.");
 }
 
@@ -355,16 +374,43 @@ $("sign").addEventListener("click", async () => {
   if (!READY || !KEY) return;
   await check(); if (!READY) return;
   showResult(KEY.public_key, C.signDigest(KEY.secret_key, digestOf(JOB)), false);
+  if (JOB.kind === "delivery") logSigned({ contract: JOB.contract, order_id: JOB.note.order_id, note_id: JOB.note.note_id, role: JOB.role, at: Date.now() });
 });
 
 // ---------------------------------------------------------------- home: each role's own page when no link is open
 let HOME = false, ROLE = (() => { try { return localStorage.getItem("ctp-role"); } catch { return null; } })();
+let AS = (() => { try { return localStorage.getItem("ctp-signer-as") || ""; } catch { return ""; } })(); // the role the buyer named in their link
+const SIGNED = "ctp-signed-notes";
+const signedLog = () => { try { return JSON.parse(localStorage.getItem(SIGNED) || "[]"); } catch { return []; } };
+function logSigned(e) { try { localStorage.setItem(SIGNED, JSON.stringify([...signedLog(), e].slice(-50))); } catch {} }
+function sendToBuyer() {
+  if (!KEY) return;
+  const a = { contract: HC(), kind: "signer", key: KEY.public_key }; if (isRole(AS)) a.role = AS;
+  const link = new URL("../setup/#a=" + encodeLink(a), location.href).href;
+  $("send-out").innerHTML = `<div class="out" style="margin-top:8px"><pre>${esc(JSON.stringify(a, null, 1))}</pre><div class="qr">${C.qrSvg(link)}</div></div>
+    <div class="row"><button class="btn" type="button" id="send-share">Share</button><button class="btn ghost" type="button" id="send-copy">Copy the link</button></div>
+    <p class="note">Only your public key${a.role ? " and the role " + esc(a.role) : ""} travel in this link. The buyer adds you with their wallet.</p>`;
+  $("send-copy").onclick = (e) => copy(link, e.target);
+  $("send-share").onclick = async () => { if (navigator.share) { try { await navigator.share({ title: "Clear to Pay: my signing key", url: link }); } catch {} } else copy(link, $("send-share")); };
+}
+function paintRole() {
+  banner(HOME || JOIN ? (ROLE === "signer" || ROLE === "supplier" ? ROLE : "pick") : JOB ? (JOB.kind === "delivery" ? "signer" : "supplier") : "pick");
+  if (!HOME) return;
+  $("h1").innerHTML = ROLE === "supplier" ? "Supplier <span>page.</span>" : ROLE === "signer" ? "Delivery <span>signer.</span>" : "Who are <span>you?</span>";
+  $("sub").textContent = ROLE === "supplier" ? "Your company as the contract sees it: where you are paid, any change waiting, your invoices and payments. Read live; no wallet needed."
+    : ROLE === "signer" ? "You confirm what actually arrived. Here is your key, whether the buyer has registered it, and the deliveries you signed on this phone."
+    : "This page is for delivery signers and suppliers. The buyer's pages are Buyer setup and the Inbox.";
+  $("explain").hidden = ROLE !== "signer";
+  if (isRole(AS)) document.querySelectorAll(".as-role").forEach((x) => (x.textContent = AS));
+  $("send-buyer").disabled = !KEY; $("send-note").textContent = KEY ? "Sends only your public key." : "Make your key below first.";
+  if (ROLE === "signer" || ROLE === "supplier") guide(ROLE);
+}
 let NET = (() => { try { return localStorage.getItem("ctp-sign-contract") === "live" ? "live" : "demo"; } catch { return "demo"; } })();
 const HC = () => CONTRACTS[NET];
 const H72 = 72n * 3600n * 1_000_000_000n;
 const nsDate = (ns) => new Date(Number(BigInt(ns) / 1_000_000n)).toLocaleString([], { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 function pickRole(r) { const b = document.querySelector(`.roles button[data-role="${r}"]`); if (b && b.getAttribute("aria-pressed") !== "true") b.click(); }
-addEventListener("ctp-role", (e) => { ROLE = e.detail; if (HOME) paintHome(); });
+addEventListener("ctp-role", (e) => { ROLE = e.detail; if (HOME) { paintRole(); paintHome(); paintKey(); } });
 document.querySelectorAll(".switch2 button").forEach((b) => b.addEventListener("click", () => { NET = b.dataset.c; try { localStorage.setItem("ctp-sign-contract", NET); } catch {} paintHome(); }));
 async function paintHome() {
   if (!HOME) return;
@@ -382,14 +428,15 @@ async function paintHome() {
   box.innerHTML = `<p class="muted">Reading ${esc(c)}…</p>`;
   try {
     if (ROLE === "signer") {
-      $("home-h").textContent = "Your delivery-signer status";
+      $("home-h").textContent = "Your registration";
       const signers = await view(c, "get_delivery_signers"), me = KEY && signers.find((x) => x.key === KEY.public_key);
       const roles = [...new Set(signers.map((x) => x.role))];
       box.innerHTML = `<div class="stat">
           <div><span>Your key</span><b>${KEY ? esc(short(KEY.public_key, 10)) : "none on this phone yet"}</b></div>
           <div><span>Registered by the buyer</span><b class="${me ? "ok" : "wait"}">${me ? "yes, as " + esc(me.role) : KEY ? "not yet: send the buyer your public key" : "make or import a key first"}</b></div>
           <div><span>Roles on this contract</span><b>${esc(roles.join(", ") || "none yet")}</b></div></div>
-        <p class="plain">When goods arrive, the buyer sends you a delivery link. Open it here, check the note against what you received, and tap Sign. ${me ? "Your key is ready for that." : ""}</p>
+        <p class="plain"><b>${me ? `Registered as ${esc(me.role)} on ${esc(c)}.` : "Not registered yet."}</b> ${me ? "Your key is ready: open the delivery links the buyer sends you on this phone." : "Tap Send to buyer above; the buyer adds you with their wallet."}</p>
+        ${(() => { const l = signedLog().filter((x) => x.contract === c).reverse(); return l.length ? `<h3 style="font:800 22px var(--display);margin:6px 0 0">Signed on this phone</h3><div class="signedlog">${l.slice(0, 10).map((x) => `<div><span>${esc(x.note_id)} · order ${esc(x.order_id)} · as ${esc(x.role)}</span><small>${esc(new Date(x.at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</small></div>`).join("")}</div>` : ""; })()}
         ${al ? `<div class="row"><a class="btn" href="${esc(al)}" target="_blank" rel="noopener" style="background:#229ED9">Get alerts on Telegram</a></div>` : ""}`;
       return;
     }
@@ -465,27 +512,33 @@ function sendJoin() {
   if (al) { $("tg").hidden = false; $("tg-a").href = al; $("tg-t").textContent = sup ? "Hear on Telegram the moment anyone tries to change your payout address, and when your invoices are decided and paid." : "Hear on Telegram when a delivery signer is added or removed."; }
 }
 $("join-addr").addEventListener("input", paintJoinState);
+$("send-buyer").addEventListener("click", sendToBuyer);
 $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJoin(); });
 
 // ---------------------------------------------------------------- start
 (async () => {
+  const r = P.get("r");
+  if (r === "signer" || r === "supplier") { // a link from the buyer to this person's page
+    try { localStorage.setItem("ctp-role", r); if (P.get("c") === "live" || P.get("c") === "demo") localStorage.setItem("ctp-sign-contract", P.get("c")); if (r === "signer" && isRole(P.get("as") || "")) localStorage.setItem("ctp-signer-as", P.get("as")); } catch {}
+    ROLE = r; if (P.get("c") === "live" || P.get("c") === "demo") NET = P.get("c"); if (isRole(P.get("as") || "")) AS = P.get("as");
+    document.querySelector(`.roles button[data-role="${r}"]`)?.getAttribute("aria-pressed") === "true" || document.querySelector(`.roles button[data-role="${r}"]`)?.click();
+    history.replaceState(null, "", location.pathname);
+  }
   if (P.get("j")) {
     try { JOIN = parseJoin(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This invitation cannot be used: " + e.message + "."; }
     KEY = await loadKey(); paintKey();
-    if (JOIN) { paintJoin(); $("live").className = "live on"; $("liveText").innerHTML = "<b>Invitation</b> · " + esc(JOIN.contract); }
+    if (JOIN) { ROLE = JOIN.kind; paintJoin(); paintRole(); guide(JOIN.kind); $("live").className = "live on"; $("liveText").innerHTML = "<b>Invitation</b> · " + esc(JOIN.contract); }
     return;
   }
   try { JOB = parseJob(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This link cannot be used: " + e.message + "."; }
   KEY = await loadKey(); paintKey();
   if (!JOB) {
     if ($("nolink").className === "msg bad") { $("nolink").hidden = false; return; }
-    HOME = true; $("home").hidden = false; $("home").before($("keycard"));
-    $("live").className = "live on"; $("liveText").innerHTML = "<b>Your page</b> · NEAR testnet";
-    $("h1").innerHTML = "Your <span>page.</span>";
-    $("sub").textContent = "Your signing key, and where you stand with the buyer, read live from the contract. When the buyer sends you a link, open it here.";
-    paintHome(); return;
+    HOME = true; $("home").hidden = false; $("home").before($("keycard")); $("keycard").before($("explain"));
+    $("live").className = "live on"; $("liveText").innerHTML = "<b>Sign page</b> · NEAR testnet";
+    paintRole(); paintKey(); paintHome(); return;
   }
-  paintJob();
+  paintJob(); paintRole();
   const s = P.get("s"), k = P.get("k");
   if (s && k) {
     const ok = C.verifyDigest(k, digestOf(JOB), s);
@@ -517,7 +570,7 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
 /* Console bar: remember who is using it, and mark the pages for that role. */
 (() => {
   const FOR = { buyer: ["judge", "setup", "inbox"], signer: ["sign"], supplier: ["sign"] };
-  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Your page is Sign: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign: your company as the contract sees it, your invoices and payments, and your alerts."};
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. The Sign page is the Delivery signer page: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. The Sign page is the Supplier page: your company as the contract sees it, your invoices and payments, and your alerts."};
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));

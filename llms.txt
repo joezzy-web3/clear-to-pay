@@ -9,7 +9,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - `cargo test` : 127 contract tests, incl. 4 property tests and the baseline comparison
 - `(cd tools/ctp-sign && cargo test)` : 5 signing-tool tests, golden vectors shared with the contract
 - `(cd reader && python3 -m pip install -r requirements.txt && python3 -m pytest -q)` : 253 reader tests, incl. the 19-invoice attack corpus, 37 offline tests of the TEE model call, 9 of the hardware check, 10 of which software the enclave ran, 10 of the qualification gate for a new model, 28 of the follow-up drafts, 20 of the alerts and 21 of the MCP server
-- [sandbox/](sandbox/README.md) : 6 end-to-end tests on a local NEAR node (near-sandbox, near-workspaces): the real wasm, a real NEP-141 token, payout callbacks (paid and refused), the deposit hook and the agent key refused by NEAR; all pass in CI (workflow `sandbox`). The wasm is the deployed code; the 72-hour wait is skipped by rewriting its stored time on the local node
+- [sandbox/](sandbox/README.md) : 7 end-to-end tests (the 7th: the Console's one-signature order batch, its gas, and all-or-nothing) on a local NEAR node (near-sandbox, near-workspaces): the real wasm, a real NEP-141 token, payout callbacks (paid and refused), the deposit hook and the agent key refused by NEAR; all pass in CI (workflow `sandbox`). The wasm is the deployed code; the 72-hour wait is skipped by rewriting its stored time on the local node
 - `scripts/attack-demo.sh` : a poisoned invoice, a fooled agent, and every refusal, logged
 - `scripts/baseline.sh` : the same invoice attacks against two allowlist guards and against Clear to Pay
 - `scripts/mutation-check.sh` : breaks three rules on purpose; a property test must catch each

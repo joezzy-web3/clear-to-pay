@@ -157,10 +157,16 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .sc.ready{border-color:var(--clear);box-shadow:inset 4px 0 0 var(--clear)}
 .sc h3{font:800 24px/1.1 var(--display);margin:0}.sc h3 span{display:block;font:400 12.5px var(--mono);color:var(--mute);margin-top:4px}
 .msg{padding:12px 14px;border-left:4px solid var(--held);background:#FFF6D6;line-height:1.5}.msg.bad{border-color:var(--seize);background:#FBECEA}.msg.ok{border-color:var(--clear);background:#E5F2EA}
+.kick.red{background:var(--seize)}
+.addr .ic-l{background:var(--seize)}
+.nochat{margin:0 0 14px;padding:10px 14px;background:#fff;border-left:4px solid var(--navy);line-height:1.5;font-size:14.5px}
 @media (max-width:640px){.ic{grid-template-columns:1fr}.ic-l{grid-auto-flow:column;justify-content:space-between;align-items:center;padding:12px 16px}.vd{font-size:24px}}
+.whelp{display:grid;gap:6px;margin-top:4px;padding:12px 14px;background:#13284A;box-shadow:inset 3px 0 0 var(--signal);font:400 14px/1.5 var(--body);color:var(--paper);max-width:60ch}
+.whelp code{color:var(--signal)}
 </style>
 </head>
 <body>
+<div class="rband" id="rband" data-r="buyer"></div>
 <header class="top gut"><div class="in">
   <nav class="nav">
     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Inbox</a></span>
@@ -180,6 +186,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
           <button type="button" data-c="live" aria-pressed="false">Live contract<small>guard.cleartopay.testnet</small></button>
         </div>
         <div class="acct"><span id="acct">Not connected</span><button class="btn y" id="connect" type="button">Connect wallet</button><button class="btn ghost" id="disconnect" type="button" hidden style="color:var(--paper);box-shadow:inset 0 0 0 2px #24406B">Disconnect</button></div>
+        <div class="whelp" id="whelp" hidden><b>Nothing opened?</b>
+          <span><b>Meteor extension:</b> click the Meteor icon in your browser's toolbar; the request waits there. Make sure Meteor is unlocked and set to <b>Testnet</b>, with the buyer account imported.</span>
+          <span><b>No extension:</b> choose Meteor or MyNearWallet again and allow pop-ups for this site (the icon at the right of the address bar).</span>
+          <span>Only the buyer account can sign here: <code id="whelp-owner">the contract's owner</code>.</span></div>
       </div>
     </div>
     <div class="hero-side"><div class="facts" aria-label="Contract">
@@ -200,10 +210,17 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div class="sgrid" id="sgrid"></div>
   </section>
 
+  <section class="addr" id="addr" hidden aria-labelledby="h-addr">
+    <div class="ib-h"><div><span class="kick red">Address changes</span><h2 id="h-addr">A payout address wants to change.</h2></div></div>
+    <p class="muted">Nothing is paid to a new address until you approve it <b>and</b> 72 hours have passed since it was proposed. Before approving, call the supplier on a number you already had. If they did not ask for it, cancel it.</p>
+    <div class="ilist" id="alist2"></div>
+  </section>
+
   <section aria-labelledby="h-inv">
     <div class="ib-h"><div><span class="kick">Invoices</span><h2 id="h-inv">What needs you.</h2></div>
       <div class="filters" role="group" aria-label="Show"><button type="button" data-f="todo" aria-pressed="true">Needs action</button><button type="button" data-f="all" aria-pressed="false">All</button></div></div>
     <p class="msg" id="cap" hidden>This contract has more than 2,000 receipts; only the newest 2,000 are checked here. Older ones are on the ledger.</p>
+    <p class="nochat"><b>No chat between parties, on purpose.</b> Invoice fraud works through messages. Clear to Pay's rule: confirm anything by a phone number you already had. HELD gives you the question to send; SEIZED means don't reply.</p>
     <div class="ilist" id="ilist"><p class="muted">Reading the contract…</p></div>
   </section>
 </div></main>
@@ -218,6 +235,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
 <script type="module">
 import * as C from "../crypto.js";
+import { banner, guide } from "../roles.js";
 import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy } from "../chain.js";
 initMenu();
 
@@ -326,6 +344,7 @@ async function load() {
       $("ilist").innerHTML = `<p class="muted">Reading receipts… ${Math.min(i + 8, missing.length)} of ${missing.length}</p>`;
     }
     writeCache(have);
+    addrChanges();
     S.receipts = Object.values(have).filter((r) => r.id < n).sort((a, b) => b.id - a.id);
     // Settled is final, so a settled payment is kept with its receipt; every other payment is read again (a cancelled one can be paid again).
     const cleared = S.receipts.filter((r) => r.verdict === "Cleared" && r.payment?.status !== "Settled");
@@ -378,6 +397,42 @@ async function facts(id, btn) {
     <pre class="draft">${esc(text)}</pre><div class="row"><button class="btn" type="button" id="cp-${id}">Copy the note</button>${s?.hash ? `<a class="btn ghost" href="${TX(s.hash)}" target="_blank" rel="noopener">The submission on NearBlocks</a>` : ""}</div>
     <p class="note">Facts come from the receipt, the order and the submitted invoice, computed here. The note asks only for documents; it never mentions payment details. Send it on a channel you already use with this supplier.</p>`;
   $("cp-" + id).onclick = (e) => copy(text, e.target);
+}
+
+// ---------------------------------------------------------------- payout address changes waiting for the buyer
+async function addrChanges() {
+  const box = $("alist2"), c = contract();
+  let rows = [];
+  try {
+    const ids = await view(c, "get_supplier_ids");
+    rows = (await Promise.all(ids.slice(0, 100).map((id) => view(c, "get_supplier", { supplier_id: id }).catch(() => null)))).filter((x) => x && x.pending);
+  } catch {}
+  $("addr").hidden = !rows.length; if (!rows.length) return;
+  const H72 = 72n * 3600n * 1_000_000_000n, d = (ns) => new Date(Number(BigInt(ns) / 1_000_000n)).toLocaleString([], { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  box.innerHTML = rows.map((x) => { const p = x.pending, eff = BigInt(p.proposed_at) + H72;
+    return `<article class="ic"><div class="ic-l"><span class="vd">${p.approved ? "APPROVED" : "PROPOSED"}</span><small>${esc(x.supplier_id)}</small></div>
+      <div class="ic-m"><h3>${esc(x.route_on_file.address)} → ${esc(p.route.address)}</h3>
+      <p class="who">Proposed ${esc(d(p.proposed_at))} · ${p.approved ? "takes effect" : "earliest effect"} ${esc(d(eff))}</p>
+      <p class="do">${p.approved ? "You approved this. If the supplier did not ask for it, cancel it now: until it takes effect, payments still go to the old address." : "Signed with the supplier's key. Did the supplier ask for it? Call them on a number you already had. Approve only if they confirm the new address character by character."}</p>
+      <div class="row"><button class="btn r" type="button" data-addr="cancel_payout_change" data-s="${esc(x.supplier_id)}">Cancel the change</button>${p.approved ? "" : `<button class="btn ghost" type="button" data-addr="approve_payout_change" data-s="${esc(x.supplier_id)}">Approve</button>`}</div><div id="adx-${esc(x.supplier_id)}"></div></div></article>`; }).join("");
+  box.querySelectorAll("[data-addr]").forEach((b) => (b.onclick = () => addrAct(b.dataset.addr, b.dataset.s)));
+}
+async function addrAct(method, sid) {
+  const out = $("adx-" + sid);
+  if (!S.wallet) { out.innerHTML = `<p class="err">Connect the buyer's wallet first.</p>`; return; }
+  if (S.me !== S.owner) { out.innerHTML = `<p class="err">Only the buyer account can do this (${esc(S.owner)}).</p>`; return; }
+  if (!confirm(method === "cancel_payout_change" ? `Cancel the pending payout address change for ${sid}? The current address stays.` : `Approve the new payout address for ${sid}?\n\nOnly if you called the supplier on a number you already had and they confirmed the new address character by character. It still takes effect only 72 hours after it was proposed.`)) return;
+  try {
+    sessionStorage.setItem("ctp-inbox-pending", JSON.stringify({ addr: sid, method }));
+    out.innerHTML = `<p class="muted">Waiting for your wallet…</p>`;
+    const res = await S.wallet.signAndSendTransaction({ receiverId: contract(), actions: [{ type: "FunctionCall", params: { methodName: method, args: { supplier_id: sid }, gas: (50n * 10n ** 12n).toString(), deposit: "1" } }] });
+    sessionStorage.removeItem("ctp-inbox-pending");
+    const h = res?.transaction?.hash || res?.transaction_outcome?.id, f = res?.status?.Failure;
+    await addrChanges();
+    const o = $("adx-" + sid) || $("alist2");
+    if (o) o.insertAdjacentHTML("beforeend", f ? `<p class="err">The contract refused it: ${esc(JSON.stringify(f).slice(0, 200))}</p>` : `<p class="okline">${method === "cancel_payout_change" ? "Cancelled. The address stays as it was." : "Approved. It takes effect at the time shown."}</p>${h ? `<div class="row"><a class="btn ghost" href="${TX(h)}" target="_blank" rel="noopener">The transaction on NearBlocks</a></div>` : ""}`);
+    if (!f && method === "cancel_payout_change" && !$("adx-" + sid)) $("addr").hidden = false, $("alist2").innerHTML = `<p class="okline">Cancelled. The address stays as it was.${h ? ` <a href="${TX(h)}" target="_blank" rel="noopener">The transaction</a>` : ""}</p>`;
+  } catch (e) { sessionStorage.removeItem("ctp-inbox-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
 }
 
 // ---------------------------------------------------------------- payment actions, signed by the buyer's wallet
@@ -478,35 +533,60 @@ document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("
   S.filter = b.dataset.f; S.shown = PAGE; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); paint();
 }));
 function paintWho() {
+  if ($("whelp-owner") && S.owner) $("whelp-owner").textContent = S.owner;
   $("acct").innerHTML = S.me ? `Signed in as <b>${esc(S.me)}</b>` : "Not connected";
   $("f-you").textContent = S.me ? (S.me === S.owner ? "the buyer ✓" : "not the buyer") : "–";
   $("connect").hidden = !!S.me; $("disconnect").hidden = !S.me;
 }
-async function initWallet() {
-  try {
-    const W = await import("../wallet.js");
-    S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMyNearWallet(), W.setupMeteorWallet()] });
-    S.modal = W.setupModal(S.selector, { description: "Sign in with the buyer's account to pay, cancel or retry invoices." });
-    const sync = async () => { const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0]; S.me = a ? a.accountId : null; S.wallet = S.me ? await S.selector.wallet() : null; paintWho(); };
-    S.selector.store.observable.subscribe(sync); await sync();
-  } catch (e) { $("acct").textContent = "The wallet could not load: " + e.message; }
+let walletLoading = null;
+function initWallet() {
+  // The wallet code is large (about 1.8 MB, less when compressed): load it once, and say so while it loads.
+  if (walletLoading) return walletLoading;
+  const btn = $("connect"); btn.disabled = true; btn.textContent = "Loading the wallet…";
+  walletLoading = (async () => {
+    try {
+      const W = await import("../wallet.js");
+      S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMyNearWallet(), W.setupMeteorWallet()] });
+      S.modal = W.setupModal(S.selector, { description: "Sign in with the buyer's account to pay, cancel or retry invoices." });
+      S.modal.on("onHide", () => { if (!S.me) $("whelp").hidden = false; });
+      const sync = async () => {
+        const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
+        S.me = a ? a.accountId : null; S.wallet = S.me ? await S.selector.wallet() : null;
+        if (S.me) $("whelp").hidden = true;
+        paintWho();
+      };
+      S.selector.store.observable.subscribe(sync); await sync();
+      btn.disabled = false; btn.textContent = "Connect wallet";
+    } catch (e) {
+      walletLoading = null; btn.disabled = false; btn.textContent = "Try again";
+      $("acct").textContent = "The wallet could not load (" + (e.message || e) + "). Check your connection and try again.";
+    }
+  })();
+  return walletLoading;
 }
-$("connect").onclick = () => (S.modal ? S.modal.show() : initWallet().then(() => S.modal && S.modal.show()));
+$("connect").onclick = async () => {
+  await initWallet(); if (!S.modal) return;
+  S.modal.show();
+  clearTimeout(S.helpTimer); S.helpTimer = setTimeout(() => { if (!S.me) $("whelp").hidden = false; }, 9000);
+};
 $("disconnect").onclick = async () => { try { await S.wallet.signOut(); } catch {} S.me = null; S.wallet = null; paintWho(); };
 async function returning() {
   const q = new URLSearchParams(location.search), p = JSON.parse(sessionStorage.getItem("ctp-inbox-pending") || "null");
   if (!p || (!q.get("transactionHashes") && !q.get("errorCode"))) return;
   sessionStorage.removeItem("ctp-inbox-pending"); history.replaceState(null, "", location.pathname + location.hash);
   if (q.get("errorCode")) return;
+  if (p.addr) { await addrChanges(); $("addr").hidden = false; $("alist2").insertAdjacentHTML("afterbegin", `<p class="okline">Back from your wallet. <a href="${TX(q.get("transactionHashes").split(",").pop())}" target="_blank" rel="noopener">The transaction on NearBlocks</a></p>`); return; }
   const hash = q.get("transactionHashes").split(",").pop();
   let failure = null; try { const t = await rpc("tx", { tx_hash: hash, sender_account_id: S.me || S.owner, wait_until: "EXECUTED_OPTIMISTIC" }); failure = t.status?.Failure || null; } catch {}
   await after(p.id, hash, failure);
 }
 
+banner("buyer"); guide("buyer");
 setContract(S.c, false);
 arrived();
+const walletReady = initWallet();
 await load(); paintSigs();
-await initWallet();
+await walletReady;
 await returning();
 </script>
 <script>
@@ -531,7 +611,7 @@ await returning();
 /* Console bar: remember who is using it, and mark the pages for that role. */
 (() => {
   const FOR = { buyer: ["judge", "setup", "inbox"], signer: ["sign"], supplier: ["sign"] };
-  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. Your page is Sign: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. Your page is Sign: your company as the contract sees it, your invoices and payments, and your alerts."};
+  const HINT = {"buyer": "You run setup, approve and pay. Your pages: Buyer setup (suppliers, orders, limits, the agent's key, alerts), the Inbox (what needs you) and Judge mode.", "signer": "You confirm what arrived. The Sign page is the Delivery signer page: your key, whether the buyer has registered it, and the delivery links the buyer sends you. Your key stays on your phone.", "supplier": "You sign your own invoices and watch your payout address. The Sign page is the Supplier page: your company as the contract sees it, your invoices and payments, and your alerts."};
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));

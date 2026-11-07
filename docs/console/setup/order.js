@@ -1,0 +1,363 @@
+// Clear to Pay: the "New order" wizard on Buyer setup.
+// Supplier → order lines → delivery signers → limits → review → ONE signed transaction.
+// Filling fields never opens the wallet. The draft autosaves in this browser. The single
+// transaction carries every owner call as an action, so NEAR applies all of it or none of it.
+import * as C from "../crypto.js";
+import { $, esc, short, view, TX, USDC, isRef, isSupplierId, isRole, isAccount, isPubKey, toUnits, fromUnits, encodeLink, decodeLink, copy, alertLink, netOf } from "../chain.js";
+
+// Gas per action, in Tgas. The sandbox test a_whole_order_is_set_up_in_one_signed_transaction_or_not_at_all
+// sends this exact batch (a 50-line order) and prints what NEAR burned; keep the two in step.
+export const WIZARD_GAS = { register_supplier: 20, add_delivery_signer: 15, create_order: 60, set_delivery_policy: 15, set_limits: 15 };
+const MAX_TX_TGAS = 300, U64_MAX = (1n << 64n) - 1n, U128_MAX = (1n << 128n) - 1n, H72 = 72 * 3600 * 1000;
+const STEPS = ["Supplier", "Order lines", "Delivery signers", "Limits", "Review"];
+const blank = () => ({ v: 1, step: 1, back: false, max: 1,
+  sup: { mode: "existing", id: "", key: "", addr: "", calledFor: "" },
+  po: { id: "", lines: [{ sku: "", qty: "", price: "" }] },
+  sig: { pick: [], add: [] },
+  lim: { inv: "", per: "", hours: "", max: "" },
+  done: null });
+
+let K, D, X = null; // K: the page (S, contract, net, refresh, openAdvanced); D: the draft; X: what the chain holds now
+const key = () => "ctp-order-draft:" + K.contract();
+function load() { try { const d = JSON.parse(localStorage.getItem(key()) || "null"); return d && d.v === 1 ? { ...blank(), ...d } : blank(); } catch { return blank(); } }
+function save() { try { localStorage.setItem(key(), JSON.stringify(D)); $("wz-saved").textContent = "Draft saved in this browser"; } catch { $("wz-saved").textContent = "This browser would not keep the draft"; } }
+const fail = (step, m) => { const e = new Error(m); e.step = step; throw e; };
+const usdUnits = (u) => fromUnits(u) + " USDC";
+const whenText = (ms) => new Date(ms).toLocaleString([], { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+// ---------------------------------------------------------------- what the chain holds
+async function snapshot() {
+  const c = K.contract();
+  const [ids, signers, limits] = await Promise.all([view(c, "get_supplier_ids"), view(c, "get_delivery_signers"), view(c, "get_limits")]);
+  const sups = (await Promise.all(ids.slice(0, 100).map((id) => view(c, "get_supplier", { supplier_id: id }).catch(() => null)))).filter(Boolean);
+  X = { suppliers: sups.map((s) => ({ id: s.supplier_id, key: s.signing_key, addr: s.route_on_file.address, payable: !!s.payable_route, from: Number(BigInt(s.route_payable_from) / 1_000_000n) })), signers, limits };
+  if (!D.lim.inv && BigInt(limits.per_invoice) > 0n) D.lim = { inv: fromUnits(limits.per_invoice), per: fromUnits(limits.per_supplier_per_period), hours: String(limits.period_hours), max: String(limits.max_submissions_per_day || 100) };
+}
+
+// ---------------------------------------------------------------- the plan: exactly what will be signed
+export function plan(d, x, contract) {
+  const supKeys = new Set(x.suppliers.map((s) => s.key)), sigKeys = new Set(x.signers.map((s) => s.key));
+  // 1. supplier
+  let sup;
+  if (d.sup.mode === "existing") {
+    sup = x.suppliers.find((s) => s.id === d.sup.id) || fail(1, "Choose a registered supplier, or add a new one.");
+  } else {
+    const id = d.sup.id.trim(), k = d.sup.key.trim(), a = d.sup.addr.trim();
+    if (!isSupplierId(id)) fail(1, "Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
+    if (x.suppliers.some((s) => s.id === id)) fail(1, `${id} is already registered: choose it from the list instead.`);
+    if (!isPubKey(k)) fail(1, "The supplier's signing key must look like ed25519:… (paste their reply to fill it).");
+    if (supKeys.has(k)) fail(1, "That key already belongs to another supplier.");
+    if (sigKeys.has(k)) fail(1, "That key is a delivery signer's key; a supplier needs its own.");
+    if (!isAccount(a)) fail(1, "The payout account must be a NEAR account id.");
+    if (d.sup.calledFor !== `${a}|${k}`) fail(1, "Tick that you called the supplier and they read this address back to you.");
+    sup = { id, key: k, addr: a, isNew: true, from: Date.now() + H72 };
+  }
+  // 2. order lines
+  const po = d.po.id.trim();
+  if (!isRef(po)) fail(2, "Order number: 1 to 64 of A-Z, a-z, 0-9, '-', '_', '.', '/'.");
+  const rows = d.po.lines.filter((l) => l.sku.trim() || l.qty.trim() || l.price.trim());
+  if (!rows.length || rows.length > 50) fail(2, "An order needs 1 to 50 lines.");
+  const lines = rows.map((l, n) => {
+    const sku = l.sku.trim(), qty = l.qty.trim(), u = toUnits(l.price);
+    if (!isRef(sku)) fail(2, `Line ${n + 1}: the item code is not valid.`);
+    if (!/^[1-9]\d{0,19}$/.test(qty) || BigInt(qty) > U64_MAX) fail(2, `Line ${n + 1}: quantity must be a whole number above 0.`);
+    if (!u || u === "0" || BigInt(u) > U128_MAX) fail(2, `Line ${n + 1}: price in USDC, up to 6 decimals, above 0.`);
+    return { sku, qty, unit_price: u };
+  });
+  if (new Set(lines.map((l) => l.sku)).size !== lines.length) fail(2, "The same item is on two lines.");
+  const total = lines.reduce((t, l) => t + BigInt(l.qty) * BigInt(l.unit_price), 0n);
+  if (total > U128_MAX) fail(2, "The order total is too large.");
+  // 3. delivery signers
+  const picked = x.signers.filter((s) => d.sig.pick.includes(s.key));
+  const added = d.sig.add.filter((s) => s.key.trim() || s.role.trim()).map((s, n) => {
+    const k = s.key.trim(), r = s.role.trim();
+    if (!isPubKey(k)) fail(3, `New signer ${n + 1}: the key must look like ed25519:…`);
+    if (!isRole(r)) fail(3, `New signer ${n + 1}: role is 1 to 32 of a-z, 0-9, '-'.`);
+    if (sigKeys.has(k)) fail(3, `New signer ${n + 1} is already registered: tick it in the list instead.`);
+    if (supKeys.has(k) || k === sup.key) fail(3, `New signer ${n + 1}'s key is a supplier's key; signers need their own.`);
+    return { key: k, role: r };
+  });
+  if (new Set(added.map((s) => s.key)).size !== added.length) fail(3, "The same new key is listed twice.");
+  if (x.signers.length + added.length > 20) fail(3, "A contract holds at most 20 delivery signers.");
+  const roles = [...new Set([...picked, ...added].map((s) => s.role))];
+  if (roles.length < 2) fail(3, "Choose signers in at least two different roles (for example storekeeper and weighbridge).");
+  if (roles.length > 5) fail(3, "At most 5 roles per order.");
+  // 4. limits
+  const inv = toUnits(d.lim.inv), per = toUnits(d.lim.per), hours = String(d.lim.hours).trim(), maxs = String(d.lim.max).trim();
+  if (!inv || !per || inv === "0") fail(4, "Limits are USDC amounts above 0, up to 6 decimals.");
+  if (BigInt(inv) > BigInt(per)) fail(4, "The single-invoice limit cannot be above the period limit.");
+  if (!/^\d{1,4}$/.test(hours) || +hours < 1 || +hours > 8784) fail(4, "The period is 1 to 8784 hours.");
+  if (!/^\d{1,4}$/.test(maxs) || +maxs < 1 || +maxs > 1000) fail(4, "Submissions per day: 1 to 1000.");
+  const L = x.limits, limitsChanged = inv !== String(L.per_invoice) || per !== String(L.per_supplier_per_period) || hours !== String(L.period_hours) || +maxs !== +(L.max_submissions_per_day || 0);
+  // the transaction
+  const actions = [];
+  if (sup.isNew) actions.push(["register_supplier", { supplier_id: sup.id, signing_key: sup.key, route: { chain: "near", token: USDC, address: sup.addr } }]);
+  for (const s of added) actions.push(["add_delivery_signer", { key: s.key, role: s.role }]);
+  actions.push(["create_order", { order_id: po, supplier_id: sup.id, token: USDC, lines }]);
+  actions.push(["set_delivery_policy", { order_id: po, required: 2, roles }]);
+  if (limitsChanged) actions.push(["set_limits", { per_invoice: inv, per_supplier_per_period: per, period_hours: hours, max_submissions_per_day: +maxs }]);
+  const tgas = actions.reduce((t, [m]) => t + WIZARD_GAS[m], 0);
+  if (tgas > MAX_TX_TGAS) fail(3, `This order needs ${tgas} Tgas, above NEAR's ${MAX_TX_TGAS} per transaction: add fewer new signers at once.`);
+  return { contract, sup, po, lines, total: total.toString(), picked, added, roles, limits: { inv, per, hours, max: +maxs, changed: limitsChanged }, actions, tgas };
+}
+export const walletActions = (p) => p.actions.map(([m, args]) => ({ type: "FunctionCall", params: { methodName: m, args, gas: (BigInt(WIZARD_GAS[m]) * 10n ** 12n).toString(), deposit: "1" } }));
+
+// ---------------------------------------------------------------- invitation replies
+function readReply(text) {
+  const t = String(text).trim(); let o;
+  const m = /[#&?]a=([A-Za-z0-9_-]+)/.exec(t);
+  try { o = m ? decodeLink(m[1]) : t.startsWith("{") ? JSON.parse(t) : decodeLink(t); } catch { throw new Error("That is not a reply from a Clear to Pay invitation."); }
+  if (!o || !isPubKey(o.key)) throw new Error("The reply has no valid key.");
+  if (o.contract && o.contract !== K.contract()) throw new Error(`That reply is for ${o.contract}; switch to it at the top first.`);
+  return o;
+}
+function inviteLink(j) { return new URL("../sign/#j=" + encodeLink({ contract: K.contract(), ...j }), location.href).href; }
+function showLink(box, link, label) {
+  box.innerHTML = `<div class="linkout"><code>${esc(link)}</code><div class="qr">${C.qrSvg(link)}</div></div><div class="row"><button class="btn" type="button">${esc(label)}</button></div>`;
+  box.querySelector("button").onclick = (e) => copy(link, e.target);
+}
+export function rolePageLink(role, roleName) {
+  const q = new URLSearchParams({ r: role, c: netOf(K.contract()) || "demo" }); if (roleName) q.set("as", roleName);
+  return new URL("../sign/#" + q.toString(), location.href).href;
+}
+
+// ---------------------------------------------------------------- the steps
+function stepper() {
+  $("wz-steps").innerHTML = STEPS.map((s, i) => `<li><button type="button" data-go="${i + 1}" ${i + 1 > D.max && !D.done ? "disabled" : ""} ${D.step === i + 1 ? 'aria-current="step"' : ""}><b>${i + 1}</b>${esc(s)}</button></li>`).join("");
+  $("wz-steps").querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => go(+b.dataset.go)));
+}
+function go(n) { D.step = n; D.max = Math.max(D.max, n); save(); paint(); $("wiz").scrollIntoView({ block: "start", behavior: "smooth" }); }
+const field = (id, label, hint, value, attrs = "") => `<label>${esc(label)}${hint ? `<span>${esc(hint)}</span>` : ""}<input id="${id}" value="${esc(value)}" autocomplete="off" spellcheck="false" ${attrs}></label>`;
+
+function paintSupplier(b) {
+  const s = D.sup, opts = X.suppliers.map((x) => `<option value="${esc(x.id)}" ${x.id === s.id ? "selected" : ""}>${esc(x.id)} → ${esc(x.addr)}${x.payable ? "" : " (in its 72-hour wait)"}</option>`).join("");
+  b.innerHTML = `<div class="seg" role="radiogroup" aria-label="Supplier">
+      <label><input type="radio" name="wz-sm" value="existing" ${s.mode === "existing" ? "checked" : ""} ${X.suppliers.length ? "" : "disabled"}> A registered supplier</label>
+      <label><input type="radio" name="wz-sm" value="new" ${s.mode === "new" ? "checked" : ""}> A new supplier</label></div>
+    <div id="wz-sx"></div>`;
+  const sx = $("wz-sx");
+  if (s.mode === "existing" && X.suppliers.length) {
+    if (!X.suppliers.some((x) => x.id === s.id)) s.id = X.suppliers[0].id;
+    const cur = X.suppliers.find((x) => x.id === s.id);
+    sx.innerHTML = `<div class="fields"><label>Supplier<select id="wz-sid">${opts}</select></label></div>
+      <p class="note">Paid only to <b>${esc(cur.addr)}</b>, ${cur.payable ? "payable now" : "payable from " + esc(whenText(cur.from))}. Changing it needs the supplier's signed request, your approval and 72 hours.</p>`;
+    $("wz-sid").onchange = (e) => { s.id = e.target.value; save(); paint(); };
+  } else {
+    if (s.mode !== "new") s.mode = "new";
+    const ok = s.calledFor === `${s.addr.trim()}|${s.key.trim()}` && s.addr.trim();
+    sx.innerHTML = `<div class="two">
+      <div class="fields">
+        <label>Paste the supplier's reply<span>the link they sent back after your invitation</span><textarea id="wz-sreply" rows="3" placeholder="https://…/console/setup/#a=…"></textarea></label>
+        <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-suse">Use this reply</button></div>
+        ${field("wz-sid", "Supplier id", "a-z, 0-9, '-', '_', '.'", s.id)}
+        ${field("wz-skey", "Their signing key", "from their phone; ed25519:…", s.key)}
+        ${field("wz-saddr", "Their payout account on NEAR", "where they will be paid", s.addr)}
+        <label class="confirm big"><input type="checkbox" id="wz-called" ${ok ? "checked" : ""}> I called the supplier on a number I already had, and they read this address back to me: <b id="wz-caddr">${esc(s.addr.trim() || "this address")}</b>.</label>
+        <p class="note">Payable from <b>${esc(whenText(Date.now() + H72))}</b> at the earliest: every new address waits 72 hours.</p>
+      </div>
+      <div class="invbox"><b>No reply yet?</b><p class="muted">Send the supplier an invitation. They open it on their phone, a key is made there, and they send you a reply to paste here.</p>
+        <div class="row" style="margin-top:0"><button class="btn" type="button" id="wz-sinv">Make the supplier's invitation</button></div><div id="wz-sinvout"></div></div></div>`;
+    const bind = (id, f) => ($(id).oninput = (e) => { s[f] = e.target.value; if (f !== "id") { s.calledFor = ""; $("wz-called").checked = false; } if (f === "addr") $("wz-caddr").textContent = s.addr.trim() || "this address"; save(); });
+    bind("wz-sid", "id"); bind("wz-skey", "key"); bind("wz-saddr", "addr");
+    $("wz-called").onchange = (e) => { s.calledFor = e.target.checked ? `${s.addr.trim()}|${s.key.trim()}` : ""; save(); paint(); };
+    $("wz-suse").onclick = () => { try { const o = readReply($("wz-sreply").value); if (o.kind && o.kind !== "supplier") throw new Error("That is a delivery signer's reply; paste it at step 3."); s.key = o.key; if (o.supplier_id) s.id = o.supplier_id; if (o.address) s.addr = o.address; s.calledFor = ""; save(); paint(); msg("Reply read. Now call the supplier and check the address."); } catch (e) { msg(e.message, true); } };
+    $("wz-sinv").onclick = () => { const id = $("wz-sid").value.trim(); if (!isSupplierId(id)) { msg("Type the supplier id first (a-z, 0-9, '-', '_', '.').", true); return; } s.id = id; save(); showLink($("wz-sinvout"), inviteLink({ kind: "supplier", supplier_id: id }), "Copy the invitation"); };
+  }
+  b.querySelectorAll('input[name="wz-sm"]').forEach((r) => (r.onchange = () => { s.mode = r.value; s.id = ""; save(); paint(); }));
+}
+function paintLines(b) {
+  const p = D.po;
+  if (!p.id) p.id = "PO-" + new Date().toISOString().slice(2, 10).replace(/-/g, "") + "-" + Math.floor(Math.random() * 900 + 100);
+  let total = 0n;
+  const rows = p.lines.map((l, i) => {
+    const u = toUnits(l.price), ok = u && /^[1-9]\d{0,19}$/.test(l.qty.trim());
+    if (ok) total += BigInt(l.qty.trim()) * BigInt(u);
+    return `<div class="lrow3"><input aria-label="Item ${i + 1}" data-l="${i}" data-f="sku" value="${esc(l.sku)}" placeholder="AH36-12mm"><input aria-label="Quantity ${i + 1}" data-l="${i}" data-f="qty" value="${esc(l.qty)}" inputmode="numeric" placeholder="30"><input aria-label="Unit price ${i + 1} in USDC" data-l="${i}" data-f="price" value="${esc(l.price)}" inputmode="decimal" placeholder="0.78"><button type="button" class="x" data-rm="${i}" aria-label="Remove line ${i + 1}">×</button>
+      <small>${u ? `${esc(fromUnits(u))} USDC = <code>${esc(u)}</code> units` : "&nbsp;"}</small></div>`;
+  }).join("");
+  b.innerHTML = `<div class="fields">${field("wz-po", "Order number", "your purchase order reference", p.id)}
+    <div class="linegrid"><span class="muted" style="font:400 12.5px var(--mono)">Item · quantity · unit price in USDC</span>${rows}</div>
+    <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-add">Add a line</button><span class="tot">Total <b id="wz-tot">${esc(fromUnits(total))} USDC</b></span></div></div>`;
+  $("wz-po").oninput = (e) => { p.id = e.target.value; save(); };
+  b.querySelectorAll("[data-l]").forEach((inp) => (inp.oninput = (e) => { p.lines[+inp.dataset.l][inp.dataset.f] = e.target.value; save(); const sm = inp.parentElement.querySelector("small"), l = p.lines[+inp.dataset.l], u = toUnits(l.price); sm.innerHTML = u ? `${esc(fromUnits(u))} USDC = <code>${esc(u)}</code> units` : "&nbsp;"; let t = 0n; for (const x of p.lines) { const v = toUnits(x.price); if (v && /^[1-9]\d{0,19}$/.test(x.qty.trim())) t += BigInt(x.qty.trim()) * BigInt(v); } $("wz-tot").textContent = fromUnits(t) + " USDC"; }));
+  b.querySelectorAll("[data-rm]").forEach((x) => (x.onclick = () => { p.lines.splice(+x.dataset.rm, 1); if (!p.lines.length) p.lines.push({ sku: "", qty: "", price: "" }); save(); paint(); }));
+  $("wz-add").onclick = () => { if (p.lines.length < 50) { p.lines.push({ sku: "", qty: "", price: "" }); save(); paint(); } };
+}
+function paintSigners(b) {
+  const g = D.sig;
+  const list = X.signers.map((s) => `<label class="pickrow"><input type="checkbox" data-pick="${esc(s.key)}" ${g.pick.includes(s.key) ? "checked" : ""}><span><b>${esc(s.role)}</b><small>${esc(short(s.key, 10))} · registered</small></span></label>`).join("");
+  const adds = g.add.map((s, i) => `<div class="lrow2"><input aria-label="New signer ${i + 1} key" data-a="${i}" data-f="key" value="${esc(s.key)}" placeholder="ed25519:…"><input aria-label="New signer ${i + 1} role" data-a="${i}" data-f="role" value="${esc(s.role)}" placeholder="weighbridge"><button type="button" class="x" data-arm="${i}" aria-label="Remove new signer ${i + 1}">×</button></div>`).join("");
+  const roles = [...new Set([...X.signers.filter((s) => g.pick.includes(s.key)), ...g.add.filter((s) => isRole(s.role.trim()))].map((s) => s.role.trim()))];
+  b.innerHTML = `<div class="two"><div class="fields">
+      ${X.signers.length ? `<div class="picks"><span class="muted" style="font:400 12.5px var(--mono)">Registered signers: tick who confirms this order's deliveries</span>${list}</div>` : `<p class="muted">No delivery signers registered yet. Add two below, in two different roles.</p>`}
+      <label>Paste a signer's reply<span>the link a storekeeper or weighbridge sent back</span><textarea id="wz-greply" rows="2" placeholder="https://…/console/setup/#a=…"></textarea></label>
+      <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-guse">Use this reply</button><button class="btn ghost" type="button" id="wz-gadd">Add a key by hand</button></div>
+      ${adds ? `<div class="linegrid"><span class="muted" style="font:400 12.5px var(--mono)">New signers (registered by this order's transaction) · key · role</span>${adds}</div>` : ""}
+      <p class="note" id="wz-roles">${roles.length >= 2 ? `Delivery needs 2 signatures, from 2 of these roles: <b>${esc(roles.join(", "))}</b>.` : `Roles so far: ${esc(roles.join(", ") || "none")}. Two different roles are needed.`}</p></div>
+    <div class="invbox"><b>Invite a signer</b><p class="muted">Their phone makes the key. Register a key only if you sent that person the invitation.</p>
+      <div class="fields" style="margin-top:0"><label>Role<input id="wz-grole" placeholder="weighbridge" autocomplete="off"></label></div>
+      <div class="row" style="margin-top:0"><button class="btn" type="button" id="wz-ginv">Make the invitation</button></div><div id="wz-ginvout"></div></div></div>`;
+  b.querySelectorAll("[data-pick]").forEach((c) => (c.onchange = () => { const k = c.dataset.pick; g.pick = c.checked ? [...new Set([...g.pick, k])] : g.pick.filter((x) => x !== k); save(); paint(); }));
+  b.querySelectorAll("[data-a]").forEach((inp) => (inp.oninput = (e) => { g.add[+inp.dataset.a][inp.dataset.f] = e.target.value; save(); }));
+  b.querySelectorAll("[data-arm]").forEach((x) => (x.onclick = () => { g.add.splice(+x.dataset.arm, 1); save(); paint(); }));
+  $("wz-gadd").onclick = () => { g.add.push({ key: "", role: "" }); save(); paint(); };
+  $("wz-guse").onclick = () => { try { const o = readReply($("wz-greply").value); if (o.kind === "supplier") throw new Error("That is the supplier's reply; it belongs at step 1."); if (X.signers.some((s) => s.key === o.key)) { g.pick = [...new Set([...g.pick, o.key])]; } else if (!g.add.some((s) => s.key === o.key)) g.add.push({ key: o.key, role: isRole(o.role) ? o.role : "" }); save(); paint(); msg("Signer added. Register a key only if you sent that person the invitation."); } catch (e) { msg(e.message, true); } };
+  $("wz-ginv").onclick = () => { const r = $("wz-grole").value.trim(); if (!isRole(r)) { msg("Role: 1 to 32 of a-z, 0-9, '-'.", true); return; } showLink($("wz-ginvout"), inviteLink({ kind: "signer", role: r }), "Copy the invitation"); };
+}
+function paintLimits(b) {
+  const l = D.lim, L = X.limits, set = BigInt(L.per_invoice) > 0n;
+  b.innerHTML = `<p class="muted">${set ? `Now on chain: ${esc(usdUnits(L.per_invoice))} per invoice · ${esc(usdUnits(L.per_supplier_per_period))} per supplier every ${esc(String(L.period_hours))} h · ${esc(String(L.max_submissions_per_day))} submissions a day. Change them only if this order needs it; unchanged limits are not part of the transaction.` : "No limits are set yet, so nothing could clear. Set them now; they become part of this order's transaction."}</p>
+    <div class="fields grid2">${field("wz-linv", "Largest single invoice", "USDC", l.inv, 'inputmode="decimal"')}${field("wz-lper", "Most per supplier per period", "USDC", l.per, 'inputmode="decimal"')}
+      ${field("wz-lh", "Period", "hours, 1 to 8784", l.hours, 'inputmode="numeric"')}${field("wz-lmax", "Most submissions per day", "1 to 1000, any verdict", l.max, 'inputmode="numeric"')}</div>`;
+  [["wz-linv", "inv"], ["wz-lper", "per"], ["wz-lh", "hours"], ["wz-lmax", "max"]].forEach(([id, f]) => ($(id).oninput = (e) => { l[f] = e.target.value; save(); }));
+}
+function section(n, title, body) { return `<section class="rv"><div class="rv-h"><h4>${esc(title)}</h4>${D.done ? "" : `<button class="btn ghost sm" type="button" data-edit="${n}">Edit</button>`}</div>${body}</section>`; }
+function reviewHTML(p) {
+  const sup = p.sup;
+  return section(1, "Supplier", `<dl class="kv2"><dt>Supplier</dt><dd>${esc(sup.id)}${sup.isNew ? ' <em class="tag">new</em>' : ""}</dd><dt>Paid only to</dt><dd><b>${esc(sup.addr)}</b></dd><dt>Payable from</dt><dd>${esc(sup.isNew ? whenText(Date.now() + H72) + " (72 hours after signing)" : whenText(sup.from))}</dd>${sup.isNew ? `<dt>Signing key</dt><dd><code>${esc(short(sup.key, 12))}</code></dd><dt>Address check</dt><dd>You called them and they read it back</dd>` : ""}</dl>`)
+    + section(2, `Order ${p.po}`, `<table class="lt"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Units</th><th>Line total</th></tr></thead><tbody>${p.lines.map((l) => `<tr><td>${esc(l.sku)}</td><td>${esc(l.qty)}</td><td>${esc(fromUnits(l.unit_price))} USDC</td><td><code>${esc(l.unit_price)}</code></td><td>${esc(fromUnits((BigInt(l.qty) * BigInt(l.unit_price)).toString()))} USDC</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="4">Total</td><td><b>${esc(usdUnits(p.total))}</b></td></tr></tfoot></table>`)
+    + section(3, "Delivery", `<dl class="kv2"><dt>Rule</dt><dd>2 signatures, from 2 different roles of: <b>${esc(p.roles.join(", "))}</b></dd>${[...p.picked.map((s) => [s, "registered"]), ...p.added.map((s) => [s, "new"])].map(([s, t]) => `<dt>${esc(s.role)}</dt><dd><code>${esc(short(s.key, 10))}</code> <em class="tag ${t === "registered" ? "reg" : ""}">${t}</em></dd>`).join("")}</dl>`)
+    + section(4, "Limits", `<dl class="kv2"><dt>Per invoice</dt><dd>${esc(usdUnits(p.limits.inv))}</dd><dt>Per supplier</dt><dd>${esc(usdUnits(p.limits.per))} every ${esc(p.limits.hours)} h</dd><dt>Submissions a day</dt><dd>${esc(String(p.limits.max))}</dd><dt></dt><dd class="muted">${p.limits.changed ? "These replace the limits on chain." : "Unchanged: not part of the transaction."}</dd></dl>`);
+}
+function paintReview(b) {
+  let p;
+  try { p = plan(D, X, K.contract()); } catch (e) { b.innerHTML = `<p class="err">${esc(e.message)}</p><div class="row"><button class="btn" type="button" id="wz-fix">Go to step ${e.step}</button></div>`; $("wz-fix").onclick = () => go(e.step); return; }
+  const owner = K.S.owner, me = K.S.me, can = me && owner && me === owner;
+  b.innerHTML = `${reviewHTML(p)}
+    <section class="rv tx"><div class="rv-h"><h4>Your wallet will sign one transaction</h4></div>
+      <p>To <b>${esc(K.contract())}</b>, from <b>${esc(me || owner || "the buyer")}</b>, ${p.actions.length} actions, each with 1 yoctoNEAR (it proves it is you) and its own gas, ${p.tgas} Tgas in all:</p>
+      <ol class="acts2">${p.actions.map(([m, a]) => `<li><code>${esc(m)}</code> <span class="muted">${esc(m === "create_order" ? `${a.order_id}, ${a.lines.length} line${a.lines.length > 1 ? "s" : ""}` : m === "register_supplier" ? `${a.supplier_id} → ${a.route.address}` : m === "add_delivery_signer" ? `${a.role} ${short(a.key, 6)}` : m === "set_delivery_policy" ? `2 of ${a.roles.join(", ")}` : "new limits")}</span> · ${WIZARD_GAS[m]} Tgas</li>`).join("")}</ol>
+      <p class="atomic"><b>All of it lands, or none of it does.</b> NEAR runs the actions of one transaction together: if the contract refuses any of them, none of the others take effect.</p>
+      <details><summary>The exact arguments</summary><pre class="preview">${esc(JSON.stringify(p.actions.map(([m, a]) => ({ method: m, args: a, gas_tgas: WIZARD_GAS[m], deposit_yocto: "1" })), null, 2))}</pre></details></section>
+    <div class="row"><button class="btn ghost" type="button" id="wz-po-dl">Download PO (draft)</button><button class="btn y big" type="button" id="wz-sign" ${can ? "" : "disabled"}>Sign once</button></div>
+    ${can ? "" : `<p class="err">${me ? `Only the buyer account can sign this (${esc(owner)}).` : "Connect the buyer's wallet at the top to sign."}</p>`}
+    <p class="note">Topping up the pool and the agent's key go to other receivers (the token contract, your own account), so they stay separate approvals, after this one, under Advanced.</p>`;
+  b.querySelectorAll("[data-edit]").forEach((x) => (x.onclick = () => { D.back = true; go(+x.dataset.edit); }));
+  $("wz-po-dl").onclick = () => printPO(p, null);
+  $("wz-sign").onclick = () => signOnce(p);
+}
+function paintDone(b) {
+  const d = D.done, p = d.plan;
+  const roleLinks = p.roles.map((r) => `<button class="btn ghost" type="button" data-rl="${esc(r)}">Send the ${esc(r)} their page</button>`).join("");
+  b.innerHTML = `<div class="okline big"><b>${esc(p.po)} is authorised on chain.</b> ${esc(usdUnits(p.total))} to ${esc(p.sup.id)}, paid only to ${esc(p.sup.addr)}.</div>
+    <div class="row"><a class="btn" href="${TX(d.hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a><button class="btn y" type="button" id="wz-po-dl2">Download PO</button></div>
+    <div class="now" id="wz-back">Reading it back from the contract…</div>
+    <h4 class="h4">Next</h4>
+    <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-rsup">Send the supplier their page</button>${roleLinks}</div>
+    <div id="wz-rlout"></div>
+    <p class="note">When goods arrive, make the delivery link for the signers: <button class="linkbtn" type="button" id="wz-dlink">Make the delivery link for ${esc(p.po)}</button>. Pool top-up and the agent's key are separate approvals under <button class="linkbtn" type="button" id="wz-adv">Advanced</button>.</p>
+    <div class="row"><button class="btn ghost" type="button" id="wz-new">Start a new order</button></div>`;
+  $("wz-po-dl2").onclick = () => printPO(p, d);
+  $("wz-rsup").onclick = () => showLink($("wz-rlout"), rolePageLink("supplier"), "Copy the supplier's link");
+  b.querySelectorAll("[data-rl]").forEach((x) => (x.onclick = () => showLink($("wz-rlout"), rolePageLink("signer", x.dataset.rl), `Copy the ${x.dataset.rl}'s link`)));
+  $("wz-dlink").onclick = () => K.openAdvanced("link", { order: p.po, lines: p.lines, roles: p.roles });
+  $("wz-adv").onclick = () => K.openAdvanced("pool");
+  $("wz-new").onclick = () => { if (confirm("Start a new order? This one stays on chain; only the form is cleared.")) { D = blank(); save(); paint(); } };
+  readBack(p);
+}
+async function readBack(p) {
+  const c = K.contract();
+  try {
+    const [o, pol, sg, lim] = await Promise.all([view(c, "get_order", { order_id: p.po }), view(c, "get_delivery_policy", { order_id: p.po }), view(c, "get_delivery_signers"), view(c, "get_limits")]);
+    const okLines = o && o.lines.length === p.lines.length && o.lines.every((l, i) => l.sku === p.lines[i].sku && String(l.qty) === p.lines[i].qty && String(l.unit_price) === p.lines[i].unit_price);
+    const okSup = o && o.supplier_id === p.sup.id, okPol = pol.required === 2 && JSON.stringify(pol.roles) === JSON.stringify(p.roles);
+    const okSig = p.added.every((a) => sg.some((s) => s.key === a.key && s.role === a.role));
+    const okLim = !p.limits.changed || (String(lim.per_invoice) === p.limits.inv && String(lim.per_supplier_per_period) === p.limits.per);
+    const all = okLines && okSup && okPol && okSig && okLim;
+    $("wz-back").innerHTML = `${all ? "<b>Read back from the contract: every part matches.</b>" : "<b>Read back from the contract: something differs.</b> Check the transaction."}
+      <br>Order ${esc(p.po)}: ${okLines && okSup ? `${o.lines.length} lines for ${esc(o.supplier_id)}` : "not as signed"} · delivery policy v${esc(String(pol.version))}: 2 of ${esc(pol.roles.join(", "))} · ${p.added.length} new signer${p.added.length === 1 ? "" : "s"} ${okSig ? "registered" : "missing"}${p.limits.changed ? ` · limits ${okLim ? "set" : "not as signed"}` : ""}`;
+  } catch { $("wz-back").textContent = "Could not read it back right now; the NearBlocks link shows the result."; }
+}
+
+// ---------------------------------------------------------------- sign once
+async function signOnce(p) {
+  const S = K.S;
+  if (!S.wallet || S.me !== S.owner) return;
+  if (!confirm(`You are about to authorise ${p.po} for ${usdUnits(p.total)} to ${p.sup.id}, paid only to ${p.sup.addr}.\n\nOne transaction, ${p.actions.length} actions, on ${K.contract()}. All of it lands, or none of it does.`)) return;
+  const out = $("wz-msg");
+  try {
+    D.signing = { plan: p, at: Date.now() }; save();
+    sessionStorage.setItem("ctp-setup-pending", JSON.stringify({ id: "wizard", c: K.net() }));
+    out.innerHTML = `<p class="muted">Waiting for your wallet…</p>`;
+    const res = await S.wallet.signAndSendTransaction({ receiverId: K.contract(), actions: walletActions(p) });
+    sessionStorage.removeItem("ctp-setup-pending");
+    if (res) await finished(res.transaction?.hash || res.transaction_outcome?.id, res.status?.Failure || null);
+  } catch (e) { sessionStorage.removeItem("ctp-setup-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
+}
+async function finished(hash, failure) {
+  const s = D.signing; D.signing = null;
+  if (failure || !s) { save(); paint(); $("wz-msg").innerHTML = `<p class="err">Nothing was changed: the contract refused the transaction${failure ? ": " + esc(JSON.stringify(failure).slice(0, 260)) : ""}.</p>${hash ? `<a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a>` : ""}`; return; }
+  D.done = { hash, at: Date.now(), contract: K.contract(), buyer: K.S.me || K.S.owner, plan: s.plan }; D.step = 5; save();
+  await snapshot().catch(() => {}); paint(); K.refresh();
+}
+/** Back from a redirect wallet (MyNearWallet): the page reloads with ?transactionHashes=… */
+export async function returned(hash, failure, errorCode) {
+  if (errorCode) { D.signing = null; save(); paint(); $("wz-msg").innerHTML = `<p class="err">The wallet did not sign (${esc(errorCode)}). Nothing was changed.</p>`; return; }
+  await finished(hash, failure);
+  $("wiz").scrollIntoView({ block: "start" });
+}
+
+// ---------------------------------------------------------------- the purchase order, printable (Save as PDF)
+function printPO(p, done) {
+  const po = $("po"), when = done ? new Date(done.at) : new Date();
+  po.innerHTML = `<div class="wm ${done ? "ok" : ""}">${done ? "AUTHORISED ON NEAR TESTNET" : "DRAFT · NOT AUTHORISED"}</div>
+    <header class="po-h"><div><b class="po-brand">Clear to Pay</b><span>Purchase order</span></div><div class="po-no"><b>${esc(p.po)}</b><span>${esc(when.toLocaleDateString([], { day: "2-digit", month: "long", year: "numeric" }))}</span></div></header>
+    <div class="po-cols"><div><h5>Buyer</h5><p>${esc(done ? done.buyer : K.S.owner || "")}</p><h5>Contract</h5><p>${esc(p.contract)}</p></div>
+      <div><h5>Supplier</h5><p>${esc(p.sup.id)}</p><h5>Paid only to</h5><p><b>${esc(p.sup.addr)}</b><br>payable from ${esc(p.sup.isNew ? (done ? whenText(done.at + H72) : "72 hours after signing") : whenText(p.sup.from))}</p></div></div>
+    <table class="po-t"><thead><tr><th>Item</th><th>Quantity</th><th>Unit price (USDC)</th><th>Line total (USDC)</th></tr></thead>
+      <tbody>${p.lines.map((l) => `<tr><td>${esc(l.sku)}</td><td>${esc(l.qty)}</td><td>${esc(fromUnits(l.unit_price))}</td><td>${esc(fromUnits((BigInt(l.qty) * BigInt(l.unit_price)).toString()))}</td></tr>`).join("")}</tbody>
+      <tfoot><tr><td colspan="3">Total</td><td>${esc(fromUnits(p.total))}</td></tr></tfoot></table>
+    <div class="po-cols"><div><h5>Delivery</h5><p>Paid only for goods signed as delivered by 2 different roles of: ${esc(p.roles.join(", "))}.</p></div>
+      <div><h5>Limits</h5><p>${esc(usdUnits(p.limits.inv))} per invoice; ${esc(usdUnits(p.limits.per))} per supplier every ${esc(p.limits.hours)} h.</p></div></div>
+    <footer class="po-f">${done ? `Authorised on NEAR testnet ${esc(new Date(done.at).toISOString().replace("T", " ").slice(0, 16))} UTC · transaction <b>${esc(done.hash)}</b> · check it at testnet.nearblocks.io` : "Draft. Not authorised: nothing has been signed. An authorised order carries its NEAR transaction hash here."}<br>Invoices against this order are paid by the contract only to the registered address, at these prices, once. Testnet: not a real order.</footer>`;
+  document.title = `${p.po} ${done ? "authorised" : "draft"}`;
+  setTimeout(() => { window.print(); document.title = "Clear to Pay Buyer Setup"; }, 50);
+}
+
+// ---------------------------------------------------------------- paint and start
+let msgTimer;
+function msg(t, bad) { const m = $("wz-msg"); m.innerHTML = `<p class="${bad ? "err" : "okline"}">${esc(t)}</p>`; clearTimeout(msgTimer); if (!bad) msgTimer = setTimeout(() => (m.innerHTML = ""), 6000); }
+function paint() {
+  if (!X) return;
+  stepper();
+  const b = $("wz-body"); $("wz-msg").innerHTML = "";
+  if (D.done) { $("wz-title").textContent = "Order authorised"; paintDone(b); $("wz-nav").hidden = true; return; }
+  $("wz-title").textContent = STEPS[D.step - 1];
+  [paintSupplier, paintLines, paintSigners, paintLimits, paintReview][D.step - 1](b);
+  $("wz-nav").hidden = D.step === 5;
+  $("wz-prev").hidden = D.step === 1;
+  $("wz-next").textContent = D.back ? "Back to review" : D.step === 4 ? "Review" : "Next";
+}
+async function next() {
+  try {
+    plan(D, X, K.contract());
+  } catch (e) { if (e.step <= D.step) { msg(e.message, true); return; } }
+  if (D.step === 2) { // an order number must be new
+    try { if (await view(K.contract(), "get_order", { order_id: D.po.id.trim() })) { msg(`${D.po.id.trim()} already exists on ${K.contract()}: choose another order number.`, true); return; } } catch {}
+  }
+  const to = D.back ? 5 : D.step + 1; D.back = false; go(to);
+}
+export async function init(ctx) {
+  K = ctx; D = load();
+  document.addEventListener("ctp-who", () => { if (X && !D.done && D.step === 5) paint(); }); // wallet connected: the Review step's Sign once
+  $("wz-prev").onclick = () => { D.back = false; go(Math.max(1, D.step - 1)); };
+  $("wz-next").onclick = next;
+  $("wz-reset").onclick = () => { if (confirm("Start over? The draft in this browser is cleared.")) { D = blank(); save(); paint(); } };
+  await reload();
+}
+export async function reload() {
+  D = load(); X = null; $("wz-body").innerHTML = `<p class="muted">Reading ${esc(K.contract())}…</p>`;
+  try { await snapshot(); paint(); } catch { $("wz-body").innerHTML = `<p class="err">Could not read the contract. Try again in a moment.</p>`; }
+}
+/** An invitation reply opened as a link (setup/#a=…): it fills the wizard; it never signs anything. */
+export function fromReply(a) {
+  if (a.kind === "supplier" && isSupplierId(a.supplier_id) && isAccount(a.address)) {
+    D.sup = { mode: "new", id: a.supplier_id, key: a.key, addr: a.address, calledFor: "" }; D.done = null; D.step = 1; D.max = Math.max(D.max, 1);
+  } else if (a.kind === "signer") {
+    if (!D.sig.add.some((s) => s.key === a.key) && !X?.signers.some((s) => s.key === a.key)) D.sig.add.push({ key: a.key, role: isRole(a.role) ? a.role : "" });
+    D.done = null; D.step = 3; D.max = Math.max(D.max, 3);
+  } else return;
+  save(); paint();
+  msg(a.kind === "supplier" ? `From an invitation: ${a.supplier_id} asks to be paid to ${a.address}. A link can be faked: call the supplier on a number you already had before you tick the box.` : "From an invitation: a delivery signer's key. Register it only if you sent that person the invitation.");
+  $("wiz").scrollIntoView({ block: "start" });
+}

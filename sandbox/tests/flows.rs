@@ -710,3 +710,81 @@ async fn deposits_from_anyone_but_the_buyer_are_sent_back() -> Result<()> {
     assert_eq!(funds(&w).await?, (POOL, 0));
     Ok(())
 }
+
+/// The Console's "New order" wizard signs ONE transaction with every owner call as an
+/// action. This sends exactly that batch (same methods, order, deposits and gas as
+/// docs/console/setup/ uses), prints the gas NEAR burned, and shows the batch is all or
+/// nothing: when one action fails, none of the earlier ones in it take effect.
+#[tokio::test]
+async fn a_whole_order_is_set_up_in_one_signed_transaction_or_not_at_all() -> Result<()> {
+    use near_workspaces::operations::Function;
+    use near_workspaces::types::Gas;
+    let tag = "batch";
+    let worker = near_workspaces::sandbox().await?;
+    let root = worker.root_account()?;
+    let buyer = root
+        .create_subaccount("buyer")
+        .initial_balance(NearToken::from_near(20))
+        .transact()
+        .await?
+        .into_result()
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+    let guard = root
+        .create_subaccount("guard")
+        .initial_balance(NearToken::from_near(20))
+        .transact()
+        .await?
+        .into_result()
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?
+        .deploy(&wasm("target/near/clear_to_pay.wasm")?)
+        .await?
+        .into_result()?;
+    call(guard.as_account(), guard.id(), "new", json!({"owner": buyer.id()}), NearToken::from_yoctonear(0)).await?;
+
+    let key = || SecretKey::from_random(KeyType::ED25519).public_key().to_string();
+    let (sup, store, weigh) = (key(), key(), key());
+    let usdc = "usdc.test.near";
+    // Gas per action, as in the wizard (WIZARD_GAS in docs/console/setup/index.html).
+    let act = |m: &str, args: Value, tgas: u64| Function::new(m).args_json(args).deposit(ONE_YOCTO).gas(Gas::from_tgas(tgas));
+    let lines: Vec<Value> = (0..50)
+        .map(|i| json!({"sku": format!("SKU-{i:02}"), "qty": "1000", "unit_price": "780000"}))
+        .collect(); // the largest order the contract accepts: 50 lines
+    let r = buyer
+        .batch(guard.id())
+        .call(act("register_supplier", json!({"supplier_id": "acme-steel", "signing_key": sup, "route": {"chain": "near", "token": usdc, "address": "acme.test.near"}}), 20))
+        .call(act("add_delivery_signer", json!({"key": store, "role": "storekeeper"}), 15))
+        .call(act("add_delivery_signer", json!({"key": weigh, "role": "weighbridge"}), 15))
+        .call(act("create_order", json!({"order_id": "PO-9001", "supplier_id": "acme-steel", "token": usdc, "lines": lines}), 60))
+        .call(act("set_delivery_policy", json!({"order_id": "PO-9001", "required": 2, "roles": ["storekeeper", "weighbridge"]}), 15))
+        .call(act("set_limits", json!({"per_invoice": "50000000", "per_supplier_per_period": "200000000", "period_hours": "24", "max_submissions_per_day": 100}), 15))
+        .transact()
+        .await?;
+    let burnt: u64 = r.outcomes().iter().map(|o| o.gas_burnt.as_gas()).sum();
+    let ok = r.is_success();
+    log(tag, &format!("one transaction, 6 actions, 50-line order: success={ok}, gas burnt {:.1} Tgas of 140 attached", burnt as f64 / 1e12));
+    if !ok {
+        bail!("the batch failed: {:?}", r.into_result().err());
+    }
+    let o = view(&guard, "get_order", json!({"order_id": "PO-9001"})).await?;
+    assert_eq!(o["lines"].as_array().map(|l| l.len()), Some(50));
+    let p = view(&guard, "get_delivery_policy", json!({"order_id": "PO-9001"})).await?;
+    assert_eq!(p["roles"], json!(["storekeeper", "weighbridge"]));
+    assert_eq!(p["version"], json!(1));
+    assert_eq!(view(&guard, "get_delivery_signers", json!({})).await?.as_array().map(|a| a.len()), Some(2));
+    assert_eq!(view(&guard, "get_limits", json!({})).await?["per_invoice"], json!("50000000"));
+
+    // All or nothing: a batch whose last action is refused leaves no trace of the others.
+    let extra = key();
+    let r = buyer
+        .batch(guard.id())
+        .call(act("add_delivery_signer", json!({"key": extra, "role": "inspector"}), 15))
+        .call(act("create_order", json!({"order_id": "PO-9002", "supplier_id": "acme-steel", "token": usdc, "lines": [{"sku": "X", "qty": "1", "unit_price": "1"}]}), 60))
+        .call(act("set_limits", json!({"per_invoice": "9", "per_supplier_per_period": "1", "period_hours": "24", "max_submissions_per_day": 100}), 15))
+        .transact()
+        .await?;
+    assert!(r.is_failure(), "the per-invoice limit above the period limit must be refused");
+    assert_eq!(view(&guard, "get_order", json!({"order_id": "PO-9002"})).await?, Value::Null, "the order from a failed batch must not exist");
+    assert_eq!(view(&guard, "get_delivery_signers", json!({})).await?.as_array().map(|a| a.len()), Some(2), "the signer from a failed batch must not exist");
+    log(tag, "a batch with one refused action changed nothing");
+    Ok(())
+}

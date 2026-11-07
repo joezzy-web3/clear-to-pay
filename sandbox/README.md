@@ -12,6 +12,7 @@ function-call key being refused by NEAR itself. Signatures come from the real `c
 - `a_payout_that_fails_returns_the_money_to_the_pool_and_can_be_retried`: FAILED, every unit back in the pool; reauthorised, it pays
 - `near_itself_refuses_what_the_agent_key_must_not_do`: withdraw, change limits, move USDC, attach a deposit: all refused
 - `deposits_from_anyone_but_the_buyer_are_sent_back`: refunded in full
+- `a_whole_order_is_set_up_in_one_signed_transaction_or_not_at_all`: the Console's New order wizard batch (new supplier, two signers, a 50-line order, delivery policy, limits) in one transaction; prints the gas NEAR burned against the wizard's per-action gas; a batch whose last action is refused leaves no trace of the others
 
 The wasm is byte-for-byte the deployed code. To get past the supplier's 72-hour wait, the two
 paying tests rewrite that one stored time on the local node (state patching, which only a sandbox
