@@ -242,6 +242,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <script type="module">
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
+import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy } from "../chain.js";
 initMenu();
 
@@ -420,13 +421,18 @@ async function addrChanges() {
       <div class="ic-m"><h3>${esc(x.route_on_file.address)} → ${esc(p.route.address)}</h3>
       <p class="who">Proposed ${esc(d(p.proposed_at))} · ${p.approved ? "takes effect" : "earliest effect"} ${esc(d(eff))}</p>
       <p class="do">${p.approved ? "You approved this. If the supplier did not ask for it, cancel it now: until it takes effect, payments still go to the old address." : "Signed with the supplier's key. Did the supplier ask for it? Call them on a number you already had. Approve only if they confirm the new address character by character."}</p>
-      <div class="row"><button class="btn r" type="button" data-addr="cancel_payout_change" data-s="${esc(x.supplier_id)}">Cancel the change</button>${p.approved ? "" : `<button class="btn ghost" type="button" data-addr="approve_payout_change" data-s="${esc(x.supplier_id)}">Approve</button>`}</div><div id="adx-${esc(x.supplier_id)}"></div></div></article>`; }).join("");
-  box.querySelectorAll("[data-addr]").forEach((b) => (b.onclick = () => addrAct(b.dataset.addr, b.dataset.s)));
+      <div class="flagslot" data-a="${esc(p.route.address)}"></div>
+      <div class="row"><button class="btn r" type="button" data-addr="cancel_payout_change" data-s="${esc(x.supplier_id)}">Cancel the change</button>${p.approved ? "" : `<button class="btn ghost" type="button" data-addr="approve_payout_change" data-s="${esc(x.supplier_id)}" data-a="${esc(p.route.address)}">Approve</button>`}</div><div id="adx-${esc(x.supplier_id)}"></div></div></article>`; }).join("");
+  injectCss();
+  box.querySelectorAll(".flagslot").forEach(async (el) => { el.innerHTML = flagHtml(el.dataset.a, await flagsFor(el.dataset.a)); });
+  box.querySelectorAll("[data-addr]").forEach((b) => (b.onclick = () => addrAct(b.dataset.addr, b.dataset.s, b.dataset.a)));
 }
-async function addrAct(method, sid) {
+async function addrAct(method, sid, newAddr) {
   const out = $("adx-" + sid);
   if (!S.wallet) { out.innerHTML = `<p class="err">Connect the buyer's wallet first.</p>`; return; }
   if (S.me !== S.owner) { out.innerHTML = `<p class="err">Only the buyer account can do this (${esc(S.owner)}).</p>`; return; }
+  const flagged = method === "approve_payout_change" && newAddr ? (await flagsFor(newAddr)).length : 0;
+  if (flagged && !confirm(`WARNING: ${newAddr} was the payee on ${flagged} seized invoice${flagged === 1 ? "" : "s"}.\n\nThat is how "bank details changed" fraud looks. Go on only if you called the supplier on a number you already had.`)) return;
   if (!confirm(method === "cancel_payout_change" ? `Cancel the pending payout address change for ${sid}? The current address stays.` : `Approve the new payout address for ${sid}?\n\nOnly if you called the supplier on a number you already had and they confirmed the new address character by character. It still takes effect only 72 hours after it was proposed.`)) return;
   try {
     sessionStorage.setItem("ctp-inbox-pending", JSON.stringify({ addr: sid, method }));

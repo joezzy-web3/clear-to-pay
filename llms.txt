@@ -44,7 +44,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 ## Not built yet (stated, not claimed)
 
 - The Intel TDX and NVIDIA certificate chains checked in the browser (the CLI reader checks them on every reading; Judge mode checks signatures and bindings only; the OutLayer route checks NEAR AI's signature and quote binding in the enclave, not NVIDIA)
-- NEAR Intents cross-chain payouts; a shared list of seized addresses; proof of control is optional (NEP-413), not required by the contract
+- NEAR Intents cross-chain payouts; an on-chain list of flagged addresses (today the Console warns from the receipts, in the browser); proof of control is optional (NEP-413), not required by the contract
 - Two colluding insiders in different roles can still confirm a false delivery
 
 ## Main files

@@ -199,12 +199,14 @@ The rule is the same everywhere: whoever benefits from saying "delivered" is nev
 
 **Honestly, today:** setup, delivery signing and invoice signing run in the browser, and so does an AI reading of your own PDF through OutLayer (experimental, Judge mode). The agent's own reading and submission still run from the command line or MCP. The [Inbox](https://clear-to-pay.vercel.app/console/inbox/) shows every invoice's next step: HELD gives the facts and a note to the supplier, SEIZED says do not reply, CLEARED-but-unpaid can be paid, cancelled or retried with the wallet; signatures sent back from phones arrive there checked. The signer pages keep keys in browser storage: demo grade (see THREAT_MODEL.md §7).
 
+**Flagged addresses (7 Nov):** every invoice SEIZED for `payee_mismatch` records the address it asked to be paid to. The Console reads those receipts from the live and the demo contract and warns, with the receipts, when such an address is typed as a new supplier's payout account or proposed as an address change (the Inbox asks twice before approving it); the ledger lists them. A warning, never a block: anyone can name any address in a fake invoice, so an honest supplier's address could be named on purpose. `docs/console/flags.js`.
+
 **Done since the first plan:** address changes are approved or cancelled in the browser (Inbox); a supplier can prove control of its payout account with its own wallet (NEP-413) when it registers; and [Inspect an invoice](https://clear-to-pay.vercel.app/inspect/) walks five attacks through every check, no wallet.
 
 **Next, so nobody needs a terminal** (planned, not claimed):
 - **Submitting the OutLayer reading directly:** today the browser checks the enclave's signature; next, the agent submits the signed reading and anyone can re-check it from the receipt.
 - **Delivery signers sign with their wallet (NEP-413)** instead of a key kept in browser storage.
-- **A shared list of seized addresses:** every SEIZED receipt already records the address an attacker asked for; the next step is a list any buyer's contract can check before registering or approving an address.
+- **A shared, on-chain list of flagged addresses** that other buyers' contracts can read. Today the list is built in the browser (below).
 
 ## NEAR stack used
 

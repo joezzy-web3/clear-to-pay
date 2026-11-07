@@ -4,6 +4,7 @@
 // transaction carries every owner call as an action, so NEAR applies all of it or none of it.
 import * as C from "../crypto.js";
 import { rpc } from "../chain.js";
+import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { $, esc, short, view, TX, USDC, isRef, isSupplierId, isRole, isAccount, isPubKey, toUnits, fromUnits, encodeLink, decodeLink, copy, alertLink, netOf } from "../chain.js";
 
 // Gas per action, in Tgas. The sandbox test a_whole_order_is_set_up_in_one_signed_transaction_or_not_at_all
@@ -179,6 +180,7 @@ function paintSupplier(b) {
         ${field("wz-skey", "Their public signing key", "public key from their phone; ed25519:…", s.key)}
         ${field("wz-saddr", "Their payout account on NEAR", "where they will be paid", s.addr)}
         <label class="confirm big"><input type="checkbox" id="wz-called" ${ok ? "checked" : ""}> I called the supplier on a number I already had, and they read this address back to me: <b id="wz-caddr">${esc(s.addr.trim() || "this address")}</b>.</label>
+        <div id="wz-flag" aria-live="polite"></div>
         <p class="note" id="wz-proof">${s.proof ? "Checking the address proof…" : proofLine({ state: "none" })}</p>
         <p class="note">Payable from <b>${esc(whenText(Date.now() + H72))}</b> at the earliest: every new address waits 72 hours.</p>
       </div>
@@ -186,6 +188,10 @@ function paintSupplier(b) {
         <div class="row" style="margin-top:0"><button class="btn" type="button" id="wz-sinv">Make the supplier's invitation</button></div><div id="wz-sinvout"></div></div></div>`;
     const bind = (id, f) => ($(id).oninput = (e) => { s[f] = e.target.value; if (f !== "id") { s.calledFor = ""; $("wz-called").checked = false; } if (f === "addr") $("wz-caddr").textContent = s.addr.trim() || "this address"; save(); });
     bind("wz-sid", "id"); bind("wz-skey", "key"); bind("wz-saddr", "addr");
+    // An address named in a seized invoice: a warning with the receipts, never a block (flags.js).
+    injectCss();
+    let ft; const flag = () => { clearTimeout(ft); ft = setTimeout(async () => { const a = s.addr.trim(), h = await flagsFor(a); if ($("wz-flag") && s.addr.trim() === a) $("wz-flag").innerHTML = flagHtml(a, h); }, 300); };
+    $("wz-saddr").addEventListener("input", flag); flag();
     $("wz-called").onchange = (e) => { s.calledFor = e.target.checked ? `${s.addr.trim()}|${s.key.trim()}` : ""; save(); paint(); };
     $("wz-suse").onclick = () => { try { const o = readReply($("wz-sreply").value); if (o.kind && o.kind !== "supplier") throw new Error("That is a delivery signer's reply; paste it at step 3."); s.key = o.key; if (o.supplier_id) s.id = o.supplier_id; if (o.address) s.addr = o.address; s.proof = o.proof || null; s.calledFor = ""; save(); paint(); msg("Reply read. Now call the supplier and check the address."); } catch (e) { msg(e.message, true); } };
     if (s.proof) checkProof(s, K.contract()).then((r) => { const el = $("wz-proof"); if (el) el.innerHTML = proofLine(r); });
