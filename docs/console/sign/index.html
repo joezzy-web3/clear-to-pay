@@ -491,6 +491,8 @@ function sendInvoice(c, mine) {
     <p class="plain">Pick the order. The items and prices come from the order on chain, and the payee is your address on file: nobody can change them on this page, not even someone who took over your phone. Your PDF stays here; only its fingerprint is signed.</p>
     <div class="row" style="margin-top:0;align-items:flex-end"><label class="field" style="flex:1;margin:0">Order<input id="si-order" placeholder="PO-1184" autocomplete="off" spellcheck="false"></label><button class="btn ghost" type="button" id="si-load">Load the order</button></div>
     <div id="si-body"></div></div>`);
+  // the buyer's link may carry the order (#…&o=PO-…): load it straight away
+  const pre = P.get("o") || "";
   $("si-load").onclick = async () => {
     const id = $("si-order").value.trim(), body = $("si-body");
     if (!isRef(id)) { body.innerHTML = `<p class="err">Type the order number the buyer gave you.</p>`; return; }
@@ -524,6 +526,7 @@ function sendInvoice(c, mine) {
       } catch (e) { err(e.message || String(e)); }
     };
   };
+  if (isRef(pre)) { $("si-order").value = pre; $("si-load").click(); $("sendinv").scrollIntoView({ block: "start" }); }
 }
 
 // ---------------------------------------------------------------- joining: an invitation from the buyer

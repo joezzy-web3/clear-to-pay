@@ -146,8 +146,8 @@ function showLink(box, link, label) {
   box.innerHTML = `<div class="linkout"><code>${esc(link)}</code><div class="qr">${C.qrSvg(link)}</div></div><div class="row"><button class="btn" type="button">${esc(label)}</button></div>`;
   box.querySelector("button").onclick = (e) => copy(link, e.target);
 }
-export function rolePageLink(role, roleName) {
-  const q = new URLSearchParams({ r: role, c: netOf(K.contract()) || "demo" }); if (roleName) q.set("as", roleName);
+export function rolePageLink(role, roleName, order) {
+  const q = new URLSearchParams({ r: role, c: netOf(K.contract()) || "demo" }); if (roleName) q.set("as", roleName); if (order) q.set("o", order);
   return new URL("../sign/#" + q.toString(), location.href).href;
 }
 
@@ -281,12 +281,12 @@ function paintDone(b) {
     <div class="row"><a class="btn" href="${TX(d.hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a><button class="btn y" type="button" id="wz-po-dl2">Download PO</button></div>
     <div class="now" id="wz-back">Reading it back from the contract…</div>
     <h4 class="h4">Next</h4>
-    <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-rsup">Send the supplier their page</button>${roleLinks}</div>
+    <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-rsup">Send ${esc(p.po)} to the supplier</button>${roleLinks}</div>
     <div id="wz-rlout"></div>
     <p class="note">When goods arrive, make the delivery link for the signers: <button class="linkbtn" type="button" id="wz-dlink">Make the delivery link for ${esc(p.po)}</button>. Pool top-up and the agent's key are separate approvals under <button class="linkbtn" type="button" id="wz-adv">Advanced</button>.</p>
     <div class="row"><button class="btn ghost" type="button" id="wz-new">Start a new order</button></div>`;
   $("wz-po-dl2").onclick = () => printPO(p, d);
-  $("wz-rsup").onclick = () => showLink($("wz-rlout"), rolePageLink("supplier"), "Copy the supplier's link");
+  $("wz-rsup").onclick = () => showLink($("wz-rlout"), rolePageLink("supplier", null, p.po), "Copy the supplier's link"); // opens their page with this order loaded, ready to invoice
   b.querySelectorAll("[data-rl]").forEach((x) => (x.onclick = () => showLink($("wz-rlout"), rolePageLink("signer", x.dataset.rl), `Copy the ${x.dataset.rl}'s link`)));
   $("wz-dlink").onclick = () => K.openAdvanced("link", { order: p.po, lines: p.lines, roles: p.roles });
   $("wz-adv").onclick = () => K.openAdvanced("pool");
