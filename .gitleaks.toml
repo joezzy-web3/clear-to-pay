@@ -35,6 +35,11 @@ regexes = [
   '''^4MxjNqybe8A9vhsvFDi996Sz1V8e3pMNZi1tbMBy9t8EvKNSsvrNrx4GvT7K3jdz26qmT7oP5TpS5HknNQYM2Com$''',
   '''^ed25519:FkAMyguSm7jG4Twu1E7vbbhDJVR4kroFYNsxkRQsKsiB$''',
   '''^FkAMyguSm7jG4Twu1E7vbbhDJVR4kroFYNsxkRQsKsiB$''',
+  # The OutLayer reader (docs/console/outlayer-verify.js): its payment key is PUBLIC on purpose, it pays
+  # only for project cleartopay-reader.testnet/reader and holds a few test dollars; and the enclave's public key
+  '''^cleartopay-reader\.testnet:1:99ffaf24cabe1400af450432b3d3c6418ae82854dce9ffb54f2e57beeb5aafa9$''',
+  '''^99ffaf24cabe1400af450432b3d3c6418ae82854dce9ffb54f2e57beeb5aafa9$''',
+  '''^51d8788daae1aa4d55897b426d66810764efd6e0eb883157805ed87394f74d83$''',
 ]
 
 [[rules]]
