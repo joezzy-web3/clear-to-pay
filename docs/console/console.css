@@ -4,7 +4,7 @@
    and the stamped verdict with its transaction. The split is the page's one loud moment. */
 :root{
   --paper:#EEF1EC; --card:#FFFFFF; --navy:#10264A; --night:#0E2242; --deep:#0B1A33; --mute:#55657C; --line:#D5DCD7;
-  --signal:#F4C20D; --clear:#127A4A; --held:#B98A00; --seize:#C42B1C; --nmute:#9FB0C6; --cell:#FAFBF9;
+  --signal:#E6BE4F; --clear:#127A4A; --held:#B98A00; --seize:#C42B1C; --nmute:#9FB0C6; --cell:#FAFBF9;
   --display:"Big Shoulders Display",Impact,"Arial Narrow",sans-serif;
   --body:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -150,9 +150,9 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     font:800 24px/1.1 "Big Shoulders Display",Impact,sans-serif;letter-spacing:.01em}
   .drawer nav a::after{content:"\2192";font:500 16px/1 ui-monospace,monospace;color:#9FB0C6}
   .drawer nav a:hover,.drawer nav a:focus-visible{background:#13284A}
-  .drawer nav a.hot{background:#F4C20D;color:#10264A;margin:6px 0}
+  .drawer nav a.hot{background:#E6BE4F;color:#10264A;margin:6px 0}
   .drawer nav a.hot::after{color:#10264A}
-  .drawer nav a[aria-current]{color:#F4C20D}
+  .drawer nav a[aria-current]{color:#E6BE4F}
   .drawer small{display:block;margin:18px 12px 6px;font:500 11.5px/1 ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#9FB0C6}
   .drawer-foot{margin-top:auto;padding-top:18px;border-top:1px solid #1E3560;display:flex;gap:10px;flex-wrap:wrap}
   .drawer-foot a{font:500 13.5px/1 "Instrument Sans",Arial,sans-serif;color:#EEF1EC;text-decoration:none;padding:10px 12px;border-radius:10px;background:#13284A}
@@ -216,23 +216,23 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .rband-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;padding-block:8px;font:400 14px/1.35 "Instrument Sans",Arial,sans-serif}
 .rband-in b{font:500 12.5px "IBM Plex Mono",monospace;letter-spacing:.16em;white-space:nowrap}
 .rband-g{margin-left:auto;font:600 13px "Instrument Sans",Arial,sans-serif;border:0;cursor:pointer;padding:6px 10px;background:rgba(255,255,255,.22);color:inherit;box-shadow:inset 0 0 0 1px currentColor}
-.rband[data-r="judge"]{background:#C42B1C;color:#fff}
-.rband[data-r="buyer"]{background:#F4C20D;color:#10264A}
+.rband[data-r="judge"]{background:#A93A30;color:#FBEDEA}
+.rband[data-r="buyer"]{background:#F1E4BC;color:#10264A}
 .rband[data-r="supplier"]{background:#127A4A;color:#fff}
 .rband[data-r="signer"]{background:#9FB0C6;color:#10264A}
 .rband[data-r="pick"]{background:#10264A;color:#EEF1EC}
 .guide{position:fixed;inset:0;z-index:200;background:rgba(11,26,51,.72);display:grid;place-items:center;padding:16px}
 .guide-card{background:#fff;color:#10264A;width:min(520px,100%);padding:22px 22px 18px;position:relative;box-shadow:0 30px 60px -20px rgba(0,0,0,.6)}
-.guide-card::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,#10264A 0 18px,#F4C20D 18px 36px)}
+.guide-card::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,#10264A 0 18px,#E6BE4F 18px 36px)}
 .guide-top{display:flex;justify-content:space-between;align-items:center;font:500 11.5px "IBM Plex Mono",monospace;letter-spacing:.14em;color:#55657C;margin-top:4px}
 .guide-skip{font:600 14px "Instrument Sans",Arial,sans-serif;border:0;background:none;color:#10264A;text-decoration:underline;cursor:pointer;padding:6px}
-.guide-dots{list-style:none;display:flex;gap:6px;padding:0;margin:12px 0 4px}.guide-dots li{height:4px;flex:1;background:#E2E7E1}.guide-dots li.on{background:#F4C20D}.guide-dots li.done{background:#10264A}
-.guide-n{display:block;font:800 64px/1 "Big Shoulders Display",Impact,sans-serif;color:#F4C20D;margin-top:8px}
+.guide-dots{list-style:none;display:flex;gap:6px;padding:0;margin:12px 0 4px}.guide-dots li{height:4px;flex:1;background:#E2E7E1}.guide-dots li.on{background:#E6BE4F}.guide-dots li.done{background:#10264A}
+.guide-n{display:block;font:800 64px/1 "Big Shoulders Display",Impact,sans-serif;color:#E6BE4F;margin-top:8px}
 .guide-card h2{font:800 30px/1.05 "Big Shoulders Display",Impact,sans-serif;margin:4px 0 8px;max-width:none}
 .guide-card p{font:400 16px/1.55 "Instrument Sans",Arial,sans-serif;margin:0;color:#10264A}
 .guide-nav{display:flex;justify-content:space-between;margin-top:18px}
 .guide-nav button{font:600 15px "Instrument Sans",Arial,sans-serif;border:0;cursor:pointer;padding:12px 18px}
-.guide-next{background:#F4C20D;color:#10264A}.guide-back{background:none;box-shadow:inset 0 0 0 2px #10264A;color:#10264A}
+.guide-next{background:#E6BE4F;color:#10264A}.guide-back{background:none;box-shadow:inset 0 0 0 2px #10264A;color:#10264A}
 @media (max-width:640px){.rband-in span{flex-basis:100%;order:3;font-size:13px}.rband-g{margin-left:auto}}
 
 /* Buyer pages, seen by a delivery signer or supplier: one card, the rest folded */
