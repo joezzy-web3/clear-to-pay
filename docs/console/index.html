@@ -334,6 +334,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .own-file input{position:absolute;opacity:0;width:1px;height:1px}
 .own-file input:focus-visible+span{outline:3px solid var(--signal);outline-offset:2px}
 .own-file b{font:500 13px var(--mono);color:var(--mute);overflow-wrap:anywhere}
+.own-pick{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.own-x{font:500 13px var(--body);background:transparent;border:0;color:var(--seize);cursor:pointer;padding:8px 4px;text-decoration:underline;text-underline-offset:3px}
+.own-x:focus-visible{outline:3px solid var(--signal);outline-offset:2px}
+.own-samples{margin:0;font-size:14px;color:var(--mute)}
 .own-steps{margin-top:4px}
 .own-steps li span{line-height:1.45}
 .own-calm{margin:0;line-height:1.55}
@@ -445,11 +449,12 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   </div>
   <div class="own-grid">
     <div class="card own-in">
-      <label class="own-file"><input type="file" id="own-file" accept="application/pdf,.pdf"><span class="btn ghost">Choose a PDF</span><b id="own-name">No file chosen</b></label>
+      <div class="own-pick"><label class="own-file"><input type="file" id="own-file" accept="application/pdf,.pdf"><span class="btn ghost">Choose a PDF</span><b id="own-name">No file chosen</b></label><button type="button" class="own-x" id="own-clear" hidden aria-label="Clear this invoice and start again">✕ Clear</button></div>
+      <p class="own-samples">No PDF to hand? Download a sample: <a href="samples/01-clean.pdf" download>clean</a> · <a href="samples/02-white-text-payee.pdf" download>poisoned (white text)</a></p>
       <button class="btn y" id="own-go" type="button" disabled>Read my invoice</button>
       <ol class="checks own-steps" id="own-steps"></ol>
     </div>
-    <div class="card own-outc" id="own-out" aria-live="polite"><p class="own-calm">The reading, its checks and who the contract would pay appear here. Try the two sample PDFs (<a href="samples/01-clean.pdf" download>clean</a>, <a href="samples/02-white-text-payee.pdf" download>poisoned</a>) or your own.</p></div>
+    <div class="card own-outc" id="own-out" aria-live="polite"><p class="own-calm" id="own-idle">The reading, its checks and who the contract would pay appear here.</p></div>
   </div>
 </div></section>
 

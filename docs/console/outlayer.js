@@ -151,7 +151,14 @@ export function init() {
   const f = $("own-file"), go = $("own-go");
   if (!f || !go) return;
   steps([]);
-  f.addEventListener("change", () => { go.disabled = !f.files.length; $("own-name").textContent = f.files[0]?.name || "No file chosen"; });
+  const idle = $("own-out").innerHTML, x = $("own-clear");
+  const clear = () => { f.value = ""; go.disabled = true; x.hidden = true; $("own-name").textContent = "No file chosen"; $("own-out").innerHTML = idle; steps([]); };
+  f.addEventListener("change", () => {
+    go.disabled = !f.files.length; x.hidden = !f.files.length;
+    $("own-name").textContent = f.files[0]?.name || "No file chosen";
+    $("own-out").innerHTML = idle; steps([]); // a new file starts clean
+  });
+  x.addEventListener("click", () => { clear(); f.focus(); });
   go.addEventListener("click", () => run(f.files[0]));
 }
 init();
