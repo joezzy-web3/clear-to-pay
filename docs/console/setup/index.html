@@ -54,7 +54,7 @@ input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
 .trybtn[aria-expanded="true"] svg{transform:rotate(180deg)}
 .trymenu{position:absolute;top:calc(100% + 10px);right:-8px;z-index:80;width:min(380px,calc(100vw - 32px));background:#fff;color:#10264A;
   border-radius:14px;padding:8px;box-shadow:0 0 0 1px rgba(16,38,74,.10),0 30px 60px -20px rgba(11,26,51,.55)}
-.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#F4C20D 16px 32px)}
+.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#E6BE4F 16px 32px)}
 .trymenu[hidden]{display:none}
 .links .trymenu a{display:grid;gap:3px;padding:12px 14px;border-radius:10px;color:#10264A!important;background:none!important;backdrop-filter:none!important;text-decoration:none;white-space:normal}
 .links .trymenu a:hover,.links .trymenu a:focus-visible{background:#EEF1EC!important}
@@ -62,7 +62,7 @@ input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
 .trymenu small{font:400 13px/1.4 "Instrument Sans",Arial,sans-serif;color:#55657C}
 .trymenu a[aria-current] b::after{content:" · you are here";font-weight:400;color:#55657C}
 .navlive{display:inline-flex;align-items:center;gap:8px;font:600 14.5px/1 "Instrument Sans",Arial,sans-serif;text-decoration:none;padding:11px 16px;border-radius:10px;white-space:nowrap}
-.navlive:hover{filter:brightness(1.06)}
+.navlive:hover{background:#1B3560;color:#fff}
 .navlive i{width:8px;height:8px;border-radius:50%;background:#127A4A;box-shadow:0 0 0 3px rgba(18,122,74,.2)}
 @media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
 @media (max-width:900px){.navlive{display:none}}
@@ -70,7 +70,7 @@ input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
 .fnear img{border-radius:5px;display:block}
 .links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
 .links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
-.navlive{background:var(--signal);color:var(--navy)}
+.navlive{background:#13284A;color:#F3E7C2;box-shadow:inset 0 0 0 1px rgba(230,190,79,.55)}
 
 /* way home: the logo, a clickable page label, and a quiet Home link */
 .brand{display:flex;align-items:center;gap:6px;min-width:0}
@@ -200,7 +200,7 @@ textarea{font:400 13.5px var(--mono);padding:10px;border:1px solid var(--line);w
 <div class="rband" id="rband" data-r="buyer"></div>
 <header class="top gut"><div class="in">
   <nav class="nav">
-    <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Buyer setup</a></span>
+    <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Buyer setup</a></span>
     <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div>
     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>

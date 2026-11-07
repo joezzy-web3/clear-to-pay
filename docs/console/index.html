@@ -13,7 +13,7 @@
    and the stamped verdict with its transaction. The split is the page's one loud moment. */
 :root{
   --paper:#EEF1EC; --card:#FFFFFF; --navy:#10264A; --night:#0E2242; --deep:#0B1A33; --mute:#55657C; --line:#D5DCD7;
-  --signal:#F4C20D; --clear:#127A4A; --held:#B98A00; --seize:#C42B1C; --nmute:#9FB0C6; --cell:#FAFBF9;
+  --signal:#E6BE4F; --clear:#127A4A; --held:#B98A00; --seize:#C42B1C; --nmute:#9FB0C6; --cell:#FAFBF9;
   --display:"Big Shoulders Display",Impact,"Arial Narrow",sans-serif;
   --body:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -180,9 +180,9 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     font:800 24px/1.1 "Big Shoulders Display",Impact,sans-serif;letter-spacing:.01em}
   .drawer nav a::after{content:"\2192";font:500 16px/1 ui-monospace,monospace;color:#9FB0C6}
   .drawer nav a:hover,.drawer nav a:focus-visible{background:#13284A}
-  .drawer nav a.hot{background:#F4C20D;color:#10264A;margin:6px 0}
+  .drawer nav a.hot{background:#E6BE4F;color:#10264A;margin:6px 0}
   .drawer nav a.hot::after{color:#10264A}
-  .drawer nav a[aria-current]{color:#F4C20D}
+  .drawer nav a[aria-current]{color:#E6BE4F}
   .drawer small{display:block;margin:18px 12px 6px;font:500 11.5px/1 ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#9FB0C6}
   .drawer-foot{margin-top:auto;padding-top:18px;border-top:1px solid #1E3560;display:flex;gap:10px;flex-wrap:wrap}
   .drawer-foot a{font:500 13.5px/1 "Instrument Sans",Arial,sans-serif;color:#EEF1EC;text-decoration:none;padding:10px 12px;border-radius:10px;background:#13284A}
@@ -250,7 +250,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .trybtn[aria-expanded="true"] svg{transform:rotate(180deg)}
 .trymenu{position:absolute;top:calc(100% + 10px);right:-8px;z-index:80;width:min(380px,calc(100vw - 32px));background:#fff;color:#10264A;
   border-radius:14px;padding:8px;box-shadow:0 0 0 1px rgba(16,38,74,.10),0 30px 60px -20px rgba(11,26,51,.55)}
-.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#F4C20D 16px 32px)}
+.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#E6BE4F 16px 32px)}
 .trymenu[hidden]{display:none}
 .links .trymenu a{display:grid;gap:3px;padding:12px 14px;border-radius:10px;color:#10264A!important;background:none!important;backdrop-filter:none!important;text-decoration:none;white-space:normal}
 .links .trymenu a:hover,.links .trymenu a:focus-visible{background:#EEF1EC!important}
@@ -258,7 +258,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .trymenu small{font:400 13px/1.4 "Instrument Sans",Arial,sans-serif;color:#55657C}
 .trymenu a[aria-current] b::after{content:" · you are here";font-weight:400;color:#55657C}
 .navlive{display:inline-flex;align-items:center;gap:8px;font:600 14.5px/1 "Instrument Sans",Arial,sans-serif;text-decoration:none;padding:11px 16px;border-radius:10px;white-space:nowrap}
-.navlive:hover{filter:brightness(1.06)}
+.navlive:hover{background:#1B3560;color:#fff}
 .navlive i{width:8px;height:8px;border-radius:50%;background:#127A4A;box-shadow:0 0 0 3px rgba(18,122,74,.2)}
 @media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
 @media (max-width:900px){.navlive{display:none}}
@@ -266,7 +266,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .fnear img{border-radius:5px;display:block}
 .links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
 .links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
-.navlive{background:var(--signal);color:var(--navy)}
+.navlive{background:#13284A;color:#F3E7C2;box-shadow:inset 0 0 0 1px rgba(230,190,79,.55)}
 
 /* way home: the logo, a clickable page label, and a quiet Home link */
 .brand{display:flex;align-items:center;gap:6px;min-width:0}
@@ -294,23 +294,23 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .rband-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;padding-block:8px;font:400 14px/1.35 "Instrument Sans",Arial,sans-serif}
 .rband-in b{font:500 12.5px "IBM Plex Mono",monospace;letter-spacing:.16em;white-space:nowrap}
 .rband-g{margin-left:auto;font:600 13px "Instrument Sans",Arial,sans-serif;border:0;cursor:pointer;padding:6px 10px;background:rgba(255,255,255,.22);color:inherit;box-shadow:inset 0 0 0 1px currentColor}
-.rband[data-r="judge"]{background:#C42B1C;color:#fff}
-.rband[data-r="buyer"]{background:#F4C20D;color:#10264A}
+.rband[data-r="judge"]{background:#A93A30;color:#FBEDEA}
+.rband[data-r="buyer"]{background:#F1E4BC;color:#10264A}
 .rband[data-r="supplier"]{background:#127A4A;color:#fff}
 .rband[data-r="signer"]{background:#9FB0C6;color:#10264A}
 .rband[data-r="pick"]{background:#10264A;color:#EEF1EC}
 .guide{position:fixed;inset:0;z-index:200;background:rgba(11,26,51,.72);display:grid;place-items:center;padding:16px}
 .guide-card{background:#fff;color:#10264A;width:min(520px,100%);padding:22px 22px 18px;position:relative;box-shadow:0 30px 60px -20px rgba(0,0,0,.6)}
-.guide-card::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,#10264A 0 18px,#F4C20D 18px 36px)}
+.guide-card::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,#10264A 0 18px,#E6BE4F 18px 36px)}
 .guide-top{display:flex;justify-content:space-between;align-items:center;font:500 11.5px "IBM Plex Mono",monospace;letter-spacing:.14em;color:#55657C;margin-top:4px}
 .guide-skip{font:600 14px "Instrument Sans",Arial,sans-serif;border:0;background:none;color:#10264A;text-decoration:underline;cursor:pointer;padding:6px}
-.guide-dots{list-style:none;display:flex;gap:6px;padding:0;margin:12px 0 4px}.guide-dots li{height:4px;flex:1;background:#E2E7E1}.guide-dots li.on{background:#F4C20D}.guide-dots li.done{background:#10264A}
-.guide-n{display:block;font:800 64px/1 "Big Shoulders Display",Impact,sans-serif;color:#F4C20D;margin-top:8px}
+.guide-dots{list-style:none;display:flex;gap:6px;padding:0;margin:12px 0 4px}.guide-dots li{height:4px;flex:1;background:#E2E7E1}.guide-dots li.on{background:#E6BE4F}.guide-dots li.done{background:#10264A}
+.guide-n{display:block;font:800 64px/1 "Big Shoulders Display",Impact,sans-serif;color:#E6BE4F;margin-top:8px}
 .guide-card h2{font:800 30px/1.05 "Big Shoulders Display",Impact,sans-serif;margin:4px 0 8px;max-width:none}
 .guide-card p{font:400 16px/1.55 "Instrument Sans",Arial,sans-serif;margin:0;color:#10264A}
 .guide-nav{display:flex;justify-content:space-between;margin-top:18px}
 .guide-nav button{font:600 15px "Instrument Sans",Arial,sans-serif;border:0;cursor:pointer;padding:12px 18px}
-.guide-next{background:#F4C20D;color:#10264A}.guide-back{background:none;box-shadow:inset 0 0 0 2px #10264A;color:#10264A}
+.guide-next{background:#E6BE4F;color:#10264A}.guide-back{background:none;box-shadow:inset 0 0 0 2px #10264A;color:#10264A}
 @media (max-width:640px){.rband-in span{flex-basis:100%;order:3;font-size:13px}.rband-g{margin-left:auto}}
 
 /* Console pages: the top bar is the Console's own pages */
@@ -327,7 +327,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <div class="rband" id="rband" data-r="judge"><div class="rband-in"><b>JUDGE MODE</b><span>Try to fool it: real testnet transactions, no wallet, no install.</span></div></div>
 <header class="top gut"><div class="in">
   <nav class="nav">
-    <span class="brand"><a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Judge mode</a></span>
+    <span class="brand"><a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Judge mode</a></span>
     <div class="links clinks"><a href="../console/" data-page="judge" aria-current="page">Judge mode</a><a href="../console/sign/" data-page="sign">Sign</a><a href="../console/setup/" data-page="setup">Buyer setup</a><a href="../console/inbox/" data-page="inbox">Inbox</a></div>
     <span class="navr"><a class="homelink" href="../">&larr; Home</a><a class="navlive" href="../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
@@ -338,7 +338,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
       <h1>Try to <span>fool it.</span></h1>
       <p class="sub">Pick an invoice. Check the AI's signed reading in your own browser. Then let an agent send it to a NEAR contract and watch who decides. Every button sends a real testnet transaction. No wallet, no terminal.</p>
     </div>
-    <div class="hero-side"><div class="hero-seal" aria-hidden="true"><svg viewBox="0 0 160 160"><defs><path id="jring" d="M80 80 m-58 0 a58 58 0 1 1 116 0 a58 58 0 1 1 -116 0"/></defs><circle cx="80" cy="80" r="74" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="80" cy="80" r="46" fill="none" stroke="currentColor" stroke-width="2"/><text font-family="IBM Plex Mono,monospace" font-size="11" letter-spacing="3" fill="currentColor"><textPath href="#jring">CLEAR TO PAY · JUDGE MODE · NEAR TESTNET ·</textPath></text><path d="M60 82l13 13 28-30" fill="none" stroke="#F4C20D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="hero-side"><div class="hero-seal" aria-hidden="true"><svg viewBox="0 0 160 160"><defs><path id="jring" d="M80 80 m-58 0 a58 58 0 1 1 116 0 a58 58 0 1 1 -116 0"/></defs><circle cx="80" cy="80" r="74" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="80" cy="80" r="46" fill="none" stroke="currentColor" stroke-width="2"/><text font-family="IBM Plex Mono,monospace" font-size="11" letter-spacing="3" fill="currentColor"><textPath href="#jring">CLEAR TO PAY · JUDGE MODE · NEAR TESTNET ·</textPath></text><path d="M60 82l13 13 28-30" fill="none" stroke="#E6BE4F" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     <div class="facts" aria-label="Demo contract">
       <div><span>Demo contract</span><b id="f-contract">judge.cleartopay.testnet</b></div>
       <div><span>Supplier's address</span><b id="f-supplier">–</b></div>

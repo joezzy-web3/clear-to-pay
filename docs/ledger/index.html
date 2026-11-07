@@ -14,7 +14,7 @@
    a night band naming the contract calls, and the stencilled closer. Single deliberate light look, like the landing. */
 :root{
   --paper:#EEF1EC; --card:#FFFFFF; --navy:#10264A; --night:#0E2242; --deep:#0B1A33; --mute:#55657C; --line:#D5DCD7;
-  --signal:#F4C20D; --clear:#127A4A; --held:#B98A00; --seize:#C42B1C; --nmute:#9FB0C6; --cell:#FAFBF9;
+  --signal:#E6BE4F; --clear:#127A4A; --held:#B98A00; --seize:#C42B1C; --nmute:#9FB0C6; --cell:#FAFBF9;
   --display:"Big Shoulders Display",Impact,"Arial Narrow",sans-serif;
   --body:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -251,9 +251,9 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
     font:800 24px/1.1 "Big Shoulders Display",Impact,sans-serif;letter-spacing:.01em}
   .drawer nav a::after{content:"\2192";font:500 16px/1 ui-monospace,monospace;color:#9FB0C6}
   .drawer nav a:hover,.drawer nav a:focus-visible{background:#13284A}
-  .drawer nav a.hot{background:#F4C20D;color:#10264A;margin:6px 0}
+  .drawer nav a.hot{background:#E6BE4F;color:#10264A;margin:6px 0}
   .drawer nav a.hot::after{color:#10264A}
-  .drawer nav a[aria-current]{color:#F4C20D}
+  .drawer nav a[aria-current]{color:#E6BE4F}
   .drawer small{display:block;margin:18px 12px 6px;font:500 11.5px/1 ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#9FB0C6}
   .drawer-foot{margin-top:auto;padding-top:18px;border-top:1px solid #1E3560;display:flex;gap:10px;flex-wrap:wrap}
   .drawer-foot a{font:500 13.5px/1 "Instrument Sans",Arial,sans-serif;color:#EEF1EC;text-decoration:none;padding:10px 12px;border-radius:10px;background:#13284A}
@@ -271,7 +271,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .trybtn[aria-expanded="true"] svg{transform:rotate(180deg)}
 .trymenu{position:absolute;top:calc(100% + 10px);right:-8px;z-index:80;width:min(380px,calc(100vw - 32px));background:#fff;color:#10264A;
   border-radius:14px;padding:8px;box-shadow:0 0 0 1px rgba(16,38,74,.10),0 30px 60px -20px rgba(11,26,51,.55)}
-.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#F4C20D 16px 32px)}
+.trymenu::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:14px 14px 0 0;background:repeating-linear-gradient(90deg,#10264A 0 16px,#E6BE4F 16px 32px)}
 .trymenu[hidden]{display:none}
 .links .trymenu a{display:grid;gap:3px;padding:12px 14px;border-radius:10px;color:#10264A!important;background:none!important;backdrop-filter:none!important;text-decoration:none;white-space:normal}
 .links .trymenu a:hover,.links .trymenu a:focus-visible{background:#EEF1EC!important}
@@ -279,7 +279,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .trymenu small{font:400 13px/1.4 "Instrument Sans",Arial,sans-serif;color:#55657C}
 .trymenu a[aria-current] b::after{content:" · you are here";font-weight:400;color:#55657C}
 .navlive{display:inline-flex;align-items:center;gap:8px;font:600 14.5px/1 "Instrument Sans",Arial,sans-serif;text-decoration:none;padding:11px 16px;border-radius:10px;white-space:nowrap}
-.navlive:hover{filter:brightness(1.06)}
+.navlive:hover{background:#1B3560;color:#fff}
 .navlive i{width:8px;height:8px;border-radius:50%;background:#127A4A;box-shadow:0 0 0 3px rgba(18,122,74,.2)}
 @media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
 @media (max-width:900px){.navlive{display:none}}
@@ -287,7 +287,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .fnear img{border-radius:5px;display:block}
 .links .trybtn{font:500 14.5px var(--body);color:var(--nmute);padding:8px 12px;border-radius:8px;background:none;border:0}
 .links .trybtn:hover,.links .trybtn[aria-expanded="true"]{color:var(--paper);background:#13284A}
-.navlive{background:var(--signal);color:var(--navy)}
+.navlive{background:#13284A;color:#F3E7C2;box-shadow:inset 0 0 0 1px rgba(230,190,79,.55)}
 
 /* way home: the logo, a clickable page label, and a quiet Home link */
 .brand{display:flex;align-items:center;gap:6px;min-width:0}
@@ -311,7 +311,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <body>
 <header class="top gut"><div class="in">
   <nav class="nav">
-    <span class="brand"><a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Ledger</a></span>
+    <span class="brand"><a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Ledger</a></span>
     <div class="links"><a href="../#how">How it works</a><a href="../#checks">The checks</a><a href="../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../console/inbox/"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
     <span class="navr"><a class="homelink" href="../">&larr; Home</a><a class="navlive" href="../ledger/" aria-current="page"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
@@ -645,7 +645,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
         ? `<div class="pay"><span class="st ${p ? (p.status === "Settled" ? "" : ["Failed", "Expired", "Cancelled"].includes(p.status) ? "off" : "wait") : "wait"}">${esc(p ? p.status : "Authorized")}</span><span>${p ? `attempt ${p.attempt} · to <code>${esc(p.recipient.address)}</code>` : "payment record not found"}</span></div>` : "";
       return `<article class="hcard" id="r${r.id}" data-v="${r.verdict}">
         <div class="h-main">
-          <header class="h-head"><span><svg width="14" height="16" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="#EEF1EC"/><circle cx="15" cy="9" r="8" fill="#EEF1EC"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/></svg>${r.verdict === "Cleared" ? "Clearance certificate" : "Inspection"}</span><span>decided ${esc(fmt(when(r.decided_at)))}</span></header>
+          <header class="h-head"><span><svg width="14" height="16" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="#EEF1EC"/><circle cx="15" cy="9" r="8" fill="#EEF1EC"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/></svg>${r.verdict === "Cleared" ? "Clearance certificate" : "Inspection"}</span><span>decided ${esc(fmt(when(r.decided_at)))}</span></header>
           <div class="h-body">
             <div class="h-top"><span class="h-ref">${esc(r.invoice_number)} · Qingmar Steel Co.</span><span class="h-amt">${usdc(r.amount)}<small>USDC</small></span></div>
             <div class="h-grid">
@@ -672,9 +672,9 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     let seed = 7; const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const p = rnd(), edge = (x + y) / (2 * N);
-      if (p < 0.18 + edge * 0.35) { g.fillStyle = "rgba(244,194,13," + (0.12 + 0.18 * edge) + ")"; g.fillRect(x * s + gap, y * s + gap, s - 2 * gap, s - 2 * gap); }
+      if (p < 0.18 + edge * 0.35) { g.fillStyle = "rgba(230, 190, 79," + (0.12 + 0.18 * edge) + ")"; g.fillRect(x * s + gap, y * s + gap, s - 2 * gap, s - 2 * gap); }
     }
-    const col = { Cleared: "#127A4A", Held: "#F4C20D", Seized: "#C42B1C" };
+    const col = { Cleared: "#127A4A", Held: "#E6BE4F", Seized: "#C42B1C" };
     [...receipts].reverse().slice(0, N * N).forEach((r, i) => {
       const x = i % N, y = N - 1 - Math.floor(i / N);
       g.fillStyle = col[r.verdict]; g.fillRect(x * s + gap, y * s + gap, s - 2 * gap, s - 2 * gap);
@@ -688,7 +688,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     for (let y = 0; y < 20; y++) for (let x = 0; x < 16; x++) {
       const line = (y === 3 || y === 5 || y === 7 || y === 9) && x > 1 && x < 14 - (y % 3);
       g.fillStyle = line ? "#EEF1EC" : (x + y) % 3 ? "#10264A" : "#24406B";
-      if (state && (y === 14 || y === 16) && x > 1 && x < 14) g.fillStyle = state === "Seized" ? "#C42B1C" : state === "Held" ? "#F4C20D" : state === "Cleared" ? "#127A4A" : "#9FB0C6";
+      if (state && (y === 14 || y === 16) && x > 1 && x < 14) g.fillStyle = state === "Seized" ? "#C42B1C" : state === "Held" ? "#E6BE4F" : state === "Cleared" ? "#127A4A" : "#9FB0C6";
       g.fillRect(x * s, y * s, s - 1, s - 1);
     }
   }
