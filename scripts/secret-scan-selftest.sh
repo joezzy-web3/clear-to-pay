@@ -8,6 +8,9 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 b58() { python3 -c "import secrets;a='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';print(''.join(secrets.choice(a) for _ in range($1)))"; }
+# A fake API key: letters and digits alternate, so no run of letters can spell one of gitleaks'
+# stopwords (about 1 in 100 fully random keys did, and was then skipped: a flaky self-test).
+apikey() { python3 -c "import secrets;l='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';print(''.join(secrets.choice(l)+secrets.choice('123456789') for _ in range($1)))"; }
 USDC=3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af
 AGENT=ed25519:GVTR1DmhqJaiLpNfhMRq7Y5rrERKCdmjwZHZnkRbDXra
 
@@ -23,6 +26,6 @@ expect clean  delivery_signer_pubkey     "- Weighbridge key ed25519:BzrpxezSnTwF
 expect caught secret_beside_signer_key   "- Weighbridge key ed25519:BzrpxezSnTwF2EkdRarHKo4fMZeFCeKtjGHwLDWfknrC secret=ed25519:$(b58 88)"
 expect caught near_secret_beside_pubkey  "agent=$AGENT secret=ed25519:$(b58 88)"
 expect caught near_secret_beside_usdc    "\"token\": \"$USDC\", \"key\": \"ed25519:$(b58 88)\""
-expect caught api_key_beside_usdc        "token=$USDC api_key=\"$(b58 40)\""
-expect caught near_ai_key_in_env         "NEAR_AI_API_KEY=sk-$(b58 40)"
+expect caught api_key_beside_usdc        "token=$USDC api_key=\"$(apikey 20)\""
+expect caught near_ai_key_in_env         "NEAR_AI_API_KEY=sk-$(apikey 20)"
 echo "secret scan self-test passed"
