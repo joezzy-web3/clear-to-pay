@@ -82,7 +82,7 @@ function partWhy(g, cv, str, x, y, w, h) {
   return null;
 }
 
-async function callReader(text, sha) {
+export async function callReader(text, sha) {
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 150_000);
   try {
     const r = await fetch(`${READER.api}/call/${READER.project}`, {
@@ -96,6 +96,23 @@ async function callReader(text, sha) {
     return j;
   } finally { clearTimeout(t); }
 }
+
+/** The whole reading for another page (the Inbox): ink check, the reader in the TEE, and every
+ *  signature and attestation check. Returns what happened; it never decides anything. */
+export async function aiRead(bytes) {
+  const sha = C.sha256Hex(bytes);
+  const pdf = await readPdf(bytes);
+  if (pdf.held) return { sha, pdf, held: true };
+  if (!pdf.text.trim()) throw new Error("No text in this PDF (a scan?). The reader reads text PDFs only.");
+  if (pdf.text.length > MAX_TEXT) throw new Error("That is a lot of text for one invoice.");
+  const res = await callReader(pdf.text, sha);
+  const { reading, checks } = checkReading(res.output, sha);
+  let att = null;
+  try { att = await (await fetch(READER.api + res.attestation_url, { cache: "no-store" })).json(); } catch {}
+  const all = checks.concat(att ? checkAttestation(att, res.output) : [{ ok: false, label: "OutLayer's attestation", detail: "could not be fetched" }]);
+  return { sha, pdf, reading, checks: all, ok: all.every((c) => c.ok), attestation: READER.api + res.attestation_url };
+}
+export const MAX_PDF_BYTES = MAX_BYTES;
 
 // ---- the card
 

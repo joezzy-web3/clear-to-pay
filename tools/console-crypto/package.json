@@ -6,7 +6,7 @@
     "build": "npm run build:crypto && npm run build:wallet",
     "build:crypto": "esbuild src/index.js --bundle --format=esm --minify --legal-comments=eof --outfile=../../docs/console/crypto.js",
     "build:wallet": "esbuild src/wallet.js --bundle --format=esm --minify --platform=browser --inject:src/node-shim.js --define:process.env.NODE_ENV='\"production\"' --define:global=globalThis --outfile=../../docs/console/wallet.js && cp node_modules/@near-wallet-selector/modal-ui/styles.css ../../docs/console/wallet.css",
-    "test": "node test/check.mjs && node test/wizard.mjs && node test/outlayer.mjs"
+    "test": "node test/check.mjs && node test/wizard.mjs && node test/outlayer.mjs && node test/flow.mjs"
   },
   "devDependencies": {
     "@noble/curves": "1.9.7",

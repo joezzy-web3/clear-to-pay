@@ -145,6 +145,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .empty{display:grid;gap:4px;padding:28px;background:#fff;border:1px dashed var(--line);text-align:center}.empty b{font:800 26px var(--display)}.empty span{color:var(--mute)}
 .sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .sc{background:#fff;border:1px solid var(--line);padding:16px 18px;display:grid;gap:8px;align-content:start;position:relative}
+.aibox{display:grid;gap:6px;padding:12px;background:var(--cell,#F4F6F2);border-left:3px solid var(--signal,#E6BE4F)}.aibox small{color:var(--mute);font-size:13px;line-height:1.4}.aipick{justify-self:start;cursor:pointer}.aibox .checks li{padding:6px 0}
 .sc.ready{border-color:var(--clear);box-shadow:inset 4px 0 0 var(--clear)}
 .sc h3{font:800 24px/1.1 var(--display);margin:0}.sc h3 span{display:block;font:400 12.5px var(--mono);color:var(--mute);margin-top:4px}
 .msg{padding:12px 14px;border-left:4px solid var(--held);background:#FFF6D6;line-height:1.5}.msg.bad{border-color:var(--seize);background:#FBECEA}.msg.ok{border-color:var(--clear);background:#E5F2EA}
@@ -212,7 +213,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   <div class="msg" id="arrive" hidden></div>
   <section class="sigs" id="sigs" hidden aria-labelledby="h-sigs">
     <div class="ib-h"><div><span class="kick">Sent back</span><h2 id="h-sigs">Signatures from phones.</h2></div><button class="btn ghost" type="button" id="sig-clear">Forget these</button></div>
-    <p class="muted">Each one was checked in this browser against the note or invoice and the signer's key on chain. When a note has every role it needs, copy it for the agent.</p>
+    <p class="muted">Each one was checked in this browser against the note or invoice and the signer's key on chain. When the supplier's invoice and a delivery note with every role are both here, let the AI read the PDF and submit it with your wallet, or copy them for an agent.</p>
     <div class="sgrid" id="sgrid"></div>
   </section>
 
@@ -243,6 +244,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
+import { compareReading, submitArgs } from "../invoice-flow.js";
 import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy } from "../chain.js";
 initMenu();
 
@@ -517,13 +519,14 @@ async function paintSigs() {
   $("sigs").hidden = !all.length; if (!all.length) return;
   let signers = [], sups = {};
   try { signers = await view(contract(), "get_delivery_signers"); } catch {}
-  const notes = {}, cards = [];
+  const notes = {}, cards = [], readyNotes = [], invs = [];
   for (const x of all.filter((x) => x.kind === "delivery")) { const id = `${x.note.order_id}|${x.note.note_id}|${x.policy_version}`; (notes[id] ||= { note: x.note, pv: x.policy_version, sigs: [] }).sigs.push(x); }
   for (const g of Object.values(notes)) {
     let policy = { required: 2, version: g.pv }; try { policy = await view(contract(), "get_delivery_policy", { order_id: g.note.order_id }); } catch {}
     const rows = g.sigs.map((x) => { const reg = signers.find((s) => s.key === x.key); return { x, ok: reg && reg.role === x.role }; });
     const roles = [...new Set(rows.filter((r) => r.ok).map((r) => r.x.role))], stale = policy.version !== g.pv, ready = !stale && roles.length >= policy.required;
     const forAgent = { delivery: g.note, delivery_signatures: rows.filter((r) => r.ok).map((r) => ({ key: r.x.key, signature: r.x.signature })) };
+    if (ready) readyNotes.push({ note: g.note, roles, signatures: rows.filter((r) => r.ok).map((r) => r.x) });
     cards.push(`<article class="sc ${ready ? "ready" : ""}"><h3>${esc(g.note.note_id)} <span>order ${esc(g.note.order_id)}</span></h3>
       <ul class="checks">${rows.map((r) => `<li class="${r.ok ? "ok" : "no"}"><i></i><div>${esc(r.x.role)}<small>${r.ok ? esc(short(r.x.key, 8)) + " · registered" : "this key is not registered with this role"}</small></div></li>`).join("")}</ul>
       <p class="who">${stale ? "Signed under an older delivery policy: ask for new signatures." : ready ? `Ready: ${roles.join(" + ")}.` : `${roles.length} of ${policy.required} roles. Still needed: another role.`}</p>
@@ -531,13 +534,69 @@ async function paintSigs() {
   }
   for (const x of all.filter((x) => x.kind === "invoice")) {
     let ok = false; try { const s = await view(contract(), "get_supplier", { supplier_id: x.invoice.supplier_id }); ok = s && s.signing_key === x.key; } catch {}
+    const k = invs.push(x) - 1, note = readyNotes.find((n) => n.note.order_id === x.invoice.order_id);
     const forAgent = { invoice: x.invoice, supplier_signature: x.signature, document_hash: x.document_hash };
     cards.push(`<article class="sc ${ok ? "ready" : ""}"><h3>${esc(x.invoice.invoice_number)} <span>${esc(x.invoice.supplier_id)} · ${esc(usd(x.invoice.total))} → ${esc(x.invoice.payee.address)}</span></h3>
-      <ul class="checks"><li class="${ok ? "ok" : "no"}"><i></i><div>Supplier's signature<small>${ok ? "the supplier's registered key" : "not the supplier's registered key"}</small></div></li></ul>
-      ${ok ? `<div class="row"><button class="btn y" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div>` : ""}</article>`);
+      <ul class="checks"><li class="${ok ? "ok" : "no"}"><i></i><div>Supplier's signature<small>${ok ? "the supplier's registered key" : "not the supplier's registered key"}</small></div></li>
+        <li class="${note ? "ok" : "wait"}"><i></i><div>Delivery for ${esc(x.invoice.order_id)}<small>${note ? `note ${esc(note.note.note_id)}, signed by ${esc(note.roles.join(" + "))}` : "no note with every role yet"}</small></div></li></ul>
+      ${ok ? `<div class="aibox"><b>Let the AI read the PDF</b><small>Choose the PDF the supplier sent. This browser checks it is the file they signed and cuts hidden text; the reader in OutLayer's TEE reads the rest. It decides nothing.</small>
+        <label class="btn ghost aipick">Choose the PDF<input type="file" accept="application/pdf,.pdf" hidden data-ai="${k}"></label><div id="ai-${k}">${aiHtml(S.ai[x.signature])}</div></div>
+      <div class="row">${note ? `<button class="btn y" type="button" data-submit="${k}">Submit to the contract</button>` : ""}<button class="btn ghost" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div><div id="sx-${k}"></div>` : ""}</article>`);
   }
+  S.invs = invs; S.readyNotes = readyNotes;
   $("sgrid").innerHTML = cards.join("");
   document.querySelectorAll("[data-agent]").forEach((b) => (b.onclick = () => copy(b.dataset.agent, b)));
+  document.querySelectorAll("[data-ai]").forEach((f) => (f.onchange = () => f.files[0] && aiCheck(+f.dataset.ai, f.files[0])));
+  document.querySelectorAll("[data-submit]").forEach((b) => (b.onclick = () => submitOne(+b.dataset.submit)));
+}
+
+// ---------------------------------------------------------------- the AI reads the supplier's PDF (advice only), then the buyer submits
+S.ai = {};
+function aiHtml(a) {
+  if (!a) return "";
+  if (a.running) return `<p class="muted">${esc(a.running)}</p>`;
+  if (a.error) return `<p class="err">${esc(a.error)}</p>`;
+  const list = (cs) => cs.map((c) => `<li class="${c.ok ? "ok" : "no"}"><i>${c.ok ? "✓" : "✕"}</i><div>${esc(c.label)}<small>${esc(c.detail)}</small></div></li>`).join("");
+  return `<p class="${a.match ? "okline" : "err"}"><b>${a.held ? "Held: hidden text about payment in this PDF. No AI read it; look at it yourself before submitting." : a.match ? "The AI's reading matches what the supplier signed." : "The AI's reading does not match what the supplier signed. Look before you submit."}</b></p>
+    <ul class="checks">${list(a.cmp || [])}</ul>${a.checks ? `<details><summary class="muted">How we know this reading is genuine</summary><ul class="checks">${list(a.checks)}</ul>${a.att ? `<a href="${esc(a.att)}" target="_blank" rel="noopener">OutLayer's attestation</a>` : ""}</details>` : ""}`;
+}
+async function aiCheck(k, file) {
+  const x = S.invs[k], box = () => $("ai-" + k), set = (a) => { S.ai[x.signature] = a; if (box()) box().innerHTML = aiHtml(a); };
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (C.base64.encode(C.unhex(C.sha256Hex(bytes))) !== x.document_hash) return set({ error: "This is not the PDF the supplier signed (its fingerprint is different). Ask for the right file by a number you already had." });
+    set({ running: "Same file the supplier signed. Checking every line for ink, then the reader in OutLayer's TEE reads it (up to two minutes)…" });
+    const R = await import("../outlayer.js");
+    const r = await R.aiRead(bytes);
+    if (r.held) return set({ held: true, match: false, cmp: r.pdf.hidden.slice(0, 6).map((h) => ({ ok: false, label: "Hidden: " + h.text, detail: h.why })) });
+    const cmp = [{ ok: !!r.ok, label: "The reading is signed and attested", detail: r.ok ? "the enclave's key, NEAR AI's signature, OutLayer's attestation" : "a check failed; open the details" }]
+      .concat(compareReading(r.reading && r.reading.extraction, x.invoice));
+    set({ match: cmp.every((c) => c.ok), cmp, checks: r.checks, att: r.attestation });
+  } catch (e) { set({ error: (e.name === "AbortError" ? "The reader took too long." : e.message || String(e)) + " You can still submit: the contract checks every rule." }); }
+}
+async function submitOne(k) {
+  const x = S.invs[k], out = $("sx-" + k), note = S.readyNotes.find((n) => n.note.order_id === x.invoice.order_id);
+  if (!note) return;
+  if (!S.wallet) { out.innerHTML = `<p class="err">Connect the buyer's wallet first (top of the page).</p>`; return; }
+  if (S.me !== S.owner) { out.innerHTML = `<p class="err">Only the buyer account can submit (${esc(S.owner)}).</p>`; return; }
+  const a = S.ai[x.signature], ai = !a || a.running || a.error ? "The AI has not read the PDF." : a.match ? "The AI's reading matches what the supplier signed." : "WARNING: the AI's reading does NOT match what the supplier signed.";
+  if (!confirm(`Submit ${x.invoice.invoice_number} (${usd(x.invoice.total)}) with delivery note ${note.note.note_id}?\n\n${ai}\n\nThe contract checks every rule again and pays only ${x.invoice.supplier_id}'s registered address.`)) return;
+  try {
+    sessionStorage.setItem("ctp-inbox-pending", JSON.stringify({ submit: x.invoice.invoice_number }));
+    out.innerHTML = `<p class="muted">Waiting for your wallet…</p>`;
+    const res = await S.wallet.signAndSendTransaction({ receiverId: contract(), actions: [{ type: "FunctionCall", params: { methodName: "submit_invoice", args: submitArgs(x, note), gas: (300n * 10n ** 12n).toString(), deposit: "0" } }] });
+    sessionStorage.removeItem("ctp-inbox-pending");
+    out.innerHTML = verdictHtml(res);
+    await load();
+  } catch (e) { sessionStorage.removeItem("ctp-inbox-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
+}
+function verdictHtml(res) {
+  const h = res?.transaction?.hash || res?.transaction_outcome?.id, f = res?.status?.Failure;
+  let v = null; try { v = JSON.parse(atob(res.status.SuccessValue)); } catch {}
+  const link = h ? ` <a href="${TX(h)}" target="_blank" rel="noopener">The transaction</a>` : "";
+  if (f) return `<p class="err">The contract refused the call: ${esc(JSON.stringify(f).slice(0, 220))}.${link}</p>`;
+  if (!v) return `<p class="okline">Sent.${link} The verdict is in the list below.</p>`;
+  return `<p class="${v.verdict === "Cleared" ? "okline" : "err"}"><b>${esc(String(v.verdict).toUpperCase())}</b>, receipt #${esc(v.receipt_id)}${v.reasons && v.reasons.length ? ": " + esc(v.reasons.join(", ")) : ""}${v.payment ? ` · payment ${esc(String(v.payment).toLowerCase())}` : ""}.${link}</p>`;
 }
 $("sig-clear").onclick = () => { if (confirm("Forget the signatures kept in this browser for " + contract() + "?")) { writeSigs(readSigs().filter((x) => x.contract !== contract())); paintSigs(); } };
 
@@ -594,6 +653,7 @@ async function returning() {
   if (!p || (!q.get("transactionHashes") && !q.get("errorCode"))) return;
   sessionStorage.removeItem("ctp-inbox-pending"); history.replaceState(null, "", location.pathname + location.hash);
   if (q.get("errorCode")) return;
+  if (p.submit) { $("arrive").hidden = false; $("arrive").className = "msg ok"; $("arrive").innerHTML = `Back from your wallet: ${esc(p.submit)} was submitted. <a href="${TX(q.get("transactionHashes").split(",").pop())}" target="_blank" rel="noopener">The transaction</a>; its verdict is in the list below.`; await load(); return; }
   if (p.addr) { await addrChanges(); $("addr").hidden = false; $("alist2").insertAdjacentHTML("afterbegin", `<p class="okline">Back from your wallet. <a href="${TX(q.get("transactionHashes").split(",").pop())}" target="_blank" rel="noopener">The transaction on NearBlocks</a></p>`); return; }
   const hash = q.get("transactionHashes").split(",").pop();
   let failure = null; try { const t = await rpc("tx", { tx_hash: hash, sender_account_id: S.me || S.owner, wait_until: "EXECUTED_OPTIMISTIC" }); failure = t.status?.Failure || null; } catch {}

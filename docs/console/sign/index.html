@@ -127,6 +127,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .clinks a.for::after{content:"";position:absolute;top:5px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
 .clinks a.dim{opacity:.4}
 .cbar .roles{margin-left:0}
+.sendinv{display:grid;gap:10px;border-top:1px solid var(--line);margin-top:14px;padding-top:6px}.silines{width:100%;border-collapse:collapse;font:15px var(--body)}.silines th{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);text-align:left;padding:6px 4px}.silines td{padding:6px 4px;border-top:1px solid var(--line)}.silines input{width:5.5em;font:inherit;padding:6px 8px;border:1px solid var(--line)}
 </style>
 <link rel="stylesheet" href="../polish.css">
 </head>
@@ -228,6 +229,7 @@ import { banner, guide } from "../roles.js";
 import { CONTRACTS } from "../chain.js";
 import { rpc } from "../chain.js";
 import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
+import { buildInvoice } from "../invoice-flow.js";
 initMenu();
 
 // ---------------------------------------------------------------- the key, kept in IndexedDB for this site only
@@ -477,7 +479,51 @@ async function paintHome() {
       <h3 style="font:800 22px var(--display);margin:6px 0 0">Your latest invoices</h3>
       <div class="minis">${inv.length ? inv.map((r) => `<div class="mini"><span class="v ${esc(r.verdict)}">${esc(r.verdict.toUpperCase())}</span><span>${esc(r.invoice_number)} · ${esc(fromUnits(r.amount))} USDC<br><small>${esc((r.reasons || []).join(", ") || "every rule held")}</small></span><small>${r.payment ? esc(r.payment.status === "Settled" ? "paid" : r.payment.status.toLowerCase()) : ""}</small></div>`).join("") : `<p class="muted">No invoices from ${esc(mine.supplier_id)} yet.</p>`}</div>
       ${sal ? `<div class="row"><a class="btn" href="${esc(sal)}" target="_blank" rel="noopener" style="background:#229ED9">Get alerts on Telegram</a></div>` : ""}`;
+    sendInvoice(c, mine);
   } catch { box.innerHTML = `<p class="err">Could not read ${esc(c)}. Try again in a moment.</p>`; }
+}
+
+// ---------------------------------------------------------------- the supplier sends an invoice: built from the order and the address on file
+function sendInvoice(c, mine) {
+  const route = mine.payable_route || mine.route_on_file;
+  $("home-body").insertAdjacentHTML("beforeend", `<div class="sendinv" id="sendinv">
+    <h3 style="font:800 22px var(--display);margin:6px 0 0">Send an invoice</h3>
+    <p class="plain">Pick the order. The items and prices come from the order on chain, and the payee is your address on file: nobody can change them on this page, not even someone who took over your phone. Your PDF stays here; only its fingerprint is signed.</p>
+    <div class="row" style="margin-top:0;align-items:flex-end"><label class="field" style="flex:1;margin:0">Order<input id="si-order" placeholder="PO-1184" autocomplete="off" spellcheck="false"></label><button class="btn ghost" type="button" id="si-load">Load the order</button></div>
+    <div id="si-body"></div></div>`);
+  $("si-load").onclick = async () => {
+    const id = $("si-order").value.trim(), body = $("si-body");
+    if (!isRef(id)) { body.innerHTML = `<p class="err">Type the order number the buyer gave you.</p>`; return; }
+    body.innerHTML = `<p class="muted">Reading ${esc(id)}…</p>`;
+    let order = null; try { order = await view(c, "get_order", { order_id: id }); } catch {}
+    if (!order) { body.innerHTML = `<p class="err">No order ${esc(id)} on ${esc(c)}.</p>`; return; }
+    if (order.supplier_id !== mine.supplier_id) { body.innerHTML = `<p class="err">Order ${esc(id)} is for ${esc(order.supplier_id)}, not your company.</p>`; return; }
+    const unit = order.token === USDC ? " USDC" : " units";
+    body.innerHTML = `<label class="field">Invoice number<input id="si-no" placeholder="INV-2209" autocomplete="off" spellcheck="false"></label>
+      <table class="silines"><tr><th>Item</th><th>Price</th><th>Left</th><th>Invoice now</th></tr>
+      ${order.lines.map((l, i) => { const left = (BigInt(l.qty) - BigInt(order.invoiced[i] || 0)).toString(); return `<tr><td>${esc(l.sku)}</td><td>${esc(order.token === USDC ? fromUnits(l.unit_price) : l.unit_price)}</td><td>${esc(left)}</td><td><input data-sku="${esc(l.sku)}" value="${esc(left)}" inputmode="numeric" aria-label="Quantity of ${esc(l.sku)}"></td></tr>`; }).join("")}</table>
+      <label class="field">The invoice PDF<span>stays on this phone; its sha-256 fingerprint is what you sign</span><input type="file" id="si-pdf" accept="application/pdf,.pdf"></label>
+      <div class="big"><span>Paid to</span><b>${esc(route.address)}</b><span style="text-transform:none;letter-spacing:0">${mine.payable_route ? "your address on file" : "on file, payable after its 72-hour wait"}</span></div>
+      <div class="big total"><span>Total</span><b id="si-total">–</b></div>
+      <p class="err" id="si-err" hidden></p>
+      <button class="btn signbtn" type="button" id="si-go">Review and sign</button>`;
+    const read = () => { const q = {}; body.querySelectorAll("[data-sku]").forEach((x) => (q[x.dataset.sku] = x.value)); return q; };
+    const total = () => { try { const v = buildInvoice({ supplier_id: mine.supplier_id, invoice_number: $("si-no").value.trim() || "X", order_id: id, order, qtys: read(), route }); $("si-total").textContent = (order.token === USDC ? fromUnits(v.total) : v.total) + unit; } catch { $("si-total").textContent = "–"; } };
+    body.querySelectorAll("[data-sku]").forEach((x) => (x.oninput = total)); total();
+    $("si-go").onclick = async () => {
+      const err = (m) => { $("si-err").hidden = false; $("si-err").textContent = m; };
+      try {
+        const f = $("si-pdf").files[0];
+        if (!f) return err("Attach the invoice PDF.");
+        if (f.size > 10_000_000) return err("A PDF up to 10 MB, please.");
+        const invoice = buildInvoice({ supplier_id: mine.supplier_id, invoice_number: $("si-no").value.trim(), order_id: id, order, qtys: read(), route });
+        const sha = C.sha256Hex(new Uint8Array(await f.arrayBuffer()));
+        // the same link a buyer or ctp-sign would make: this page then shows it in large type, checks it on chain, and signs it
+        location.hash = "i=" + encodeLink({ contract: c, invoice, document_hash: C.base64.encode(C.unhex(sha)) });
+        location.reload();
+      } catch (e) { err(e.message || String(e)); }
+    };
+  };
 }
 
 // ---------------------------------------------------------------- joining: an invitation from the buyer
