@@ -192,7 +192,7 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
 .t1{background:var(--paper);color:var(--deep)}.t2{background:var(--signal);color:var(--navy)}
 .closer p{margin:10px 0 0;font:400 13px/1.6 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--nmute)}
 .closer a{color:var(--signal);text-decoration:none;border-bottom:1px solid currentColor}
-footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);font-size:14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 
 @media (max-width:900px){
   .links{display:none}
@@ -305,6 +305,9 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .tb-go{font:800 26px/1 var(--display);white-space:nowrap}
 .tryband:hover .tb-go{text-decoration:underline}
 @media (max-width:760px){.tryband{grid-template-columns:1fr}.tb-k{justify-self:start}}
+
+.list .more{justify-self:center;font:600 15px var(--body);background:transparent;color:var(--navy);border:0;box-shadow:inset 0 0 0 2px var(--navy);padding:12px 18px;cursor:pointer;margin-top:6px}
+.list .more:focus-visible{outline:3px solid var(--signal);outline-offset:2px}
 </style>
 
 </head>
@@ -312,8 +315,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <header class="top gut"><div class="in">
   <nav class="nav">
     <span class="brand"><a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Ledger</a></span>
-    <div class="links"><a href="../#how">How it works</a><a href="../#checks">The checks</a><a href="../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../console/inbox/"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
-    <span class="navr"><a class="homelink" href="../">&larr; Home</a><a class="navlive" href="../ledger/" aria-current="page"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+    <div class="links"><a href="#receipts">Receipts</a><a href="#supplier">The address lock</a><a href="#reads">How it reads</a><a href="../console/">Judge mode</a></div>
+    <span class="navr"><a class="homelink" href="../">&larr; Home</a><a class="navlive" href="../console/">Try to fool it &rarr;</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
   <div class="htext" id="top">
     <div>
@@ -322,6 +325,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
       <p class="sub">The Clear to Pay contract, read directly from your browser. No server, no database, no keys. Every number on this page is what the contract holds right now.</p>
       <div class="switch" role="group" aria-label="Contract">
         <button type="button" id="sw-live" data-net="guard.cleartopay.testnet" aria-pressed="true">Live contract<small>guard.cleartopay.testnet</small></button>
+        <button type="button" id="sw-judge" data-net="judge.cleartopay.testnet" aria-pressed="false">Judge mode<small>judge.cleartopay.testnet</small></button>
         <button type="button" id="sw-v1" data-net="cleartopay.testnet" aria-pressed="false">First verdicts (v1)<small>cleartopay.testnet</small></button>
       </div>
     </div>
@@ -635,7 +639,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
       return;
     }
     if (!list.length) { box.innerHTML = `<div class="empty"><div></div><div><b>No ${filter.toLowerCase()} receipts.</b></div></div>`; return; }
-    box.innerHTML = list.map((r) => {
+    const shown = showAll ? list : list.slice(0, 10);
+    box.innerHTML = shown.map((r) => {
       const ok = onFile ? r.payee.address === onFile : null;
       const reasons = r.reasons.length
         ? r.reasons.map((code) => { const [k, t] = REASONS[code] || ["warn", code.replace(/_/g, " ")]; return `<li class="${k}"><i aria-hidden="true"></i><span>${esc(t)}<code>${esc(code)}</code></span></li>`; }).join("")
@@ -662,7 +667,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
         </div>
         <aside class="h-stub"><div class="seal ${r.verdict}">${seal(r.verdict, r.id)}</div><div class="stubno">receipt #${r.id}</div></aside>
       </article>`;
-    }).join("");
+    }).join("") + (list.length > shown.length ? `<button type="button" class="more" id="more">Show ${list.length - shown.length} older receipt${list.length - shown.length === 1 ? "" : "s"}</button>` : "");
+    const m = $("more"); if (m) m.addEventListener("click", () => { showAll = true; renderList(); });
   }
 
   // One square per receipt, in order, coloured by verdict; quiet dither around them.
@@ -806,8 +812,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     }
   }
 
+  let showAll = false;
   function select(id) {
-    contract = id; mode = "connecting";
+    contract = id; mode = "connecting"; showAll = false;
+    try { history.replaceState(null, "", id === "cleartopay.testnet" ? "#v1" : id === "judge.cleartopay.testnet" ? "#judge" : location.pathname); } catch {}
     document.querySelectorAll(".switch button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.net === id)));
     $("nb").href = "https://testnet.nearblocks.io/address/" + id;
     $("vout").textContent = ""; drawDoc(null);
@@ -817,7 +825,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
   document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => select(b.dataset.net)));
   document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
-    filter = b.dataset.f; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderList();
+    filter = b.dataset.f; showAll = false; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderList();
   }));
   const drop = $("drop");
   ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
@@ -826,7 +834,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   $("file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) verify(f); });
 
   drawDoc(null);
-  select(location.hash === "#v1" ? "cleartopay.testnet" : "guard.cleartopay.testnet");
+  select(location.hash === "#v1" ? "cleartopay.testnet" : location.hash === "#judge" ? "judge.cleartopay.testnet" : "guard.cleartopay.testnet");
   setInterval(() => { if (mode === "live") refresh(); }, 30000);
 })();
 </script>

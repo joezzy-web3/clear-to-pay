@@ -25,7 +25,7 @@
 /* One eyebrow style for every section */
 .kick{font:500 11.5px/1 var(--mono)!important;letter-spacing:.14em!important;padding:7px 10px!important;background:var(--signal)!important;color:var(--navy)!important}
 .kick.red{background:var(--seize)!important;color:#fff!important}
-.alerts h3 small{display:inline-block!important;width:max-content;font:500 11.5px/1 var(--mono)!important;letter-spacing:.14em;background:var(--signal);color:var(--navy)!important;padding:7px 10px;margin-bottom:12px!important}
+.alerts h3 small{display:table!important;width:max-content;font:500 11.5px/1 var(--mono)!important;letter-spacing:.14em;background:var(--signal);color:var(--navy)!important;padding:7px 10px;margin-bottom:12px!important}
 
 /* Telegram buttons in the brand, not Telegram's blue */
 .tgbtn{background:var(--navy)!important;color:var(--paper)!important;transition:background-color .15s}
