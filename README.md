@@ -228,6 +228,25 @@ The rule is the same everywhere: whoever benefits from saying "delivered" is nev
 
 Still to come: the shared list of seized addresses, cross-chain payouts through NEAR Intents.
 
+## If a supplier is hacked
+
+Someone steals the supplier's email, phone or signing key. Even if nobody notices, they cannot get paid:
+
+- **They cannot move the money to themselves.** A new payout address needs the supplier's key to propose it, the buyer's approval in their own wallet, and 72 hours before it can be paid. Until the buyer approves, it is never paid. If the address was already tried in a seized invoice, the Console warns the buyer before approving.
+- **Fake invoices do not pay them.** An invoice pays only for goods the delivery signers confirmed, at the order price, once, and always to the supplier's registered address.
+
+When the supplier calls to say they were hacked, the buyer has three calls, each signed with the buyer's wallet:
+
+| Call | What it does | Proof |
+|---|---|---|
+| `cancel_payout_change` | Throws away the address change the attacker proposed. Works even while paused. | `owner_can_cancel_a_pending_change`, `cancel_still_works_while_paused_and_unpause_restores_activity` |
+| `cancel_payment` | Cancels a payment that has not started moving (waiting for funds, or its authorisation expired). | `a_waiting_payment_can_be_cancelled_by_the_buyer`, `a_payment_already_sent_cannot_be_cancelled` |
+| `pause` | Stops everything new on the contract: no invoice is inspected, no payment is sent, no address change is proposed or approved, no supplier is registered. Moves no funds. `unpause` resumes. | `paused_contract_inspects_nothing`, `pause_blocks_new_proposals`, `stranger_cannot_pause` |
+
+A payment that already went out cannot be undone, but it went to the supplier's real, registered address.
+
+**Not built yet: changing a supplier's signing key.** Today the buyer locks a stolen key out by registering the supplier again under a new ID with a new key (unpause first: registering is blocked while paused; the contract refuses a key another supplier already uses), which restarts the 72-hour wait. The old key stays harmless meanwhile: it can only sign invoices that pay the real address, and propose address changes the buyer can refuse. A one-step key rotation, and a single "Supplier says they were hacked" button in the Inbox (pause, cancel the change, cancel waiting payments), are next.
+
 ## What it does not do
 
 - The **first** confirmation of a supplier's address still depends on the buyer checking it out of band (for example, a call to a number already on file). After that, a change needs the supplier's signature and the buyer's approval, and only takes effect 72 hours later.
