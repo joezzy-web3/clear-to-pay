@@ -295,7 +295,7 @@ label.confirm.big{padding-left:48px!important}
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import * as W from "./order.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy, walletFix } from "../chain.js";
 initMenu();
 
 const YOCTO = "1", TGAS = (n) => (BigInt(n) * 10n ** 12n).toString();
@@ -705,7 +705,7 @@ function initWallet() {
       S.modal.on("onHide", () => { if (!S.me) $("whelp").hidden = false; });
       const sync = async () => {
         const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
-        S.me = a ? a.accountId : null; S.wallet = S.me ? await S.selector.wallet() : null;
+        S.me = a ? a.accountId : null; S.wallet = S.me ? walletFix(await S.selector.wallet()) : null;
         if (S.me) $("whelp").hidden = true;
         paintWho();
       };

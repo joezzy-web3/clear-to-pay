@@ -245,7 +245,7 @@ import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { compareReading, submitArgs } from "../invoice-flow.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix } from "../chain.js";
 initMenu();
 
 const S = { c: (() => { try { return localStorage.getItem("ctp-inbox-contract") === "live" ? "live" : "demo"; } catch { return "demo"; } })(),
@@ -629,7 +629,7 @@ function initWallet() {
       S.modal.on("onHide", () => { if (!S.me) $("whelp").hidden = false; });
       const sync = async () => {
         const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
-        S.me = a ? a.accountId : null; S.wallet = S.me ? await S.selector.wallet() : null;
+        S.me = a ? a.accountId : null; S.wallet = S.me ? walletFix(await S.selector.wallet()) : null;
         if (S.me) $("whelp").hidden = true;
         paintWho();
       };

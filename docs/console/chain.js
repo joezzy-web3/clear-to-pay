@@ -97,3 +97,21 @@ export function alertLink(contract, role) {
   const p = role === "buyer" ? `${net}_b` : role === "signers" ? `${net}_g` : `${net}_s_${b64u(role.supplier)}`;
   return `https://t.me/${BOT}?start=${p}`;
 }
+
+/** Meteor's wallet-selector module (in wallet.js) only takes near-api-js action objects and converts
+ *  them itself; every other wallet takes { type, params }. Give Meteor what it expects. */
+export function walletFix(w) {
+  if (!w || w.id !== "meteor-wallet") return w;
+  const naj = (a) => {
+    const p = a.params || {};
+    if (a.type === "FunctionCall") return { functionCall: { methodName: p.methodName, args: new TextEncoder().encode(JSON.stringify(p.args)), gas: BigInt(p.gas), deposit: BigInt(p.deposit) } };
+    if (a.type === "Transfer") return { transfer: { deposit: BigInt(p.deposit) } };
+    if (a.type === "DeleteKey") return { deleteKey: { publicKey: { toString: () => p.publicKey } } };
+    return a;
+  };
+  return new Proxy(w, { get(t, k) {
+    if (k === "signAndSendTransaction") return (x) => t.signAndSendTransaction({ ...x, actions: x.actions.map(naj) });
+    if (k === "signAndSendTransactions") return (x) => t.signAndSendTransactions({ ...x, transactions: x.transactions.map((tx) => ({ ...tx, actions: tx.actions.map(naj) })) });
+    const v = t[k]; return typeof v === "function" ? v.bind(t) : v;
+  } });
+}

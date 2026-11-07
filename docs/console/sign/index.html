@@ -226,7 +226,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <script type="module">
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
-import { CONTRACTS } from "../chain.js";
+import { CONTRACTS, walletFix } from "../chain.js";
 import { rpc } from "../chain.js";
 import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 import { buildInvoice } from "../invoice-flow.js";
@@ -565,7 +565,7 @@ async function proveAddress() {
       const callbackUrl = location.origin + location.pathname + "?proof=1";
       sessionStorage.setItem("ctp-proof-pending", JSON.stringify({ j: P.get("j"), addr, key: KEY.public_key, at, nonce: C.base64.encode(nonce), callbackUrl }));
       st.textContent = "Approve the message in your wallet…";
-      const w = await selector.wallet();
+      const w = walletFix(await selector.wallet());
       const r = await w.signMessage({ message, recipient: JOIN.contract, nonce: globalThis.Buffer ? globalThis.Buffer.from(nonce) : nonce, callbackUrl });
       if (r) { sessionStorage.removeItem("ctp-proof-pending"); await accept({ account: r.accountId, publicKey: r.publicKey, signature: r.signature, nonce: C.base64.encode(nonce), at, callbackUrl, key: KEY.public_key, address: addr }); }
       return true;
