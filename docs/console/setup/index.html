@@ -141,6 +141,12 @@ body.not-buyer #forms > :not(#rolecard){display:none!important}
 .invbox{background:var(--cell);border:1px dashed var(--line);padding:14px 16px;display:grid;gap:8px;align-content:start}
 textarea{font:400 13.5px var(--mono);padding:10px;border:1px solid var(--line);width:100%;min-width:0;resize:vertical}
 .confirm.big{padding:12px 14px;background:#FFF6D6;border-left:4px solid var(--held)}
+/* The phone-call tick: box on the left of the words, ticks green, the whole row turns green when ticked */
+label.confirm{display:block!important;position:relative;padding-left:32px!important;text-align:left!important;cursor:pointer}
+label.confirm.big{padding-left:48px!important}
+.confirm input[type=checkbox]{position:absolute;left:0;top:1px;appearance:auto!important;-webkit-appearance:checkbox!important;width:20px!important;height:20px!important;min-width:0;padding:0!important;margin:0!important;border:0;accent-color:var(--clear);cursor:pointer}
+.confirm.big input[type=checkbox]{left:14px;top:13px}
+.confirm.big:has(input:checked){background:rgba(18,122,74,.09);border-left-color:var(--clear)}
 .lrow3{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.6fr) minmax(0,.8fr) 40px;gap:6px}
 .lrow3 small{grid-column:1/-1;font:400 12px var(--mono);color:var(--mute);margin:-2px 0 4px}
 .lrow2{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,.8fr) 40px;gap:6px}
