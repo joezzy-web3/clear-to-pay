@@ -335,17 +335,25 @@ pub fn read(input: &Value, host: &dyn Host) -> Result<Value, String> {
     let nonce = hex::encode(host.random32());
     let id: String = chat_id.bytes().filter(|b| b.is_ascii_alphanumeric() || b"-_".contains(b)).map(char::from).collect();
     let mut signed: Option<Value> = None;
-    for attempt in 0..8u64 {
+    let mut last = String::new();
+    for attempt in 0..10u64 {
         // the signature lives on the node that served us; retry until we reach it
-        if let Ok(b) = host.nearai("GET", &format!("/v1/signature/{id}?{}", query(MODEL, None)), None) {
-            if let Ok(v) = serde_json::from_slice::<Value>(&b) {
-                signed = Some(v);
-                break;
-            }
+        match host.nearai("GET", &format!("/v1/signature/{id}?{}", query(MODEL, None)), None) {
+            Ok(b) => match serde_json::from_slice::<Value>(&b) {
+                Ok(v) if v.get("signature").is_some() => {
+                    signed = Some(v);
+                    break;
+                }
+                _ => last = format!("signature answer has no signature: {}", String::from_utf8_lossy(&b[..b.len().min(160)])),
+            },
+            Err(e) => last = e,
         }
         host.pause(750 * (attempt + 1));
     }
     let mut problems = vec![];
+    if signed.is_none() {
+        problems.push(format!("signature lookup for {id}: {last}"));
+    }
     let report: Value = match host.nearai("GET", &format!("/v1/attestation/report?{}", query(MODEL, Some(&nonce))), None) {
         Ok(b) => serde_json::from_slice(&b).unwrap_or_else(|_| json!({})),
         Err(e) => {
