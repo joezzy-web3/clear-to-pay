@@ -1,0 +1,40 @@
+[package]
+name = "ctp-outlayer-reader"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Clear to Pay's invoice reader as an OutLayer WASI P2 component: the NEAR AI key stays sealed in the enclave, every reading is signed by a key derived inside it"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "ctp-outlayer-reader"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1.0"
+sha2 = "0.10"
+sha3 = { version = "0.10", default-features = false }
+hex = "0.4"
+k256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wit-bindgen = "0.36"
+wasi-http-client = "0.2"
+getrandom = "0.3"
+
+[dev-dependencies]
+k256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
+
+# Standalone: not part of the contract build at the repository root.
+[workspace]
+exclude = ["harness"]

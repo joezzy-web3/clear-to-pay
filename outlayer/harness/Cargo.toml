@@ -1,0 +1,18 @@
+[package]
+name = "ctp-outlayer-harness"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Runs the reader component on wasmtime 28 (OutLayer's worker version) with a stand-in signing key"
+
+[workspace]
+
+[dependencies]
+wasmtime = { version = "28", features = ["component-model"] }
+wasmtime-wasi = "28"
+wasmtime-wasi-http = "28"
+anyhow = "1"
+ed25519-dalek = "2"
+hex = "0.4"
+serde_json = "1"
+sha2 = "0.10"

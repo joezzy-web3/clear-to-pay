@@ -1,0 +1,11 @@
+{
+  "display": { "name": "Clear to Pay invoice reader" },
+  "operations": ["read", "public_key"],
+  "capabilities": {
+    "network": [{ "host": "cloud-api.near.ai", "timeout_secs": 120 }]
+  },
+  "author_secrets": { "profile": "author" },
+  "signing_keys": [
+    { "path": "readings", "type": "ed25519", "bind": "project" }
+  ]
+}

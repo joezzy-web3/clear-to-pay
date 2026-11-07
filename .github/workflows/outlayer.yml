@@ -1,0 +1,87 @@
+name: outlayer
+
+# The invoice reader as an OutLayer component (outlayer/): tests, a reproducible
+# wasm32-wasip2 build (built twice, the two sha256 must match), and a run on wasmtime 28
+# (OutLayer's worker version) through outlayer/harness. With the NEARAI_SPIKE_KEY secret set
+# (a small, capped NEAR AI key), it also reads the clean sample invoice live through the
+# built component and checks NEAR AI's signature and the enclave-style signature.
+# A tag outlayer-v* publishes the wasm and its sha256 as a GitHub release: OutLayer
+# fetches the code from that URL (testnet FastFS has been unreliable, out-layer/outlayer#32).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [outlayer]
+    tags: ["outlayer-v*"]
+    paths: ["outlayer/**", ".github/workflows/outlayer.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: outlayer
+    env:
+      # the same bytes wherever it is built
+      RUSTFLAGS: "--remap-path-prefix=/home/runner=/build --remap-path-prefix=/home/runner/work/clear-to-pay/clear-to-pay/outlayer=/build/outlayer"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Toolchain from outlayer/rust-toolchain.toml (1.93.0, wasm32-wasip2)
+        run: rustup toolchain install && rustup target add wasm32-wasip2
+      - name: Tests (prompt bytes, NEAR AI signature, the live proof, the answer's shape)
+        run: RUSTFLAGS= cargo test --locked
+      - name: Build twice; the sha256 must match
+        run: |
+          cargo build --release --locked --target wasm32-wasip2
+          a=$(sha256sum target/wasm32-wasip2/release/ctp-outlayer-reader.wasm | cut -d' ' -f1)
+          cargo clean && cargo build --release --locked --target wasm32-wasip2
+          b=$(sha256sum target/wasm32-wasip2/release/ctp-outlayer-reader.wasm | cut -d' ' -f1)
+          echo "first $a"; echo "second $b"; test "$a" = "$b"
+          cp target/wasm32-wasip2/release/ctp-outlayer-reader.wasm ../ctp-outlayer-reader.wasm
+          echo "$a  ctp-outlayer-reader.wasm" > ../ctp-outlayer-reader.wasm.sha256
+          echo "### wasm sha256: \`$a\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: The embedded manifest is the one in the repository
+        run: |
+          grep -c '"author_secrets"' ../ctp-outlayer-reader.wasm
+          grep -c 'cloud-api.near.ai' ../ctp-outlayer-reader.wasm
+      - name: Build the wasmtime 28 harness
+        run: RUSTFLAGS= cargo build --release --locked --manifest-path harness/Cargo.toml
+      - name: Run on wasmtime 28 (no NEAR AI key; the enclave key signs)
+        run: |
+          h=harness/target/release/ctp-outlayer-harness
+          $h ../ctp-outlayer-reader.wasm '{"op":"public_key"}' | tee pk.json
+          grep -q '"prompt_sha":"11e8da92139223cd"' pk.json
+          $h ../ctp-outlayer-reader.wasm "$(cat testdata/01-clean.json)" | tee nokey.json
+          grep -q 'NEAR AI key is not set' nokey.json
+      - name: Live reading through the built component (needs the NEARAI_SPIKE_KEY secret)
+        env:
+          NEARAI_SPIKE_KEY: ${{ secrets.NEARAI_SPIKE_KEY }}
+        run: |
+          if [ -z "$NEARAI_SPIKE_KEY" ]; then echo "no NEARAI_SPIKE_KEY secret: skipped"; exit 0; fi
+          h=harness/target/release/ctp-outlayer-harness
+          $h ../ctp-outlayer-reader.wasm "$(cat testdata/01-clean.json)" "$NEARAI_SPIKE_KEY" > live.json
+          python3 - <<'PY'
+          import json
+          o = json.load(open("live.json")); r = json.loads(o["reading"])
+          print(json.dumps({k: r[k] for k in ("nearai_signature_ok", "held", "extraction", "nearai_problems", "nearai_signing_address")}, indent=2))
+          assert r["nearai_signature_ok"] is True, r["nearai_problems"]
+          assert r["held"] == [], r["held"]
+          e = r["extraction"]
+          assert (e["supplier_id"], e["invoice_number"], e["order_id"], e["total"]) == ("qingmar-steel", "INV-2208", "PO-1184", "7.80"), e
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ctp-outlayer-reader
+          path: |
+            ctp-outlayer-reader.wasm
+            ctp-outlayer-reader.wasm.sha256
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/outlayer-v')
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" ctp-outlayer-reader.wasm ctp-outlayer-reader.wasm.sha256 --title "$GITHUB_REF_NAME" --notes "Clear to Pay invoice reader for OutLayer. sha256 $(cut -d' ' -f1 ctp-outlayer-reader.wasm.sha256)"
