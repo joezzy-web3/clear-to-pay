@@ -41,7 +41,7 @@ export async function readPdf(bytes) {
       const [x, y] = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
       const size = Math.hypot(it.transform[2], it.transform[3]);
       const w = Math.max(1, it.width * vp.scale), h = Math.max(1, size * vp.scale);
-      const why = size < 1 ? "tiny_font" : inkWhy(g, cv, x, y - h, w, h);
+      const why = size < 1 ? "tiny_font" : inkWhy(g, cv, x, y - h, w, h) || partWhy(g, cv, it.str, x, y - h, w, h);
       if (why) { hidden.push({ text: it.str.trim(), why }); continue; }
       const key = Math.round(it.transform[5]);
       if (!rows.has(key)) rows.set(key, []);
@@ -54,7 +54,7 @@ export async function readPdf(bytes) {
   return { text, hidden, held };
 }
 
-function inkWhy(g, cv, x, y, w, h) {
+function inkWhy(g, cv, x, y, w, h, min = 0.004) {
   const x0 = Math.max(0, Math.floor(x)), y0 = Math.max(0, Math.floor(y));
   const x1 = Math.min(cv.width, Math.ceil(x + w)), y1 = Math.min(cv.height, Math.ceil(y + h));
   if (x1 - x0 < 1 || y1 - y0 < 1 || (x1 - x0) * (y1 - y0) < 0.25 * w * h) return "outside_page";
@@ -66,7 +66,20 @@ function inkWhy(g, cv, x, y, w, h) {
   const br = ((bg >> 8) & 15) * 16 + 8, bgg = ((bg >> 4) & 15) * 16 + 8, bb = (bg & 15) * 16 + 8;
   let ink = 0;
   for (let i = 0; i < d.length; i += 4) if (Math.max(Math.abs(d[i] - br), Math.abs(d[i + 1] - bgg), Math.abs(d[i + 2] - bb)) > 64) ink++;
-  return ink / (d.length / 4) < 0.004 ? "no_visible_ink" : null;
+  return ink / (d.length / 4) < min ? "no_visible_ink" : null;
+}
+
+/** CTP8-01: ink somewhere in the box is not enough. Split the box into one cell per character; a run of
+ *  three or more non-space characters whose cells carry no ink (clipped, covered, faded) hides the item. */
+function partWhy(g, cv, str, x, y, w, h) {
+  const n = str.length; if (n < 3) return null;
+  const cw = w / n; let run = 0;
+  for (let i = 0; i < n; i++) {
+    if (/\s/.test(str[i])) { run = 0; continue; }
+    run = inkWhy(g, cv, x + i * cw, y, Math.max(1, cw), h, 0.02) ? run + 1 : 0;
+    if (run >= 3) return "partly_hidden";
+  }
+  return null;
 }
 
 async function callReader(text, sha) {
@@ -144,7 +157,7 @@ async function result(r, checks, ok, res, sha) {
       <div class="own-payee"><span>There is no payee in this reading. The contract would pay</span>${payee}</div>`
       : `<h4>No extraction</h4><p class="own-calm">${esc((r && (r.rejected || r.held.join(", "))) || "The reading was not usable.")} Nothing would be paid.</p>`}</div>
   </div>
-  <p class="note">The AI ran inside a sealed machine. This signature proves which code read your invoice. Enclave key <code>${READER.enclaveKey.slice(0, 16)}…</code> · WASM <a href="${READER.release}" target="_blank" rel="noopener"><code>${READER.wasm.slice(0, 16)}…</code></a> · <a href="${esc(att)}" target="_blank" rel="noopener">OutLayer attestation</a> · file sha-256 <code>${sha.slice(0, 16)}…</code></p>`;
+  <p class="note">The enclave signed this reading, and OutLayer's attestation names the code that produced it. This page checks the signatures and hashes; that the Intel quote is genuine and the worker is a registered one are OutLayer's checks, not this browser's. Enclave key <code>${READER.enclaveKey.slice(0, 16)}…</code> · WASM <a href="${READER.release}" target="_blank" rel="noopener"><code>${READER.wasm.slice(0, 16)}…</code></a> · <a href="${esc(att)}" target="_blank" rel="noopener">OutLayer attestation</a> · file sha-256 <code>${sha.slice(0, 16)}…</code></p>`;
 }
 
 export function init() {

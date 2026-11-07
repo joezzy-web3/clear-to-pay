@@ -409,12 +409,19 @@ async function facts(id, btn) {
 // ---------------------------------------------------------------- payout address changes waiting for the buyer
 async function addrChanges() {
   const box = $("alist2"), c = contract();
-  let rows = [];
+  // CTP8-05: every supplier, and an unreadable one is reported, never treated as "no pending change".
+  let rows = [], missed = 0, idsErr = false;
   try {
     const ids = await view(c, "get_supplier_ids");
-    rows = (await Promise.all(ids.slice(0, 100).map((id) => view(c, "get_supplier", { supplier_id: id }).catch(() => null)))).filter((x) => x && x.pending);
-  } catch {}
-  $("addr").hidden = !rows.length; if (!rows.length) return;
+    for (let i = 0; i < ids.length; i += 10) {
+      const got = await Promise.all(ids.slice(i, i + 10).map((id) => view(c, "get_supplier", { supplier_id: id }).catch(() => undefined)));
+      missed += got.filter((x) => x === undefined).length;
+      rows.push(...got.filter((x) => x && x.pending));
+    }
+  } catch { idsErr = true; }
+  const warn = idsErr ? "Could not read the supplier list, so pending address changes cannot be shown. Reload in a moment." : missed ? `Could not read ${missed} supplier${missed === 1 ? "" : "s"}: a pending address change may be missing from this list. Reload in a moment.` : "";
+  $("addr").hidden = !rows.length && !warn;
+  if (!rows.length) { box.innerHTML = warn ? `<p class="err">${esc(warn)}</p>` : ""; return; }
   const H72 = 72n * 3600n * 1_000_000_000n, d = (ns) => new Date(Number(BigInt(ns) / 1_000_000n)).toLocaleString([], { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   box.innerHTML = rows.map((x) => { const p = x.pending, eff = BigInt(p.proposed_at) + H72;
     return `<article class="ic"><div class="ic-l"><span class="vd">${p.approved ? "APPROVED" : "PROPOSED"}</span><small>${esc(x.supplier_id)}</small></div>
@@ -422,7 +429,7 @@ async function addrChanges() {
       <p class="who">Proposed ${esc(d(p.proposed_at))} · ${p.approved ? "takes effect" : "earliest effect"} ${esc(d(eff))}</p>
       <p class="do">${p.approved ? "You approved this. If the supplier did not ask for it, cancel it now: until it takes effect, payments still go to the old address." : "Signed with the supplier's key. Did the supplier ask for it? Call them on a number you already had. Approve only if they confirm the new address character by character."}</p>
       <div class="flagslot" data-a="${esc(p.route.address)}"></div>
-      <div class="row"><button class="btn r" type="button" data-addr="cancel_payout_change" data-s="${esc(x.supplier_id)}">Cancel the change</button>${p.approved ? "" : `<button class="btn ghost" type="button" data-addr="approve_payout_change" data-s="${esc(x.supplier_id)}" data-a="${esc(p.route.address)}">Approve</button>`}</div><div id="adx-${esc(x.supplier_id)}"></div></div></article>`; }).join("");
+      <div class="row"><button class="btn r" type="button" data-addr="cancel_payout_change" data-s="${esc(x.supplier_id)}">Cancel the change</button>${p.approved ? "" : `<button class="btn ghost" type="button" data-addr="approve_payout_change" data-s="${esc(x.supplier_id)}" data-a="${esc(p.route.address)}">Approve</button>`}</div><div id="adx-${esc(x.supplier_id)}"></div></div></article>`; }).join("") + (warn ? `<p class="err">${esc(warn)}</p>` : "");
   injectCss();
   box.querySelectorAll(".flagslot").forEach(async (el) => { el.innerHTML = flagHtml(el.dataset.a, await flagsFor(el.dataset.a)); });
   box.querySelectorAll("[data-addr]").forEach((b) => (b.onclick = () => addrAct(b.dataset.addr, b.dataset.s, b.dataset.a)));

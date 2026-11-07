@@ -121,7 +121,10 @@ export async function checkProof(sup, contract) {
       r = { state: "bad", why: "the signature does not match this supplier, key, address and contract" };
     else {
       let ak = null; try { ak = await rpc("query", { request_type: "view_access_key", finality: "final", account_id: sup.addr.trim(), public_key: pr.publicKey }); } catch {}
-      r = ak && ak.permission === "FullAccess" ? { state: "ok", at: pr.at } : { state: "bad", why: ak ? "signed with a limited key, not a full-access key of the account" : `the signing key is not a key of ${sup.addr.trim()} (or NEAR could not be reached)` };
+      const t = Date.parse(pr.at), age = Date.now() - t;
+      r = !Number.isFinite(t) || age < -10 * 60_000 ? { state: "bad", why: "its time is in the future" }
+        : age > 7 * 24 * 3600_000 ? { state: "bad", why: "it is more than 7 days old; ask the supplier to prove the address again" }
+        : ak && ak.permission === "FullAccess" ? { state: "ok", at: pr.at } : { state: "bad", why: ak ? "signed with a limited key, not a full-access key of the account" : `the signing key is not a key of ${sup.addr.trim()} (or NEAR could not be reached)` };
     }
   } catch { r = { state: "bad", why: "the proof is damaged" }; }
   proofCache.set(id, r); return r;
@@ -255,6 +258,7 @@ function reviewHTML(p) {
 }
 async function paintReview(b) {
   let p;
+  try { await snapshot(); } catch {} // CTP8-02: review what the contract holds now, not when the wizard opened
   try { p = plan(D, X, K.contract()); if (p.sup.isNew) p.sup.proofResult = await checkProof(D.sup, K.contract()); } catch (e) { b.innerHTML = `<p class="err">${esc(e.message)}</p><div class="row"><button class="btn" type="button" id="wz-fix">Go to step ${e.step}</button></div>`; $("wz-fix").onclick = () => go(e.step); return; }
   const owner = K.S.owner, me = K.S.me, can = me && owner && me === owner;
   b.innerHTML = `${reviewHTML(p)}
@@ -296,9 +300,10 @@ async function readBack(p) {
     const okLines = o && o.lines.length === p.lines.length && o.lines.every((l, i) => l.sku === p.lines[i].sku && String(l.qty) === p.lines[i].qty && String(l.unit_price) === p.lines[i].unit_price);
     const okSup = o && o.supplier_id === p.sup.id, okPol = pol.required === 2 && JSON.stringify(pol.roles) === JSON.stringify(p.roles);
     const okSig = p.added.every((a) => sg.some((s) => s.key === a.key && s.role === a.role));
-    const okLim = !p.limits.changed || (String(lim.per_invoice) === p.limits.inv && String(lim.per_supplier_per_period) === p.limits.per);
-    const all = okLines && okSup && okPol && okSig && okLim;
-    $("wz-back").innerHTML = `${all ? "<b>Read back from the contract: every part matches.</b>" : "<b>Read back from the contract: something differs.</b> Check the transaction."}
+    const okLim = !p.limits.changed || (String(lim.per_invoice) === p.limits.inv && String(lim.per_supplier_per_period) === p.limits.per && String(lim.period_hours) === String(p.limits.hours) && +lim.max_submissions_per_day === +p.limits.max);
+    const okRoles = p.roles.every((r) => sg.some((s) => s.role === r)); // CTP8-03: every required role has a signer now
+    const all = okLines && okSup && okPol && okSig && okLim && okRoles;
+    $("wz-back").innerHTML = `${all ? "<b>Read back from the contract: every part matches.</b>" : (okRoles ? "<b>Read back from the contract: something differs.</b> Check the transaction." : "<b>Read back: a required role has no registered signer now</b>, so deliveries cannot be confirmed until you add one (Advanced).")}
       <br>Order ${esc(p.po)}: ${okLines && okSup ? `${o.lines.length} lines for ${esc(o.supplier_id)}` : "not as signed"} · delivery policy v${esc(String(pol.version))}: 2 of ${esc(pol.roles.join(", "))} · ${p.added.length} new signer${p.added.length === 1 ? "" : "s"} ${okSig ? "registered" : "missing"}${p.limits.changed ? ` · limits ${okLim ? "set" : "not as signed"}` : ""}`;
   } catch { $("wz-back").textContent = "Could not read it back right now; the NearBlocks link shows the result."; }
 }
@@ -307,6 +312,9 @@ async function readBack(p) {
 async function signOnce(p) {
   const S = K.S;
   if (!S.wallet || S.me !== S.owner) return;
+  // CTP8-02/03: read the contract again and rebuild the plan; if anything differs, show Review again instead of signing.
+  try { await snapshot(); const q = plan(D, X, K.contract()); if (JSON.stringify(q.actions) !== JSON.stringify(p.actions)) throw new Error("changed"); }
+  catch (e) { paint(); $("wz-msg").innerHTML = `<p class="err">${e.message === "changed" ? "The contract changed since you opened Review (limits, signers or the supplier). Check Review again, then sign." : esc(e.message || "Could not read the contract; nothing was signed.")}</p>`; return; }
   if (!confirm(`You are about to authorise ${p.po} for ${usdUnits(p.total)} to ${p.sup.id}, paid only to ${p.sup.addr}.\n\nOne transaction, ${p.actions.length} actions, on ${K.contract()}. All of it lands, or none of it does.`)) return;
   const out = $("wz-msg");
   try {
@@ -315,19 +323,28 @@ async function signOnce(p) {
     out.innerHTML = `<p class="muted">Waiting for your wallet…</p>`;
     const res = await S.wallet.signAndSendTransaction({ receiverId: K.contract(), actions: walletActions(p) });
     sessionStorage.removeItem("ctp-setup-pending");
-    if (res) await finished(res.transaction?.hash || res.transaction_outcome?.id, res.status?.Failure || null);
+    if (res) await finished(res.transaction?.hash || res.transaction_outcome?.id, res.status?.Failure || null, !res.status);
   } catch (e) { sessionStorage.removeItem("ctp-setup-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
 }
-async function finished(hash, failure) {
+async function finished(hash, failure, unknown = false) {
+  if (unknown && D.signing) {
+    // CTP8-04: a hash is not a result. Keep the plan and say plainly that we could not read the outcome yet.
+    save(); paint();
+    $("wz-msg").innerHTML = `<p class="err"><b>Signed, but the result could not be read yet.</b> This page will not call it authorised until it reads a success from NEAR.</p><div class="row">${hash ? `<a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">See it on NearBlocks</a><button class="btn" type="button" id="wz-recheck">Check again</button>` : ""}</div>`;
+    const b = $("wz-recheck"); if (b) b.onclick = async () => { b.disabled = true; const r = await K.txOutcome(hash); finished(hash, r.failure, r.state === "unknown"); };
+    return;
+  }
   const s = D.signing; D.signing = null;
   if (failure || !s) { save(); paint(); $("wz-msg").innerHTML = `<p class="err">Nothing was changed: the contract refused the transaction${failure ? ": " + esc(JSON.stringify(failure).slice(0, 260)) : ""}.</p>${hash ? `<a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a>` : ""}`; return; }
   D.done = { hash, at: Date.now(), contract: K.contract(), buyer: K.S.me || K.S.owner, plan: s.plan }; D.step = 5; save();
-  await snapshot().catch(() => {}); paint(); K.refresh();
+  await snapshot().catch(() => {});
+  const cs = X && X.suppliers.find((x) => x.id === s.plan.sup.id); if (cs) { D.done.chainFrom = cs.from; save(); } // CTP8-07: the chain's time, not this browser's
+  paint(); K.refresh();
 }
 /** Back from a redirect wallet (MyNearWallet): the page reloads with ?transactionHashes=… */
-export async function returned(hash, failure, errorCode) {
+export async function returned(hash, failure, errorCode, unknown = false) {
   if (errorCode) { D.signing = null; save(); paint(); $("wz-msg").innerHTML = `<p class="err">The wallet did not sign (${esc(errorCode)}). Nothing was changed.</p>`; return; }
-  await finished(hash, failure);
+  await finished(hash, failure, unknown);
   $("wiz").scrollIntoView({ block: "start" });
 }
 
@@ -337,7 +354,7 @@ function printPO(p, done) {
   po.innerHTML = `<div class="wm ${done ? "ok" : ""}">${done ? "AUTHORISED ON NEAR TESTNET" : "DRAFT · NOT AUTHORISED"}</div>
     <header class="po-h"><div><b class="po-brand">Clear to Pay</b><span>Purchase order</span></div><div class="po-no"><b>${esc(p.po)}</b><span>${esc(when.toLocaleDateString([], { day: "2-digit", month: "long", year: "numeric" }))}</span></div></header>
     <div class="po-cols"><div><h5>Buyer</h5><p>${esc(done ? done.buyer : K.S.owner || "")}</p><h5>Contract</h5><p>${esc(p.contract)}</p></div>
-      <div><h5>Supplier</h5><p>${esc(p.sup.id)}</p><h5>Paid only to</h5><p><b>${esc(p.sup.addr)}</b>${p.sup.proofResult?.state === "ok" ? "<br>address proved by the account itself (NEP-413)" : ""}<br>payable from ${esc(p.sup.isNew ? (done ? whenText(done.at + H72) : "72 hours after signing") : whenText(p.sup.from))}</p></div></div>
+      <div><h5>Supplier</h5><p>${esc(p.sup.id)}</p><h5>Paid only to</h5><p><b>${esc(p.sup.addr)}</b>${p.sup.proofResult?.state === "ok" ? "<br>address proved by the account itself (NEP-413)" : ""}<br>payable from ${esc(p.sup.isNew ? (done ? (done.chainFrom ? whenText(done.chainFrom) + " (read from the contract)" : whenText(done.at + H72) + " (estimated; not read back yet)") : "72 hours after signing") : whenText(p.sup.from))}</p></div></div>
     <table class="po-t"><thead><tr><th>Item</th><th>Quantity</th><th>Unit price (USDC)</th><th>Line total (USDC)</th></tr></thead>
       <tbody>${p.lines.map((l) => `<tr><td>${esc(l.sku)}</td><td>${esc(l.qty)}</td><td>${esc(fromUnits(l.unit_price))}</td><td>${esc(fromUnits((BigInt(l.qty) * BigInt(l.unit_price)).toString()))}</td></tr>`).join("")}</tbody>
       <tfoot><tr><td colspan="3">Total</td><td>${esc(fromUnits(p.total))}</td></tr></tfoot></table>

@@ -633,7 +633,8 @@ function arrived() {
   let a; try { a = decodeLink(a0); } catch { return; }
   history.replaceState(null, "", location.pathname + location.search);
   if (!isAccount(a.contract) || !isPubKey(a.key)) return;
-  if (a.contract !== contract()) { const k = Object.entries(CONTRACTS).find(([, c]) => c === a.contract)?.[0]; if (!k) return; S.c = k; sessionStorage.setItem("ctp-setup-contract", k); document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === k))); }
+  if (a.contract !== contract()) { const k = Object.entries(CONTRACTS).find(([, c]) => c === a.contract)?.[0]; if (!k) return;
+    if (!confirm(`This reply is for ${a.contract}, but you are working on ${contract()}.\n\nSwitch to ${a.contract}?`)) return; /* CTP8-06 */ S.c = k; sessionStorage.setItem("ctp-setup-contract", k); document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === k))); }
   W.reload().then(() => W.fromReply(a)); // a reply fills the New order wizard; it never signs anything
 }
 /** Open the Advanced cards at one of them, optionally pre-filled (the delivery-link builder after an order). */
@@ -725,6 +726,19 @@ $("connect").onclick = async () => {
 $("disconnect").onclick = async () => { try { await S.wallet.signOut(); } catch {} S.me = null; S.wallet = null; paintWho(); };
 
 // Back from a redirect wallet: ?transactionHashes=… or ?errorCode=…
+/** CTP8-04: what NEAR says about a transaction: ok, failed, or unknown (never "ok" just because a hash came back). */
+async function txOutcome(hash) {
+  for (let i = 0; i < 4; i++) {
+    try {
+      const t = await rpc("tx", { tx_hash: hash, sender_account_id: S.me || S.owner, wait_until: "EXECUTED_OPTIMISTIC" });
+      if (t.status && "Failure" in t.status) return { state: "fail", failure: t.status.Failure };
+      if (t.status && ("SuccessValue" in t.status || "SuccessReceiptId" in t.status) && t.transaction?.receiver_id === contract()) return { state: "ok", failure: null };
+    } catch {}
+    await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+  }
+  return { state: "unknown", failure: null };
+}
+
 async function returning() {
   const q = new URLSearchParams(location.search), p = JSON.parse(sessionStorage.getItem("ctp-setup-pending") || "null");
   if (!p || (!q.get("transactionHashes") && !q.get("errorCode"))) return;
@@ -732,17 +746,16 @@ async function returning() {
   history.replaceState(null, "", location.pathname + location.hash);
   if (p.id === "wizard") {
     if (q.get("errorCode")) return W.returned(null, null, q.get("errorCode"));
-    const h = q.get("transactionHashes").split(",").pop(); let fl = null;
-    try { const t = await rpc("tx", { tx_hash: h, sender_account_id: S.me || S.owner, wait_until: "EXECUTED_OPTIMISTIC" }); fl = t.status?.Failure || null; } catch {}
-    return W.returned(h, fl, null);
+    const h = q.get("transactionHashes").split(",").pop(), r = await txOutcome(h);
+    return W.returned(h, r.failure, null, r.state === "unknown");
   }
   const f = FORMS.find((x) => x.id === p.id); if (!f) return;
   document.getElementById("f-" + f.id).scrollIntoView({ block: "start" });
   if (q.get("errorCode")) { $("out-" + f.id).innerHTML = `<p class="err">The wallet did not sign (${esc(q.get("errorCode"))}).</p>`; return; }
   const hash = q.get("transactionHashes").split(",").pop();
-  let failure = null;
-  try { const t = await rpc("tx", { tx_hash: hash, sender_account_id: S.me || S.owner, wait_until: "EXECUTED_OPTIMISTIC" }); failure = t.status?.Failure || null; } catch {}
-  await done(f, hash, p.args, failure);
+  const r = await txOutcome(hash);
+  if (r.state === "unknown") { $("out-" + f.id).innerHTML = `<p class="err"><b>Signed, but the result could not be read yet.</b> Nothing is shown as done until NEAR reports a success.</p><a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">See it on NearBlocks</a>`; return; }
+  await done(f, hash, p.args, r.failure);
 }
 
 // Buyer setup is the buyer's page: a delivery signer or a supplier is sent to theirs instead.
@@ -765,7 +778,7 @@ try { if (!["signer", "supplier"].includes(localStorage.getItem("ctp-role"))) gu
 render();
 const walletReady = initWallet(); // start loading the wallet at once, in parallel with the contract reads
 await refresh();
-await W.init({ S, contract, net: () => S.c, refresh, openAdvanced });
+await W.init({ S, contract, net: () => S.c, refresh, openAdvanced, txOutcome });
 await walletReady;
 await returning();
 arrived();

@@ -11,7 +11,7 @@ name: outlayer
 on:
   workflow_dispatch:
   push:
-    branches: [outlayer]
+    branches: [main, outlayer]
     tags: ["outlayer-v*"]
     paths: ["outlayer/**", ".github/workflows/outlayer.yml"]
 

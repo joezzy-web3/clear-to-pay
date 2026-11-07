@@ -341,7 +341,21 @@ The same external reviewer read the browser Console (Buyer setup, the signing pa
 - **CTP7-05: the Inbox read only the newest receipts, so an old unpaid invoice could drop out of the queue.** **Fixed:** it reads every receipt, up to the newest 2,000, and keeps the ones that can no longer change.
 - **CTP7-03 and 06: wording.** **Fixed:** the pages say which monitor polls how often, and Judge mode says what the browser checks (signatures and hashes) and what the reader checks (Intel and NVIDIA certificates).
 
-An eighth review, of the one-signature order wizard, the address-change approvals, the role pages and the NEP-413 proof (patches 69 to 71), has been requested.
+### Eighth review (7 November 2026, external)
+
+The same external reviewer read patches 69 to 79: the one-signature order wizard, invitations, address-change approvals, the NEP-413 proof and the reader inside OutLayer. No critical or high finding, and no way found to change an invoice's payee or move money the contract would not move. Findings, all fixed the same day:
+
+- **CTP8-01 (Medium): a text run that was only partly hidden passed the ink check.** **Fixed:** every character's share of the run must carry ink on the rendered page; three hidden characters in a row hide the run, and hidden text about payment holds the invoice. Tested with a PDF whose honest line ends in a payment instruction covered by a white box.
+- **CTP8-02 (Medium): the wizard could sign against limits, signers or a supplier read when it opened.** **Fixed:** Review reads the contract again, and so does "Sign once", which rebuilds the plan and refuses to sign if anything changed.
+- **CTP8-03 (Medium): a delivery policy could name a role that had just lost its only signer.** **Fixed in the browser** (the fresh read before signing, and the read-back says when a required role has no signer). The contract still accepts such a policy; it fails closed (nothing can clear until a signer is added) and is listed in THREAT_MODEL.md.
+- **CTP8-04 (Medium): back from a redirect wallet, an unreadable result counted as success.** **Fixed:** three outcomes, success, failure or unknown; only a success read from NEAR (and sent to this contract) shows "authorised" and the AUTHORISED purchase order; unknown says so and offers "Check again".
+- **CTP8-05 (Medium): the Inbox could hide a pending address change** (first 100 suppliers only; unreadable ones dropped). **Fixed:** every supplier is read, and any it could not read is reported on the page.
+- **CTP8-06 (Low): an invitation reply could switch the contract silently.** **Fixed:** the page asks first.
+- **CTP8-07 (Low): the authorised PO's "payable from" used this browser's clock.** **Fixed:** read from the contract after signing.
+- **CTP8-08 (Low): the read-back skipped two limit fields.** **Fixed:** all four are compared.
+- **CTP8-09 (Low): an old NEP-413 proof stayed valid for ever.** **Fixed:** proofs older than 7 days, or from the future, are refused.
+- **CTP8-10 (Low): "this signature proves which code read your invoice" claimed more than the browser checks.** **Fixed:** the page now says the enclave signed the reading and OutLayer's attestation names the code; Intel's quote and the worker's registration are OutLayer's checks, not the browser's.
+- **CTP8-11 (Low): the OutLayer build did not run on pushes to main.** **Fixed.**
 
 ## Security notes
 
