@@ -84,22 +84,13 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .cbar{background:#13284A;color:var(--paper);border-radius:14px;box-shadow:inset 0 0 0 1px #24406B;margin-top:16px}
 .cbar-in{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 10px 8px 16px}
 .cbar-k{font:500 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-right:4px}
-.ctabs{display:flex;gap:2px;flex-wrap:wrap}
-.ctabs a,.ctabs span{position:relative;font:600 14px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}
-.ctabs a:hover{color:var(--paper);background:#1B3358}
-.ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
-.ctabs span{opacity:.55;font-weight:500}
-.ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
-.ctabs a.dim{opacity:.35}
-.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
-.ctabs a.for[aria-current]{color:var(--navy)}
 .rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
 .rolehint a{color:var(--signal)}
 .roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
 .roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
 .roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
 .roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
-@media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
+@media (max-width:640px){.roles{margin-left:0}.roles button{padding:6px 9px}}
 
 .alerts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(16px,3vw,32px)}
 .alerts h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
@@ -111,9 +102,6 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 @media (max-width:900px){.alerts{grid-template-columns:1fr}.arow{grid-template-columns:1fr auto}.arow .btn.ghost{grid-column:1/-1;justify-self:start}}
 .confirm{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font:500 14.5px/1.45 var(--body)}
 .confirm input{width:auto;margin-top:3px}
-.rolecard{display:grid;gap:10px;border-left:6px solid var(--signal)}
-.rolecard h2{font-size:clamp(30px,4vw,48px);max-width:none;margin:6px 0 0}
-.rolecard p{margin:0;max-width:62ch;line-height:1.55}
 body.not-buyer #forms > :not(#rolecard){display:none!important}
 /* the checklist: the contract's own state, one line per thing a company sets up */
 .ready{background:var(--card);border:1px solid var(--line);padding:clamp(18px,2.6vw,28px);position:relative}
@@ -164,7 +152,8 @@ textarea{font:400 13.5px var(--mono);padding:10px;border:1px solid var(--line);w
 .rv-h{display:flex;justify-content:space-between;align-items:center;gap:12px}.rv h4{font:800 22px var(--display);margin:0}
 .kv2{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:6px 16px;margin:0;font-size:14.5px}
 .kv2 dt{color:var(--mute);font:400 13px var(--mono)}.kv2 dd{margin:0;overflow-wrap:anywhere}
-.tag{font:500 11px var(--mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;background:var(--signal);color:var(--navy);padding:2px 6px}.tag.reg{background:#E2E7E1;color:var(--mute)}
+.tag{font:500 11px var(--mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;background:var(--signal);color:var(--navy);padding:2px 6px}.proved{color:var(--clear);font-weight:600}.unproved{color:var(--seize);font-weight:600}
+.tag.reg{background:#E2E7E1;color:var(--mute)}
 .lt{width:100%;border-collapse:collapse;font-size:14px}.lt th,.lt td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}.lt th{font:500 12px var(--mono);color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
 .lt tfoot td{border-bottom:0;font-weight:600}.lt td:last-child,.lt th:last-child{text-align:right}
 .rv.tx{background:var(--cell);border-left:4px solid var(--navy)}
@@ -196,6 +185,14 @@ textarea{font:400 13.5px var(--mono);padding:10px;border:1px solid var(--line);w
   .po-t td{padding:5pt 4pt;border-bottom:.5pt solid #D5DCD7}.po-t td:not(:first-child),.po-t th:not(:first-child){text-align:right}.po-t tfoot td{font-weight:700;border-bottom:0;border-top:1pt solid #10264A}
   .po-f{margin-top:16pt;padding-top:8pt;border-top:.5pt solid #D5DCD7;font:400 8.5pt/1.5 "IBM Plex Mono",monospace;color:#55657C;word-break:break-all}
 }
+
+/* Console pages: the top bar is the Console's own pages */
+.clinks a{position:relative}
+.clinks a[aria-current]{color:var(--navy)!important;background:var(--paper)!important}
+.clinks a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+.clinks a.for::after{content:"";position:absolute;top:5px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+.clinks a.dim{opacity:.4}
+.cbar .roles{margin-left:0}
 </style>
 </head>
 <body>
@@ -203,10 +200,10 @@ textarea{font:400 13.5px var(--mono);padding:10px;border:1px solid var(--line);w
 <header class="top gut"><div class="in">
   <nav class="nav">
     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Buyer setup</a></span>
-    <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/" aria-current="page"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../../console/inbox/"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
+    <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div>
     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+  <nav class="cbar" aria-label="Console"><div class="cbar-in"><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
 
   <div class="hero">
     <div>
@@ -306,12 +303,12 @@ const FORMS = [
     help: "The only place a payout address can come from. It cannot be paid for 72 hours.",
     warn: "Check this address with the supplier by phone, on a number you already had, before you register it.",
     fields: `<label>Supplier id<span>a-z, 0-9, '-', '_', '.'</span><input id="s-id" placeholder="qingmar-steel" autocomplete="off"></label>
-      <label>Supplier's signing key<span>ed25519:… (from their phone or ctp-sign)</span><input id="s-key" placeholder="ed25519:" autocomplete="off"></label>
+      <label>Supplier's public signing key<span>ed25519:… (the public key from their phone or ctp-sign; never a private key)</span><input id="s-key" placeholder="ed25519:" autocomplete="off"></label>
       <label>Payout account on NEAR<span>where USDC is paid</span><input id="s-addr" placeholder="qingmar.cleartopay.testnet" autocomplete="off"></label>`,
     build() {
       const id = $("s-id").value.trim(), key = $("s-key").value.trim(), addr = $("s-addr").value.trim();
       if (!isSupplierId(id)) fail("Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
-      if (!isPubKey(key)) fail("The signing key must look like ed25519:… (44 characters after the colon).");
+      if (!isPubKey(key)) fail("The public signing key must look like ed25519:… (44 characters after the colon).");
       if (!isAccount(addr)) fail("The payout account must be a NEAR account id.");
       if (S.needCall) fail("Tick the box once the supplier has confirmed this address by phone.");
       return { method: "register_supplier", args: { supplier_id: id, signing_key: key, route: { chain: "near", token: USDC, address: addr } } };
@@ -750,7 +747,7 @@ let showAnyway = false;
 function roleView(role) {
   const other = !showAnyway && (role === "signer" || role === "supplier");
   document.body.classList.toggle("not-buyer", other); $("rolecard").hidden = !other;
-  if (other) $("rc-p").textContent = ROLE_TEXT[role];
+  if (other) { $("rc-p").textContent = ROLE_TEXT[role]; $("rc-go").textContent = `Go to the ${role === "signer" ? "Delivery signer" : "Supplier"} page →`; }
 }
 addEventListener("ctp-role", (e) => roleView(e.detail));
 $("rc-show").onclick = () => { showAnyway = true; roleView(null); };
@@ -792,15 +789,15 @@ arrived();
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
-    document.querySelectorAll(".ctabs a[data-page]").forEach((a) => {
+    document.querySelectorAll(".clinks a[data-page]").forEach((a) => {
       const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
       a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
     });
-    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
+    const h = document.getElementById("rolehint"), here = document.querySelector(".clinks a[aria-current]")?.dataset.page;
     if (h) {
       h.hidden = !role;
       if (role) {
-        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+        const mineHere = FOR[role].includes(here), go = document.querySelector(`.clinks a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
         h.textContent = HINT[role] + (mineHere ? "" : " ");
         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
       }

@@ -61,6 +61,8 @@
 .mini small{font:400 12px var(--mono);color:var(--mute)}
 .alarm{padding:12px 14px;background:#FBECEA;border-left:4px solid var(--seize);line-height:1.5}
 @media (max-width:520px){.pick{grid-template-columns:1fr}.mini{grid-template-columns:auto minmax(0,1fr)}.mini > :last-child{grid-column:2}}
+.proof{display:grid;gap:8px;margin-top:14px;padding:14px 16px;background:var(--cell);border:1px dashed var(--line)}
+.proof.ok{border:1px solid var(--clear);background:#E5F2EA}
 .steps{margin:14px 0 0;padding-left:20px;display:grid;gap:8px;line-height:1.5}
 .steps li.done{color:var(--clear)}
 .field{display:grid;gap:6px;margin-top:16px;font:600 15px var(--body)}
@@ -110,22 +112,21 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .cbar{background:#13284A;color:var(--paper);border-radius:14px;box-shadow:inset 0 0 0 1px #24406B;margin-top:16px}
 .cbar-in{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 10px 8px 16px}
 .cbar-k{font:500 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-right:4px}
-.ctabs{display:flex;gap:2px;flex-wrap:wrap}
-.ctabs a,.ctabs span{position:relative;font:600 14px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}
-.ctabs a:hover{color:var(--paper);background:#1B3358}
-.ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
-.ctabs span{opacity:.55;font-weight:500}
-.ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
-.ctabs a.dim{opacity:.35}
-.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
-.ctabs a.for[aria-current]{color:var(--navy)}
 .rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
 .rolehint a{color:var(--signal)}
 .roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
 .roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
 .roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
 .roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
-@media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
+@media (max-width:640px){.roles{margin-left:0}.roles button{padding:6px 9px}}
+
+/* Console pages: the top bar is the Console's own pages */
+.clinks a{position:relative}
+.clinks a[aria-current]{color:var(--navy)!important;background:var(--paper)!important}
+.clinks a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+.clinks a.for::after{content:"";position:absolute;top:5px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+.clinks a.dim{opacity:.4}
+.cbar .roles{margin-left:0}
 </style>
 </head>
 <body>
@@ -133,10 +134,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <header class="top gut"><div class="in">
   <nav class="nav">
     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Sign</a></span>
-    <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/" aria-current="page"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../../console/inbox/"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
+    <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign" aria-current="page">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div>
     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
   </nav>
-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign" aria-current="page">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+  <nav class="cbar" aria-label="Console"><div class="cbar-in"><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
 
   <div class="hero">
     <div>
@@ -164,6 +165,12 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <p class="plain" id="join-p"></p>
     <ol class="steps" id="join-steps"></ol>
     <label class="field" id="join-addr-l" hidden>Your payout account on NEAR<span>where you want to be paid; the buyer will confirm it with you by phone</span><input id="join-addr" placeholder="yourcompany.near" autocomplete="off" spellcheck="false"></label>
+    <div class="proof" id="proof" hidden>
+      <b>Optional: prove this address is yours</b>
+      <p class="plain">If you can sign in to <b id="proof-addr">this account</b> with a NEAR wallet (Meteor or MyNearWallet), sign one short message with it. No money moves and nothing is sent on chain. The buyer's page checks it and shows "proved by the account itself" next to their phone call. The call is still needed.</p>
+      <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="proof-go" disabled>Prove with my NEAR wallet</button></div>
+      <p class="note" id="proof-st" aria-live="polite"></p>
+    </div>
     <button class="btn signbtn" id="join-go" type="button" disabled style="margin-top:14px">Send my details to the buyer</button>
   </section>
 
@@ -185,7 +192,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   </section>
 
   <section class="card keybox" id="keycard" aria-labelledby="h-key">
-    <h3 id="h-key">Your signing key</h3>
+    <h3 id="h-key">Your signing key pair</h3>
+    <p class="plain">A key pair is two halves. The <b>public key</b> is shown below and is safe to share: the buyer registers it. The <b>private key</b> stays on this phone. It is never shown and never sent, and nobody, including the buyer, will ever ask you for it.</p>
     <div id="keystate"></div>
     <p class="note">Demo-grade key storage: the key is kept in this browser's storage for this site only. Anyone with this phone unlocked could use it. For real deliveries, use a hardware-backed key.</p>
   </section>
@@ -217,6 +225,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import { CONTRACTS } from "../chain.js";
+import { rpc } from "../chain.js";
 import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 initMenu();
 
@@ -233,11 +242,12 @@ let KEY = null, JOB = null, READY = false;
 function paintKey() {
   const el = $("keystate");
   if (KEY) {
-    el.innerHTML = `<p class="plain">This phone signs with:</p><code id="pub">${esc(KEY.public_key)}</code>
-      <div class="row" style="margin-top:0"><button class="btn ghost" id="copypub" type="button">Copy the public key</button><button class="btn ghost" id="forget" type="button">Forget this key</button></div>
-      <p class="note" style="margin:0">${ROLE === "supplier" ? "The buyer registers this public key once, as your company's key." : ROLE === "signer" ? "The buyer registers this public key once, as a delivery signer with your role." : "The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key)."} It is safe to share; the secret half stays here.</p>`;
+    el.innerHTML = `<p class="plain"><b>Public key</b> (safe to share)</p><code id="pub">${esc(KEY.public_key)}</code>
+      <div class="row" style="margin-top:0"><button class="btn ghost" id="copypub" type="button">Copy the public key</button><button class="btn ghost" id="forget" type="button">Forget this key pair</button></div>
+      <p class="plain" style="margin:0"><b>Private key</b>: kept on this phone only. Not shown, not copied, never sent.</p>
+      <p class="note" style="margin:0">${ROLE === "supplier" ? "The buyer registers this public key once, as your company's key." : ROLE === "signer" ? "The buyer registers this public key once, as a delivery signer with your role." : "The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key)."}</p>`;
     $("copypub").onclick = (e) => copy(KEY.public_key, e.target);
-    $("forget").onclick = async () => { if (confirm("Forget this key on this phone? Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); paintJoinState(); paintHome(); } };
+    $("forget").onclick = async () => { if (confirm("Forget this key pair on this phone? The private key cannot be recovered. Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); paintJoinState(); paintHome(); } };
   } else {
     el.innerHTML = `<p class="plain">No key on this phone yet. Make one here, or import the key file the buyer's team gave you (the <code>ctp-sign</code> JSON).</p>
       <div class="row" style="margin-top:0"><button class="btn" id="gen" type="button">Make a key on this phone</button><label class="btn ghost" for="file">Import a key file</label><input type="file" id="file" accept=".json,application/json" hidden></div>
@@ -488,9 +498,63 @@ function paintJoin() {
   $("join").before($("keycard")); // step 1 is the key, so it comes first
   paintJoinState();
 }
+// ---------------------------------------------------------------- proving the payout address (NEP-413), optional
+let PROOF = null; // { account, publicKey, signature, nonce (base64), at, callbackUrl?, key, address }
+const proofFor = (addr) => PROOF && PROOF.address === addr && PROOF.key === KEY?.public_key ? PROOF : null;
+async function proveAddress() {
+  const addr = $("join-addr").value.trim(), st = $("proof-st");
+  if (!KEY || !isAccount(addr)) return;
+  st.textContent = "Loading the wallet…";
+  try {
+    const W = await import("../wallet.js");
+    const selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet(), W.setupMyNearWallet()] });
+    const modal = W.setupModal(selector, { description: `Sign in with ${addr}, the account you want to be paid to.` });
+    const run = async () => {
+      const acc = selector.store.getState().accounts.find((a) => a.active)?.accountId;
+      if (!acc) return false;
+      if (acc !== addr) { st.textContent = `You signed in as ${acc}, not ${addr}. Sign in with the payout account itself.`; return true; }
+      const at = new Date().toISOString(), nonce = crypto.getRandomValues(new Uint8Array(32));
+      const message = C.payoutProofText({ address: addr, supplier_id: JOIN.supplier_id, contract: JOIN.contract, key: KEY.public_key, at });
+      const callbackUrl = location.origin + location.pathname + "?proof=1";
+      sessionStorage.setItem("ctp-proof-pending", JSON.stringify({ j: P.get("j"), addr, key: KEY.public_key, at, nonce: C.base64.encode(nonce), callbackUrl }));
+      st.textContent = "Approve the message in your wallet…";
+      const w = await selector.wallet();
+      const r = await w.signMessage({ message, recipient: JOIN.contract, nonce: globalThis.Buffer ? globalThis.Buffer.from(nonce) : nonce, callbackUrl });
+      if (r) { sessionStorage.removeItem("ctp-proof-pending"); await accept({ account: r.accountId, publicKey: r.publicKey, signature: r.signature, nonce: C.base64.encode(nonce), at, callbackUrl, key: KEY.public_key, address: addr }); }
+      return true;
+    };
+    if (!(await run())) { modal.show(); const un = selector.store.observable.subscribe(async () => { if (await run()) un.unsubscribe?.(); }); }
+  } catch (e) { st.textContent = "The wallet did not sign: " + (e.message || e); }
+}
+/** Check a proof here exactly as the buyer's page will, then keep it for the reply. */
+async function accept(p) {
+  const st = $("proof-st");
+  const message = C.payoutProofText({ address: p.address, supplier_id: JOIN.supplier_id, contract: JOIN.contract, key: p.key, at: p.at });
+  if (p.account !== p.address) { st.textContent = `The wallet signed as ${p.account}, not ${p.address}.`; return; }
+  if (!C.verifyNep413({ publicKey: p.publicKey, signature: p.signature, message, nonce: C.base64.decode(p.nonce), recipient: JOIN.contract, callbackUrl: p.callbackUrl })) { st.textContent = "The signature does not check out. Try again."; return; }
+  PROOF = p; paintJoinState();
+}
+/** Back from a redirect wallet: #accountId=…&publicKey=…&signature=… */
+async function proofReturned() {
+  const pend = JSON.parse(sessionStorage.getItem("ctp-proof-pending") || "null"), h = new URLSearchParams(location.hash.slice(1));
+  if (!pend || !h.get("signature")) return false;
+  sessionStorage.removeItem("ctp-proof-pending");
+  history.replaceState(null, "", location.pathname + "#j=" + pend.j);
+  P.set("j", pend.j); P.delete("signature");
+  return { account: h.get("accountId"), publicKey: h.get("publicKey"), signature: h.get("signature"), nonce: pend.nonce, at: pend.at, callbackUrl: pend.callbackUrl, key: pend.key, address: pend.addr };
+}
+
 function paintJoinState() {
   if (!JOIN) return;
   const sup = JOIN.kind === "supplier", addr = $("join-addr").value.trim(), okAddr = !sup || isAccount(addr);
+  if (sup) {
+    $("proof").hidden = false; $("proof-addr").textContent = addr || "this account";
+    $("proof-go").disabled = !(KEY && isAccount(addr));
+    const pr = proofFor(addr);
+    $("proof").classList.toggle("ok", !!pr);
+    if (pr) $("proof-st").textContent = `Proved: ${addr} signed with its own key. It goes to the buyer with your details.`;
+    else if (PROOF) $("proof-st").textContent = "The address or key changed after you proved it: prove it again, or send without proof.";
+  }
   $("join-steps").innerHTML = `<li class="${KEY ? "done" : ""}">${KEY ? "Your key is ready on this phone." : "Make a key on this phone (above), or import one."}</li>`
     + (sup ? `<li class="${okAddr && addr ? "done" : ""}">Type the NEAR account you want to be paid to.</li>` : "")
     + `<li>Send your details back. The buyer reviews them and registers you with their wallet.</li>`;
@@ -498,7 +562,7 @@ function paintJoinState() {
 }
 function sendJoin() {
   const sup = JOIN.kind === "supplier", a = { contract: JOIN.contract, kind: JOIN.kind, key: KEY.public_key };
-  if (sup) { a.supplier_id = JOIN.supplier_id; a.address = $("join-addr").value.trim(); } else a.role = JOIN.role;
+  if (sup) { a.supplier_id = JOIN.supplier_id; a.address = $("join-addr").value.trim(); const pr = proofFor(a.address); if (pr) a.proof = { account: pr.account, publicKey: pr.publicKey, signature: pr.signature, nonce: pr.nonce, at: pr.at, ...(pr.callbackUrl ? { callbackUrl: pr.callbackUrl } : {}) }; } else a.role = JOIN.role;
   const link = new URL("../setup/#a=" + encodeLink(a), location.href).href;
   $("res-h").textContent = "Send this back to the buyer";
   $("res-p").textContent = sup ? "Share the link, or let the buyer scan the QR code. When they call to confirm your payout account, it should match exactly." : "Share the link, or let the buyer scan the QR code. After they register your key, the delivery links they send you will sign with it.";
@@ -513,6 +577,7 @@ function sendJoin() {
 }
 $("join-addr").addEventListener("input", paintJoinState);
 $("send-buyer").addEventListener("click", sendToBuyer);
+$("proof-go").addEventListener("click", proveAddress);
 $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJoin(); });
 
 // ---------------------------------------------------------------- start
@@ -524,10 +589,12 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
     document.querySelector(`.roles button[data-role="${r}"]`)?.getAttribute("aria-pressed") === "true" || document.querySelector(`.roles button[data-role="${r}"]`)?.click();
     history.replaceState(null, "", location.pathname);
   }
+  const back = await proofReturned();
   if (P.get("j")) {
     try { JOIN = parseJoin(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This invitation cannot be used: " + e.message + "."; }
     KEY = await loadKey(); paintKey();
-    if (JOIN) { ROLE = JOIN.kind; paintJoin(); paintRole(); guide(JOIN.kind); $("live").className = "live on"; $("liveText").innerHTML = "<b>Invitation</b> · " + esc(JOIN.contract); }
+    if (JOIN && back) { $("join-addr").value = back.address; await accept(back); }
+    if (JOIN) { ROLE = JOIN.kind; paintJoin(); paintRole(); if (!back) guide(JOIN.kind); $("live").className = "live on"; $("liveText").innerHTML = "<b>Invitation</b> · " + esc(JOIN.contract); }
     return;
   }
   try { JOB = parseJob(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This link cannot be used: " + e.message + "."; }
@@ -574,15 +641,15 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
   const paint = () => {
     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
-    document.querySelectorAll(".ctabs a[data-page]").forEach((a) => {
+    document.querySelectorAll(".clinks a[data-page]").forEach((a) => {
       const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
       a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
     });
-    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
+    const h = document.getElementById("rolehint"), here = document.querySelector(".clinks a[aria-current]")?.dataset.page;
     if (h) {
       h.hidden = !role;
       if (role) {
-        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+        const mineHere = FOR[role].includes(here), go = document.querySelector(`.clinks a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
         h.textContent = HINT[role] + (mineHere ? "" : " ");
         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
       }

@@ -30,9 +30,20 @@ const GUIDES = {
 };
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 
-/** Paint the banner at the top of the page for `role` (judge | buyer | supplier | signer | pick). */
+const OTHER = { signer: "Delivery signer", supplier: "Supplier" };
+let page = null, listening = false;
+/** Paint the banner at the top of the page for `role` (judge | buyer | supplier | signer | pick).
+ *  On a buyer page, a visitor who picked Delivery signer or Supplier is told whose page this is and sent to theirs. */
 export function banner(role) {
   const el = document.getElementById("rband"); if (!el) return;
+  page = role;
+  if (role === "buyer" && !listening) { listening = true; addEventListener("ctp-role", () => banner(page)); }
+  const me = role === "buyer" ? store.get("ctp-role") : null;
+  if (me in OTHER) {
+    el.dataset.r = me;
+    el.innerHTML = `<div class="rband-in"><b>BUYER'S PAGE</b><span>This is the buyer's page. You picked ${OTHER[me]}.</span><a class="rband-go" href="${new URL("sign/", import.meta.url).href}">Go to the ${OTHER[me]} page →</a></div>`;
+    return;
+  }
   const r = ROLES[role] || ROLES.pick, g = GUIDES[role];
   el.dataset.r = role in ROLES ? role : "pick";
   el.innerHTML = `<div class="rband-in"><b>${r.name}</b><span>${r.line}</span>${g ? `<button type="button" class="rband-g" id="rband-g">Show the guide</button>` : ""}</div>`;

@@ -234,3 +234,11 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
 .guide-nav button{font:600 15px "Instrument Sans",Arial,sans-serif;border:0;cursor:pointer;padding:12px 18px}
 .guide-next{background:#F4C20D;color:#10264A}.guide-back{background:none;box-shadow:inset 0 0 0 2px #10264A;color:#10264A}
 @media (max-width:640px){.rband-in span{flex-basis:100%;order:3;font-size:13px}.rband-g{margin-left:auto}}
+
+/* Buyer pages, seen by a delivery signer or supplier: one card, the rest folded */
+.rolecard{display:grid;gap:10px;border-left:6px solid var(--signal)}
+.rolecard h2{font-size:clamp(30px,4vw,48px);max-width:none;margin:6px 0 0}
+.rolecard p{margin:0;max-width:62ch;line-height:1.55}
+.rolecard .kick{justify-self:start}
+body.not-buyer #main.inbox > :not(#rolecard){display:none!important}
+.rband a.rband-go{font:600 14px var(--body);color:var(--navy);background:var(--signal);padding:8px 12px;text-decoration:none;white-space:nowrap}

@@ -123,3 +123,22 @@ export function qrSvg(text) {
 export function verifyDigest(publicKey, digest, sigB64) {
   try { return ed25519.verify(base64.decode(sigB64), digest, base58.decode(publicKey.replace(/^ed25519:/, ""))); } catch { return false; }
 }
+
+// ---- NEP-413: a message signed by a NEAR account's own key (used to prove a payout address).
+const NEP413_TAG = 2147483648 + 413; // 2^31 + 413
+/** sha-256 of borsh(u32 tag) ‖ borsh(Payload { message, nonce: [u8; 32], recipient, callbackUrl: Option<String> }). */
+export function nep413Digest({ message, nonce, recipient, callbackUrl }) {
+  if (!(nonce instanceof Uint8Array) || nonce.length !== 32) throw new Error("nonce must be 32 bytes");
+  const w = new W();
+  w.u32(NEP413_TAG);
+  w.str(message); w.bytes(nonce); w.str(recipient);
+  if (callbackUrl == null) w.u8(0); else { w.u8(1); w.str(callbackUrl); }
+  return sha256(w.out());
+}
+/** Does `signature` (base64) verify for `publicKey` (ed25519:…) over this NEP-413 message? */
+export function verifyNep413({ publicKey, signature, message, nonce, recipient, callbackUrl }) {
+  try { return verifyDigest(publicKey, nep413Digest({ message, nonce, recipient, callbackUrl }), signature); } catch { return false; }
+}
+/** The exact text a supplier signs to prove they control their payout account. */
+export const payoutProofText = ({ address, supplier_id, contract, key, at }) =>
+  `Clear to Pay payout address proof\nI control the NEAR account ${address}.\nPay supplier ${supplier_id} on ${contract} to it.\nSupplier signing key: ${key}\nSigned at: ${at}`;

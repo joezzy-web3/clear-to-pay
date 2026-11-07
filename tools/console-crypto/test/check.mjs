@@ -77,3 +77,16 @@ assert.doesNotThrow(() => C.invoiceDigest("cleartopay.testnet", iv(U128, U128), 
 assert.throws(() => C.invoiceDigest("cleartopay.testnet", iv("340282366920938463463374607431768211456", "1"), new Uint8Array(32)));
 assert.throws(() => C.invoiceDigest("cleartopay.testnet", iv("1", "340282366920938463463374607431768211456"), new Uint8Array(32)));
 console.log("ok  u64/u128 at their exact width: max accepted; max+1, negatives, exponents, leading zeros refused");
+
+// 7. NEP-413: our digest and verification agree with NEAR Wallet Selector's reference verifier.
+const { verifySignature } = await import("@near-wallet-selector/core");
+const acct = C.newKeyFile(), nonce = new Uint8Array(32).map((_, i) => i * 7 + 1);
+const text = C.payoutProofText({ address: "acme.testnet", supplier_id: "acme-steel", contract: "judge.cleartopay.testnet", key: nk.public_key, at: "2026-11-07T08:00:00Z" });
+const sig413 = C.signDigest(acct.secret_key, C.nep413Digest({ message: text, nonce, recipient: "judge.cleartopay.testnet" }));
+assert.ok(verifySignature({ publicKey: acct.public_key, signature: sig413, message: text, nonce: Buffer.from(nonce), recipient: "judge.cleartopay.testnet" }), "the reference verifier accepts our signature");
+assert.ok(C.verifyNep413({ publicKey: acct.public_key, signature: sig413, message: text, nonce, recipient: "judge.cleartopay.testnet" }));
+assert.ok(!C.verifyNep413({ publicKey: acct.public_key, signature: sig413, message: text.replace("acme.testnet", "evil.testnet"), nonce, recipient: "judge.cleartopay.testnet" }));
+assert.ok(!C.verifyNep413({ publicKey: acct.public_key, signature: sig413, message: text, nonce, recipient: "guard.cleartopay.testnet" }));
+const sigCb = C.signDigest(acct.secret_key, C.nep413Digest({ message: text, nonce, recipient: "r", callbackUrl: "https://x/cb" }));
+assert.ok(verifySignature({ publicKey: acct.public_key, signature: sigCb, message: text, nonce: Buffer.from(nonce), recipient: "r", callbackUrl: "https://x/cb" }), "with a callback URL too");
+console.log("ok  NEP-413 matches the wallet selector's reference verifier; another address or recipient fails");

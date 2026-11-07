@@ -3,6 +3,7 @@
 // Filling fields never opens the wallet. The draft autosaves in this browser. The single
 // transaction carries every owner call as an action, so NEAR applies all of it or none of it.
 import * as C from "../crypto.js";
+import { rpc } from "../chain.js";
 import { $, esc, short, view, TX, USDC, isRef, isSupplierId, isRole, isAccount, isPubKey, toUnits, fromUnits, encodeLink, decodeLink, copy, alertLink, netOf } from "../chain.js";
 
 // Gas per action, in Tgas. The sandbox test a_whole_order_is_set_up_in_one_signed_transaction_or_not_at_all
@@ -45,7 +46,7 @@ export function plan(d, x, contract) {
     const id = d.sup.id.trim(), k = d.sup.key.trim(), a = d.sup.addr.trim();
     if (!isSupplierId(id)) fail(1, "Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
     if (x.suppliers.some((s) => s.id === id)) fail(1, `${id} is already registered: choose it from the list instead.`);
-    if (!isPubKey(k)) fail(1, "The supplier's signing key must look like ed25519:… (paste their reply to fill it).");
+    if (!isPubKey(k)) fail(1, "The supplier's public signing key must look like ed25519:… (paste their reply to fill it).");
     if (supKeys.has(k)) fail(1, "That key already belongs to another supplier.");
     if (sigKeys.has(k)) fail(1, "That key is a delivery signer's key; a supplier needs its own.");
     if (!isAccount(a)) fail(1, "The payout account must be a NEAR account id.");
@@ -102,6 +103,31 @@ export function plan(d, x, contract) {
 }
 export const walletActions = (p) => p.actions.map(([m, args]) => ({ type: "FunctionCall", params: { methodName: m, args, gas: (BigInt(WIZARD_GAS[m]) * 10n ** 12n).toString(), deposit: "1" } }));
 
+// ---------------------------------------------------------------- the supplier's proof of their payout address (NEP-413), optional
+// Checked here, in this browser: the message names this supplier, key, address and contract; the signature is valid;
+// it was made by a FULL-ACCESS key of the payout account (read live from NEAR). The contract does not check it.
+const proofCache = new Map();
+export async function checkProof(sup, contract) {
+  const pr = sup.proof;
+  if (!pr) return { state: "none" };
+  const id = JSON.stringify([sup.id, sup.key, sup.addr, contract, pr]);
+  if (proofCache.has(id)) return proofCache.get(id);
+  let r;
+  try {
+    const message = C.payoutProofText({ address: sup.addr.trim(), supplier_id: sup.id.trim(), contract, key: sup.key.trim(), at: pr.at });
+    if (pr.account !== sup.addr.trim()) r = { state: "bad", why: `signed by ${pr.account}, not by ${sup.addr.trim()}` };
+    else if (!C.verifyNep413({ publicKey: pr.publicKey, signature: pr.signature, message, nonce: C.base64.decode(pr.nonce), recipient: contract, callbackUrl: pr.callbackUrl }))
+      r = { state: "bad", why: "the signature does not match this supplier, key, address and contract" };
+    else {
+      let ak = null; try { ak = await rpc("query", { request_type: "view_access_key", finality: "final", account_id: sup.addr.trim(), public_key: pr.publicKey }); } catch {}
+      r = ak && ak.permission === "FullAccess" ? { state: "ok", at: pr.at } : { state: "bad", why: ak ? "signed with a limited key, not a full-access key of the account" : `the signing key is not a key of ${sup.addr.trim()} (or NEAR could not be reached)` };
+    }
+  } catch { r = { state: "bad", why: "the proof is damaged" }; }
+  proofCache.set(id, r); return r;
+}
+const proofLine = (r) => r.state === "ok" ? `<span class="proved">Proved by the account itself</span> (NEP-413, signed ${esc(new Date(r.at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}; checked in this browser, not by the contract)`
+  : r.state === "bad" ? `<span class="unproved">Proof does not check out:</span> ${esc(r.why)}. Rely on the phone call only, and ask why.` : `No proof from the account (optional). The phone call is what counts.`;
+
 // ---------------------------------------------------------------- invitation replies
 function readReply(text) {
   const t = String(text).trim(); let o;
@@ -150,9 +176,10 @@ function paintSupplier(b) {
         <label>Paste the supplier's reply<span>the link they sent back after your invitation</span><textarea id="wz-sreply" rows="3" placeholder="https://…/console/setup/#a=…"></textarea></label>
         <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-suse">Use this reply</button></div>
         ${field("wz-sid", "Supplier id", "a-z, 0-9, '-', '_', '.'", s.id)}
-        ${field("wz-skey", "Their signing key", "from their phone; ed25519:…", s.key)}
+        ${field("wz-skey", "Their public signing key", "public key from their phone; ed25519:…", s.key)}
         ${field("wz-saddr", "Their payout account on NEAR", "where they will be paid", s.addr)}
         <label class="confirm big"><input type="checkbox" id="wz-called" ${ok ? "checked" : ""}> I called the supplier on a number I already had, and they read this address back to me: <b id="wz-caddr">${esc(s.addr.trim() || "this address")}</b>.</label>
+        <p class="note" id="wz-proof">${s.proof ? "Checking the address proof…" : proofLine({ state: "none" })}</p>
         <p class="note">Payable from <b>${esc(whenText(Date.now() + H72))}</b> at the earliest: every new address waits 72 hours.</p>
       </div>
       <div class="invbox"><b>No reply yet?</b><p class="muted">Send the supplier an invitation. They open it on their phone, a key is made there, and they send you a reply to paste here.</p>
@@ -160,7 +187,8 @@ function paintSupplier(b) {
     const bind = (id, f) => ($(id).oninput = (e) => { s[f] = e.target.value; if (f !== "id") { s.calledFor = ""; $("wz-called").checked = false; } if (f === "addr") $("wz-caddr").textContent = s.addr.trim() || "this address"; save(); });
     bind("wz-sid", "id"); bind("wz-skey", "key"); bind("wz-saddr", "addr");
     $("wz-called").onchange = (e) => { s.calledFor = e.target.checked ? `${s.addr.trim()}|${s.key.trim()}` : ""; save(); paint(); };
-    $("wz-suse").onclick = () => { try { const o = readReply($("wz-sreply").value); if (o.kind && o.kind !== "supplier") throw new Error("That is a delivery signer's reply; paste it at step 3."); s.key = o.key; if (o.supplier_id) s.id = o.supplier_id; if (o.address) s.addr = o.address; s.calledFor = ""; save(); paint(); msg("Reply read. Now call the supplier and check the address."); } catch (e) { msg(e.message, true); } };
+    $("wz-suse").onclick = () => { try { const o = readReply($("wz-sreply").value); if (o.kind && o.kind !== "supplier") throw new Error("That is a delivery signer's reply; paste it at step 3."); s.key = o.key; if (o.supplier_id) s.id = o.supplier_id; if (o.address) s.addr = o.address; s.proof = o.proof || null; s.calledFor = ""; save(); paint(); msg("Reply read. Now call the supplier and check the address."); } catch (e) { msg(e.message, true); } };
+    if (s.proof) checkProof(s, K.contract()).then((r) => { const el = $("wz-proof"); if (el) el.innerHTML = proofLine(r); });
     $("wz-sinv").onclick = () => { const id = $("wz-sid").value.trim(); if (!isSupplierId(id)) { msg("Type the supplier id first (a-z, 0-9, '-', '_', '.').", true); return; } s.id = id; save(); showLink($("wz-sinvout"), inviteLink({ kind: "supplier", supplier_id: id }), "Copy the invitation"); };
   }
   b.querySelectorAll('input[name="wz-sm"]').forEach((r) => (r.onchange = () => { s.mode = r.value; s.id = ""; save(); paint(); }));
@@ -214,14 +242,14 @@ function paintLimits(b) {
 function section(n, title, body) { return `<section class="rv"><div class="rv-h"><h4>${esc(title)}</h4>${D.done ? "" : `<button class="btn ghost sm" type="button" data-edit="${n}">Edit</button>`}</div>${body}</section>`; }
 function reviewHTML(p) {
   const sup = p.sup;
-  return section(1, "Supplier", `<dl class="kv2"><dt>Supplier</dt><dd>${esc(sup.id)}${sup.isNew ? ' <em class="tag">new</em>' : ""}</dd><dt>Paid only to</dt><dd><b>${esc(sup.addr)}</b></dd><dt>Payable from</dt><dd>${esc(sup.isNew ? whenText(Date.now() + H72) + " (72 hours after signing)" : whenText(sup.from))}</dd>${sup.isNew ? `<dt>Signing key</dt><dd><code>${esc(short(sup.key, 12))}</code></dd><dt>Address check</dt><dd>You called them and they read it back</dd>` : ""}</dl>`)
+  return section(1, "Supplier", `<dl class="kv2"><dt>Supplier</dt><dd>${esc(sup.id)}${sup.isNew ? ' <em class="tag">new</em>' : ""}</dd><dt>Paid only to</dt><dd><b>${esc(sup.addr)}</b></dd><dt>Payable from</dt><dd>${esc(sup.isNew ? whenText(Date.now() + H72) + " (72 hours after signing)" : whenText(sup.from))}</dd>${sup.isNew ? `<dt>Signing key</dt><dd><code>${esc(short(sup.key, 12))}</code></dd><dt>Address check</dt><dd>You called them and they read it back<br>${proofLine(sup.proofResult || { state: "none" })}</dd>` : ""}</dl>`)
     + section(2, `Order ${p.po}`, `<table class="lt"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Units</th><th>Line total</th></tr></thead><tbody>${p.lines.map((l) => `<tr><td>${esc(l.sku)}</td><td>${esc(l.qty)}</td><td>${esc(fromUnits(l.unit_price))} USDC</td><td><code>${esc(l.unit_price)}</code></td><td>${esc(fromUnits((BigInt(l.qty) * BigInt(l.unit_price)).toString()))} USDC</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="4">Total</td><td><b>${esc(usdUnits(p.total))}</b></td></tr></tfoot></table>`)
     + section(3, "Delivery", `<dl class="kv2"><dt>Rule</dt><dd>2 signatures, from 2 different roles of: <b>${esc(p.roles.join(", "))}</b></dd>${[...p.picked.map((s) => [s, "registered"]), ...p.added.map((s) => [s, "new"])].map(([s, t]) => `<dt>${esc(s.role)}</dt><dd><code>${esc(short(s.key, 10))}</code> <em class="tag ${t === "registered" ? "reg" : ""}">${t}</em></dd>`).join("")}</dl>`)
     + section(4, "Limits", `<dl class="kv2"><dt>Per invoice</dt><dd>${esc(usdUnits(p.limits.inv))}</dd><dt>Per supplier</dt><dd>${esc(usdUnits(p.limits.per))} every ${esc(p.limits.hours)} h</dd><dt>Submissions a day</dt><dd>${esc(String(p.limits.max))}</dd><dt></dt><dd class="muted">${p.limits.changed ? "These replace the limits on chain." : "Unchanged: not part of the transaction."}</dd></dl>`);
 }
-function paintReview(b) {
+async function paintReview(b) {
   let p;
-  try { p = plan(D, X, K.contract()); } catch (e) { b.innerHTML = `<p class="err">${esc(e.message)}</p><div class="row"><button class="btn" type="button" id="wz-fix">Go to step ${e.step}</button></div>`; $("wz-fix").onclick = () => go(e.step); return; }
+  try { p = plan(D, X, K.contract()); if (p.sup.isNew) p.sup.proofResult = await checkProof(D.sup, K.contract()); } catch (e) { b.innerHTML = `<p class="err">${esc(e.message)}</p><div class="row"><button class="btn" type="button" id="wz-fix">Go to step ${e.step}</button></div>`; $("wz-fix").onclick = () => go(e.step); return; }
   const owner = K.S.owner, me = K.S.me, can = me && owner && me === owner;
   b.innerHTML = `${reviewHTML(p)}
     <section class="rv tx"><div class="rv-h"><h4>Your wallet will sign one transaction</h4></div>
@@ -303,7 +331,7 @@ function printPO(p, done) {
   po.innerHTML = `<div class="wm ${done ? "ok" : ""}">${done ? "AUTHORISED ON NEAR TESTNET" : "DRAFT · NOT AUTHORISED"}</div>
     <header class="po-h"><div><b class="po-brand">Clear to Pay</b><span>Purchase order</span></div><div class="po-no"><b>${esc(p.po)}</b><span>${esc(when.toLocaleDateString([], { day: "2-digit", month: "long", year: "numeric" }))}</span></div></header>
     <div class="po-cols"><div><h5>Buyer</h5><p>${esc(done ? done.buyer : K.S.owner || "")}</p><h5>Contract</h5><p>${esc(p.contract)}</p></div>
-      <div><h5>Supplier</h5><p>${esc(p.sup.id)}</p><h5>Paid only to</h5><p><b>${esc(p.sup.addr)}</b><br>payable from ${esc(p.sup.isNew ? (done ? whenText(done.at + H72) : "72 hours after signing") : whenText(p.sup.from))}</p></div></div>
+      <div><h5>Supplier</h5><p>${esc(p.sup.id)}</p><h5>Paid only to</h5><p><b>${esc(p.sup.addr)}</b>${p.sup.proofResult?.state === "ok" ? "<br>address proved by the account itself (NEP-413)" : ""}<br>payable from ${esc(p.sup.isNew ? (done ? whenText(done.at + H72) : "72 hours after signing") : whenText(p.sup.from))}</p></div></div>
     <table class="po-t"><thead><tr><th>Item</th><th>Quantity</th><th>Unit price (USDC)</th><th>Line total (USDC)</th></tr></thead>
       <tbody>${p.lines.map((l) => `<tr><td>${esc(l.sku)}</td><td>${esc(l.qty)}</td><td>${esc(fromUnits(l.unit_price))}</td><td>${esc(fromUnits((BigInt(l.qty) * BigInt(l.unit_price)).toString()))}</td></tr>`).join("")}</tbody>
       <tfoot><tr><td colspan="3">Total</td><td>${esc(fromUnits(p.total))}</td></tr></tfoot></table>
@@ -352,7 +380,7 @@ export async function reload() {
 /** An invitation reply opened as a link (setup/#a=…): it fills the wizard; it never signs anything. */
 export function fromReply(a) {
   if (a.kind === "supplier" && isSupplierId(a.supplier_id) && isAccount(a.address)) {
-    D.sup = { mode: "new", id: a.supplier_id, key: a.key, addr: a.address, calledFor: "" }; D.done = null; D.step = 1; D.max = Math.max(D.max, 1);
+    D.sup = { mode: "new", id: a.supplier_id, key: a.key, addr: a.address, calledFor: "", proof: a.proof || null }; D.done = null; D.step = 1; D.max = Math.max(D.max, 1);
   } else if (a.kind === "signer") {
     if (!D.sig.add.some((s) => s.key === a.key) && !X?.signers.some((s) => s.key === a.key)) D.sig.add.push({ key: a.key, role: isRole(a.role) ? a.role : "" });
     D.done = null; D.step = 3; D.max = Math.max(D.max, 3);

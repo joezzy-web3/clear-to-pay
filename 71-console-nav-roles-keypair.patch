@@ -1,0 +1,454 @@
+diff --git a/docs/console/console.css b/docs/console/console.css
+index 5c36906..f07aecb 100644
+--- a/docs/console/console.css
++++ b/docs/console/console.css
+@@ -234,3 +234,11 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
+ .guide-nav button{font:600 15px "Instrument Sans",Arial,sans-serif;border:0;cursor:pointer;padding:12px 18px}
+ .guide-next{background:#F4C20D;color:#10264A}.guide-back{background:none;box-shadow:inset 0 0 0 2px #10264A;color:#10264A}
+ @media (max-width:640px){.rband-in span{flex-basis:100%;order:3;font-size:13px}.rband-g{margin-left:auto}}
++
++/* Buyer pages, seen by a delivery signer or supplier: one card, the rest folded */
++.rolecard{display:grid;gap:10px;border-left:6px solid var(--signal)}
++.rolecard h2{font-size:clamp(30px,4vw,48px);max-width:none;margin:6px 0 0}
++.rolecard p{margin:0;max-width:62ch;line-height:1.55}
++.rolecard .kick{justify-self:start}
++body.not-buyer #main.inbox > :not(#rolecard){display:none!important}
++.rband a.rband-go{font:600 14px var(--body);color:var(--navy);background:var(--signal);padding:8px 12px;text-decoration:none;white-space:nowrap}
+diff --git a/docs/console/inbox/index.html b/docs/console/inbox/index.html
+index f739d1f..ccca464 100644
+--- a/docs/console/inbox/index.html
++++ b/docs/console/inbox/index.html
+@@ -84,22 +84,13 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ .cbar{background:#13284A;color:var(--paper);border-radius:14px;box-shadow:inset 0 0 0 1px #24406B;margin-top:16px}
+ .cbar-in{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 10px 8px 16px}
+ .cbar-k{font:500 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-right:4px}
+-.ctabs{display:flex;gap:2px;flex-wrap:wrap}
+-.ctabs a,.ctabs span{position:relative;font:600 14px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}
+-.ctabs a:hover{color:var(--paper);background:#1B3358}
+-.ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
+-.ctabs span{opacity:.55;font-weight:500}
+-.ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+-.ctabs a.dim{opacity:.35}
+-.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+-.ctabs a.for[aria-current]{color:var(--navy)}
+ .rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
+ .rolehint a{color:var(--signal)}
+ .roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
+ .roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
+ .roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
+ .roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
+-@media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
++@media (max-width:640px){.roles{margin-left:0}.roles button{padding:6px 9px}}
+ 
+ .alerts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(16px,3vw,32px)}
+ .alerts h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+@@ -163,6 +154,14 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ @media (max-width:640px){.ic{grid-template-columns:1fr}.ic-l{grid-auto-flow:column;justify-content:space-between;align-items:center;padding:12px 16px}.vd{font-size:24px}}
+ .whelp{display:grid;gap:6px;margin-top:4px;padding:12px 14px;background:#13284A;box-shadow:inset 3px 0 0 var(--signal);font:400 14px/1.5 var(--body);color:var(--paper);max-width:60ch}
+ .whelp code{color:var(--signal)}
++
++/* Console pages: the top bar is the Console's own pages */
++.clinks a{position:relative}
++.clinks a[aria-current]{color:var(--navy)!important;background:var(--paper)!important}
++.clinks a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
++.clinks a.for::after{content:"";position:absolute;top:5px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
++.clinks a.dim{opacity:.4}
++.cbar .roles{margin-left:0}
+ </style>
+ </head>
+ <body>
+@@ -170,10 +169,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ <header class="top gut"><div class="in">
+   <nav class="nav">
+     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Inbox</a></span>
+-    <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../../console/inbox/" aria-current="page"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
++    <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/inbox/" data-page="inbox" aria-current="page">Inbox</a></div>
+     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+   </nav>
+-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/inbox/" data-page="inbox" aria-current="page">Inbox</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
++  <nav class="cbar" aria-label="Console"><div class="cbar-in"><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+ 
+   <div class="hero">
+     <div>
+@@ -203,6 +202,12 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ 
+ 
+ <main class="gut"><div class="in inbox" id="main">
++  <section class="card rolecard" id="rolecard" hidden aria-live="polite">
++    <span class="kick">The buyer's page</span>
++    <h2 id="rc-h">This is the buyer's Inbox.</h2>
++    <p id="rc-p"></p>
++    <div class="row"><a class="btn y" href="../sign/" id="rc-go">Go to the Sign page →</a><button class="btn ghost" type="button" id="rc-show">Show the buyer's Inbox anyway</button></div>
++  </section>
+   <div class="msg" id="arrive" hidden></div>
+   <section class="sigs" id="sigs" hidden aria-labelledby="h-sigs">
+     <div class="ib-h"><div><span class="kick">Sent back</span><h2 id="h-sigs">Signatures from phones.</h2></div><button class="btn ghost" type="button" id="sig-clear">Forget these</button></div>
+@@ -581,7 +586,21 @@ async function returning() {
+   await after(p.id, hash, failure);
+ }
+ 
+-banner("buyer"); guide("buyer");
++const ROLE_TEXT = {
++  signer: "Invoices, signatures sent back and address changes land here for the buyer to act on. You confirm deliveries: the Delivery signer page shows your key, whether the buyer has registered it, and the delivery links they send you.",
++  supplier: "The buyer approves and pays from here. Your invoices, payments and payout address are on the Supplier page, read from the same contract.",
++};
++let showAnyway = false;
++function roleView(role) {
++  const other = !showAnyway && (role === "signer" || role === "supplier");
++  document.body.classList.toggle("not-buyer", other); $("rolecard").hidden = !other;
++  if (other) { $("rc-p").textContent = ROLE_TEXT[role]; $("rc-go").textContent = `Go to the ${role === "signer" ? "Delivery signer" : "Supplier"} page →`; }
++}
++addEventListener("ctp-role", (e) => roleView(e.detail));
++$("rc-show").onclick = () => { showAnyway = true; roleView(null); };
++try { roleView(localStorage.getItem("ctp-role")); } catch {}
++banner("buyer");
++try { if (!["signer", "supplier"].includes(localStorage.getItem("ctp-role"))) guide("buyer"); } catch { guide("buyer"); }
+ setContract(S.c, false);
+ arrived();
+ const walletReady = initWallet();
+@@ -615,15 +634,15 @@ await returning();
+   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
+   const paint = () => {
+     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
+-    document.querySelectorAll(".ctabs a[data-page]").forEach((a) => {
++    document.querySelectorAll(".clinks a[data-page]").forEach((a) => {
+       const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
+       a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
+     });
+-    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
++    const h = document.getElementById("rolehint"), here = document.querySelector(".clinks a[aria-current]")?.dataset.page;
+     if (h) {
+       h.hidden = !role;
+       if (role) {
+-        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
++        const mineHere = FOR[role].includes(here), go = document.querySelector(`.clinks a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+         h.textContent = HINT[role] + (mineHere ? "" : " ");
+         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
+       }
+diff --git a/docs/console/index.html b/docs/console/index.html
+index 5165a74..03341e5 100644
+--- a/docs/console/index.html
++++ b/docs/console/index.html
+@@ -280,22 +280,13 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ .cbar{background:#13284A;color:var(--paper);border-radius:14px;box-shadow:inset 0 0 0 1px #24406B;margin-top:16px}
+ .cbar-in{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 10px 8px 16px}
+ .cbar-k{font:500 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-right:4px}
+-.ctabs{display:flex;gap:2px;flex-wrap:wrap}
+-.ctabs a,.ctabs span{position:relative;font:600 14px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}
+-.ctabs a:hover{color:var(--paper);background:#1B3358}
+-.ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
+-.ctabs span{opacity:.55;font-weight:500}
+-.ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+-.ctabs a.dim{opacity:.35}
+-.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+-.ctabs a.for[aria-current]{color:var(--navy)}
+ .rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
+ .rolehint a{color:var(--signal)}
+ .roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
+ .roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
+ .roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
+ .roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
+-@media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
++@media (max-width:640px){.roles{margin-left:0}.roles button{padding:6px 9px}}
+ [hidden]{display:none!important}
+ 
+ /* whose page this is: a banner per role, and the short guide */
+@@ -321,6 +312,14 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ .guide-nav button{font:600 15px "Instrument Sans",Arial,sans-serif;border:0;cursor:pointer;padding:12px 18px}
+ .guide-next{background:#F4C20D;color:#10264A}.guide-back{background:none;box-shadow:inset 0 0 0 2px #10264A;color:#10264A}
+ @media (max-width:640px){.rband-in span{flex-basis:100%;order:3;font-size:13px}.rband-g{margin-left:auto}}
++
++/* Console pages: the top bar is the Console's own pages */
++.clinks a{position:relative}
++.clinks a[aria-current]{color:var(--navy)!important;background:var(--paper)!important}
++.clinks a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
++.clinks a.for::after{content:"";position:absolute;top:5px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
++.clinks a.dim{opacity:.4}
++.cbar .roles{margin-left:0}
+ </style>
+ </head>
+ <body>
+@@ -328,10 +327,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ <header class="top gut"><div class="in">
+   <nav class="nav">
+     <span class="brand"><a class="logo" href="../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Judge mode</a></span>
+-    <div class="links"><a href="../#how">How it works</a><a href="../#checks">The checks</a><a href="../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../console/" aria-current="page"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../console/inbox/"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
++    <div class="links clinks"><a href="../console/" data-page="judge" aria-current="page">Judge mode</a><a href="../console/sign/" data-page="sign">Sign</a><a href="../console/setup/" data-page="setup">Buyer setup</a><a href="../console/inbox/" data-page="inbox">Inbox</a></div>
+     <span class="navr"><a class="homelink" href="../">&larr; Home</a><a class="navlive" href="../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+   </nav>
+-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../console/" data-page="judge" aria-current="page">Judge mode</a><a href="../console/sign/" data-page="sign">Sign</a><a href="../console/setup/" data-page="setup">Buyer setup</a><a href="../console/inbox/" data-page="inbox">Inbox</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
++  <nav class="cbar" aria-label="Console"><div class="cbar-in"><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+   <div class="hero">
+     <div>
+       <span class="live" id="live"><i></i><span id="liveText"><b>Connecting</b> · NEAR testnet</span></span>
+@@ -788,15 +787,15 @@ $("go").addEventListener("click", go);
+   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
+   const paint = () => {
+     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
+-    document.querySelectorAll(".ctabs a[data-page]").forEach((a) => {
++    document.querySelectorAll(".clinks a[data-page]").forEach((a) => {
+       const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
+       a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
+     });
+-    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
++    const h = document.getElementById("rolehint"), here = document.querySelector(".clinks a[aria-current]")?.dataset.page;
+     if (h) {
+       h.hidden = !role;
+       if (role) {
+-        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
++        const mineHere = FOR[role].includes(here), go = document.querySelector(`.clinks a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+         h.textContent = HINT[role] + (mineHere ? "" : " ");
+         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
+       }
+diff --git a/docs/console/roles.js b/docs/console/roles.js
+index 9df8a67..42b3326 100644
+--- a/docs/console/roles.js
++++ b/docs/console/roles.js
+@@ -30,9 +30,20 @@ const GUIDES = {
+ };
+ const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+ 
+-/** Paint the banner at the top of the page for `role` (judge | buyer | supplier | signer | pick). */
++const OTHER = { signer: "Delivery signer", supplier: "Supplier" };
++let page = null, listening = false;
++/** Paint the banner at the top of the page for `role` (judge | buyer | supplier | signer | pick).
++ *  On a buyer page, a visitor who picked Delivery signer or Supplier is told whose page this is and sent to theirs. */
+ export function banner(role) {
+   const el = document.getElementById("rband"); if (!el) return;
++  page = role;
++  if (role === "buyer" && !listening) { listening = true; addEventListener("ctp-role", () => banner(page)); }
++  const me = role === "buyer" ? store.get("ctp-role") : null;
++  if (me in OTHER) {
++    el.dataset.r = me;
++    el.innerHTML = `<div class="rband-in"><b>BUYER'S PAGE</b><span>This is the buyer's page. You picked ${OTHER[me]}.</span><a class="rband-go" href="${new URL("sign/", import.meta.url).href}">Go to the ${OTHER[me]} page →</a></div>`;
++    return;
++  }
+   const r = ROLES[role] || ROLES.pick, g = GUIDES[role];
+   el.dataset.r = role in ROLES ? role : "pick";
+   el.innerHTML = `<div class="rband-in"><b>${r.name}</b><span>${r.line}</span>${g ? `<button type="button" class="rband-g" id="rband-g">Show the guide</button>` : ""}</div>`;
+diff --git a/docs/console/setup/index.html b/docs/console/setup/index.html
+index adef964..d6de2d8 100644
+--- a/docs/console/setup/index.html
++++ b/docs/console/setup/index.html
+@@ -84,22 +84,13 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ .cbar{background:#13284A;color:var(--paper);border-radius:14px;box-shadow:inset 0 0 0 1px #24406B;margin-top:16px}
+ .cbar-in{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 10px 8px 16px}
+ .cbar-k{font:500 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-right:4px}
+-.ctabs{display:flex;gap:2px;flex-wrap:wrap}
+-.ctabs a,.ctabs span{position:relative;font:600 14px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}
+-.ctabs a:hover{color:var(--paper);background:#1B3358}
+-.ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
+-.ctabs span{opacity:.55;font-weight:500}
+-.ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+-.ctabs a.dim{opacity:.35}
+-.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+-.ctabs a.for[aria-current]{color:var(--navy)}
+ .rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
+ .rolehint a{color:var(--signal)}
+ .roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
+ .roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
+ .roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
+ .roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
+-@media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
++@media (max-width:640px){.roles{margin-left:0}.roles button{padding:6px 9px}}
+ 
+ .alerts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(16px,3vw,32px)}
+ .alerts h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+@@ -111,9 +102,6 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ @media (max-width:900px){.alerts{grid-template-columns:1fr}.arow{grid-template-columns:1fr auto}.arow .btn.ghost{grid-column:1/-1;justify-self:start}}
+ .confirm{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font:500 14.5px/1.45 var(--body)}
+ .confirm input{width:auto;margin-top:3px}
+-.rolecard{display:grid;gap:10px;border-left:6px solid var(--signal)}
+-.rolecard h2{font-size:clamp(30px,4vw,48px);max-width:none;margin:6px 0 0}
+-.rolecard p{margin:0;max-width:62ch;line-height:1.55}
+ body.not-buyer #forms > :not(#rolecard){display:none!important}
+ /* the checklist: the contract's own state, one line per thing a company sets up */
+ .ready{background:var(--card);border:1px solid var(--line);padding:clamp(18px,2.6vw,28px);position:relative}
+@@ -197,6 +185,14 @@ textarea{font:400 13.5px var(--mono);padding:10px;border:1px solid var(--line);w
+   .po-t td{padding:5pt 4pt;border-bottom:.5pt solid #D5DCD7}.po-t td:not(:first-child),.po-t th:not(:first-child){text-align:right}.po-t tfoot td{font-weight:700;border-bottom:0;border-top:1pt solid #10264A}
+   .po-f{margin-top:16pt;padding-top:8pt;border-top:.5pt solid #D5DCD7;font:400 8.5pt/1.5 "IBM Plex Mono",monospace;color:#55657C;word-break:break-all}
+ }
++
++/* Console pages: the top bar is the Console's own pages */
++.clinks a{position:relative}
++.clinks a[aria-current]{color:var(--navy)!important;background:var(--paper)!important}
++.clinks a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
++.clinks a.for::after{content:"";position:absolute;top:5px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
++.clinks a.dim{opacity:.4}
++.cbar .roles{margin-left:0}
+ </style>
+ </head>
+ <body>
+@@ -204,10 +200,10 @@ textarea{font:400 13.5px var(--mono);padding:10px;border:1px solid var(--line);w
+ <header class="top gut"><div class="in">
+   <nav class="nav">
+     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Buyer setup</a></span>
+-    <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/" aria-current="page"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../../console/inbox/"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
++    <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div>
+     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+   </nav>
+-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup" aria-current="page">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
++  <nav class="cbar" aria-label="Console"><div class="cbar-in"><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+ 
+   <div class="hero">
+     <div>
+@@ -307,12 +303,12 @@ const FORMS = [
+     help: "The only place a payout address can come from. It cannot be paid for 72 hours.",
+     warn: "Check this address with the supplier by phone, on a number you already had, before you register it.",
+     fields: `<label>Supplier id<span>a-z, 0-9, '-', '_', '.'</span><input id="s-id" placeholder="qingmar-steel" autocomplete="off"></label>
+-      <label>Supplier's signing key<span>ed25519:… (from their phone or ctp-sign)</span><input id="s-key" placeholder="ed25519:" autocomplete="off"></label>
++      <label>Supplier's public signing key<span>ed25519:… (the public key from their phone or ctp-sign; never a private key)</span><input id="s-key" placeholder="ed25519:" autocomplete="off"></label>
+       <label>Payout account on NEAR<span>where USDC is paid</span><input id="s-addr" placeholder="qingmar.cleartopay.testnet" autocomplete="off"></label>`,
+     build() {
+       const id = $("s-id").value.trim(), key = $("s-key").value.trim(), addr = $("s-addr").value.trim();
+       if (!isSupplierId(id)) fail("Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
+-      if (!isPubKey(key)) fail("The signing key must look like ed25519:… (44 characters after the colon).");
++      if (!isPubKey(key)) fail("The public signing key must look like ed25519:… (44 characters after the colon).");
+       if (!isAccount(addr)) fail("The payout account must be a NEAR account id.");
+       if (S.needCall) fail("Tick the box once the supplier has confirmed this address by phone.");
+       return { method: "register_supplier", args: { supplier_id: id, signing_key: key, route: { chain: "near", token: USDC, address: addr } } };
+@@ -751,7 +747,7 @@ let showAnyway = false;
+ function roleView(role) {
+   const other = !showAnyway && (role === "signer" || role === "supplier");
+   document.body.classList.toggle("not-buyer", other); $("rolecard").hidden = !other;
+-  if (other) $("rc-p").textContent = ROLE_TEXT[role];
++  if (other) { $("rc-p").textContent = ROLE_TEXT[role]; $("rc-go").textContent = `Go to the ${role === "signer" ? "Delivery signer" : "Supplier"} page →`; }
+ }
+ addEventListener("ctp-role", (e) => roleView(e.detail));
+ $("rc-show").onclick = () => { showAnyway = true; roleView(null); };
+@@ -793,15 +789,15 @@ arrived();
+   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
+   const paint = () => {
+     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
+-    document.querySelectorAll(".ctabs a[data-page]").forEach((a) => {
++    document.querySelectorAll(".clinks a[data-page]").forEach((a) => {
+       const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
+       a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
+     });
+-    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
++    const h = document.getElementById("rolehint"), here = document.querySelector(".clinks a[aria-current]")?.dataset.page;
+     if (h) {
+       h.hidden = !role;
+       if (role) {
+-        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
++        const mineHere = FOR[role].includes(here), go = document.querySelector(`.clinks a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+         h.textContent = HINT[role] + (mineHere ? "" : " ");
+         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
+       }
+diff --git a/docs/console/setup/order.js b/docs/console/setup/order.js
+index 440ebe6..31762f0 100644
+--- a/docs/console/setup/order.js
++++ b/docs/console/setup/order.js
+@@ -46,7 +46,7 @@ export function plan(d, x, contract) {
+     const id = d.sup.id.trim(), k = d.sup.key.trim(), a = d.sup.addr.trim();
+     if (!isSupplierId(id)) fail(1, "Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
+     if (x.suppliers.some((s) => s.id === id)) fail(1, `${id} is already registered: choose it from the list instead.`);
+-    if (!isPubKey(k)) fail(1, "The supplier's signing key must look like ed25519:… (paste their reply to fill it).");
++    if (!isPubKey(k)) fail(1, "The supplier's public signing key must look like ed25519:… (paste their reply to fill it).");
+     if (supKeys.has(k)) fail(1, "That key already belongs to another supplier.");
+     if (sigKeys.has(k)) fail(1, "That key is a delivery signer's key; a supplier needs its own.");
+     if (!isAccount(a)) fail(1, "The payout account must be a NEAR account id.");
+@@ -176,7 +176,7 @@ function paintSupplier(b) {
+         <label>Paste the supplier's reply<span>the link they sent back after your invitation</span><textarea id="wz-sreply" rows="3" placeholder="https://…/console/setup/#a=…"></textarea></label>
+         <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-suse">Use this reply</button></div>
+         ${field("wz-sid", "Supplier id", "a-z, 0-9, '-', '_', '.'", s.id)}
+-        ${field("wz-skey", "Their signing key", "from their phone; ed25519:…", s.key)}
++        ${field("wz-skey", "Their public signing key", "public key from their phone; ed25519:…", s.key)}
+         ${field("wz-saddr", "Their payout account on NEAR", "where they will be paid", s.addr)}
+         <label class="confirm big"><input type="checkbox" id="wz-called" ${ok ? "checked" : ""}> I called the supplier on a number I already had, and they read this address back to me: <b id="wz-caddr">${esc(s.addr.trim() || "this address")}</b>.</label>
+         <p class="note" id="wz-proof">${s.proof ? "Checking the address proof…" : proofLine({ state: "none" })}</p>
+diff --git a/docs/console/sign/index.html b/docs/console/sign/index.html
+index 249488d..aafe31c 100644
+--- a/docs/console/sign/index.html
++++ b/docs/console/sign/index.html
+@@ -112,22 +112,21 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ .cbar{background:#13284A;color:var(--paper);border-radius:14px;box-shadow:inset 0 0 0 1px #24406B;margin-top:16px}
+ .cbar-in{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 10px 8px 16px}
+ .cbar-k{font:500 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-right:4px}
+-.ctabs{display:flex;gap:2px;flex-wrap:wrap}
+-.ctabs a,.ctabs span{position:relative;font:600 14px var(--body);color:var(--nmute);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}
+-.ctabs a:hover{color:var(--paper);background:#1B3358}
+-.ctabs a[aria-current]{color:var(--navy);background:var(--paper)}
+-.ctabs span{opacity:.55;font-weight:500}
+-.ctabs a.for::after{content:"";position:absolute;top:6px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+-.ctabs a.dim{opacity:.35}
+-.ctabs a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
+-.ctabs a.for[aria-current]{color:var(--navy)}
+ .rolehint{flex-basis:100%;margin:2px 0 2px;padding:9px 12px;border-left:3px solid var(--signal);background:#0E2242;font:400 14px/1.45 var(--body);color:var(--paper)}
+ .rolehint a{color:var(--signal)}
+ .roles{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
+ .roles>span{font:400 13px var(--mono);color:var(--nmute);margin-right:4px}
+ .roles button{font:500 13px var(--body);border:0;cursor:pointer;padding:7px 11px;border-radius:999px;color:var(--paper);background:none;box-shadow:inset 0 0 0 1px #24406B}
+ .roles button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
+-@media (max-width:640px){.roles{margin-left:0}.cbar-k,.ctabs span{display:none}.ctabs a{padding:8px 10px}.roles button{padding:6px 9px}}
++@media (max-width:640px){.roles{margin-left:0}.roles button{padding:6px 9px}}
++
++/* Console pages: the top bar is the Console's own pages */
++.clinks a{position:relative}
++.clinks a[aria-current]{color:var(--navy)!important;background:var(--paper)!important}
++.clinks a.for{box-shadow:inset 0 0 0 2px var(--signal);color:var(--paper)}
++.clinks a.for::after{content:"";position:absolute;top:5px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
++.clinks a.dim{opacity:.4}
++.cbar .roles{margin-left:0}
+ </style>
+ </head>
+ <body>
+@@ -135,10 +134,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+ <header class="top gut"><div class="in">
+   <nav class="nav">
+     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#F4C20D"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Sign</a></span>
+-    <div class="links"><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><div class="try"><button type="button" class="trybtn" id="trybtn" aria-expanded="false" aria-controls="trymenu">Try it <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5L5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="trymenu" id="trymenu" hidden><a href="../../console/"><b>Judge mode</b><small>Send a poisoned invoice and watch the contract seize it</small></a><a href="../../inspect/"><b>Inspect an invoice</b><small>Five invoices through every check, step by step</small></a><a href="../../console/sign/" aria-current="page"><b>Sign a delivery</b><small>The storekeeper's phone page: check the note, tap Sign</small></a><a href="../../console/setup/"><b>Buyer setup</b><small>Suppliers, orders and limits, signed with a NEAR wallet</small></a><a href="../../console/inbox/"><b>Inbox</b><small>Every invoice and its next step; pay, cancel or retry with the wallet</small></a></div></div></div>
++    <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign" aria-current="page">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div>
+     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+   </nav>
+-  <nav class="cbar" aria-label="Console"><div class="cbar-in"><span class="cbar-k">Console</span><div class="ctabs"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign" aria-current="page">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
++  <nav class="cbar" aria-label="Console"><div class="cbar-in"><div class="roles" role="group" aria-label="Who are you?"><span>I'm</span><button type="button" data-role="buyer">Buyer</button><button type="button" data-role="signer">Delivery signer</button><button type="button" data-role="supplier">Supplier</button></div><p class="rolehint" id="rolehint" hidden></p></div></nav>
+ 
+   <div class="hero">
+     <div>
+@@ -193,7 +192,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
+   </section>
+ 
+   <section class="card keybox" id="keycard" aria-labelledby="h-key">
+-    <h3 id="h-key">Your signing key</h3>
++    <h3 id="h-key">Your signing key pair</h3>
++    <p class="plain">A key pair is two halves. The <b>public key</b> is shown below and is safe to share: the buyer registers it. The <b>private key</b> stays on this phone. It is never shown and never sent, and nobody, including the buyer, will ever ask you for it.</p>
+     <div id="keystate"></div>
+     <p class="note">Demo-grade key storage: the key is kept in this browser's storage for this site only. Anyone with this phone unlocked could use it. For real deliveries, use a hardware-backed key.</p>
+   </section>
+@@ -242,11 +242,12 @@ let KEY = null, JOB = null, READY = false;
+ function paintKey() {
+   const el = $("keystate");
+   if (KEY) {
+-    el.innerHTML = `<p class="plain">This phone signs with:</p><code id="pub">${esc(KEY.public_key)}</code>
+-      <div class="row" style="margin-top:0"><button class="btn ghost" id="copypub" type="button">Copy the public key</button><button class="btn ghost" id="forget" type="button">Forget this key</button></div>
+-      <p class="note" style="margin:0">${ROLE === "supplier" ? "The buyer registers this public key once, as your company's key." : ROLE === "signer" ? "The buyer registers this public key once, as a delivery signer with your role." : "The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key)."} It is safe to share; the secret half stays here.</p>`;
++    el.innerHTML = `<p class="plain"><b>Public key</b> (safe to share)</p><code id="pub">${esc(KEY.public_key)}</code>
++      <div class="row" style="margin-top:0"><button class="btn ghost" id="copypub" type="button">Copy the public key</button><button class="btn ghost" id="forget" type="button">Forget this key pair</button></div>
++      <p class="plain" style="margin:0"><b>Private key</b>: kept on this phone only. Not shown, not copied, never sent.</p>
++      <p class="note" style="margin:0">${ROLE === "supplier" ? "The buyer registers this public key once, as your company's key." : ROLE === "signer" ? "The buyer registers this public key once, as a delivery signer with your role." : "The buyer registers this public key once (as a delivery signer with your role, or as the supplier's key)."}</p>`;
+     $("copypub").onclick = (e) => copy(KEY.public_key, e.target);
+-    $("forget").onclick = async () => { if (confirm("Forget this key on this phone? Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); paintJoinState(); paintHome(); } };
++    $("forget").onclick = async () => { if (confirm("Forget this key pair on this phone? The private key cannot be recovered. Keep a backup if it is registered.")) { await forgetKey(); KEY = null; paintKey(); check(); paintJoinState(); paintHome(); } };
+   } else {
+     el.innerHTML = `<p class="plain">No key on this phone yet. Make one here, or import the key file the buyer's team gave you (the <code>ctp-sign</code> JSON).</p>
+       <div class="row" style="margin-top:0"><button class="btn" id="gen" type="button">Make a key on this phone</button><label class="btn ghost" for="file">Import a key file</label><input type="file" id="file" accept=".json,application/json" hidden></div>
+@@ -640,15 +641,15 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
+   let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
+   const paint = () => {
+     document.querySelectorAll(".roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
+-    document.querySelectorAll(".ctabs a[data-page]").forEach((a) => {
++    document.querySelectorAll(".clinks a[data-page]").forEach((a) => {
+       const mine = role && FOR[role] && FOR[role].includes(a.dataset.page);
+       a.classList.toggle("for", !!mine); a.classList.toggle("dim", !!role && !mine && !a.hasAttribute("aria-current"));
+     });
+-    const h = document.getElementById("rolehint"), here = document.querySelector(".ctabs a[aria-current]")?.dataset.page;
++    const h = document.getElementById("rolehint"), here = document.querySelector(".clinks a[aria-current]")?.dataset.page;
+     if (h) {
+       h.hidden = !role;
+       if (role) {
+-        const mineHere = FOR[role].includes(here), go = document.querySelector(`.ctabs a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
++        const mineHere = FOR[role].includes(here), go = document.querySelector(`.clinks a[data-page="${FOR[role][role === "buyer" ? 1 : 0]}"]`);
+         h.textContent = HINT[role] + (mineHere ? "" : " ");
+         if (!mineHere && go) { const a = document.createElement("a"); a.href = go.href; a.textContent = "Go to " + go.textContent + " →"; h.append(a); }
+       }
