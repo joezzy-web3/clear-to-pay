@@ -1,0 +1,8 @@
+{
+  "name": "ctp-integrate",
+  "private": true,
+  "type": "module",
+  "description": "Submit an invoice to Clear to Pay from your own agent, with a fenced function-call key.",
+  "scripts": { "dry": "node submit.mjs", "attack": "node submit.mjs --send --attack" },
+  "dependencies": { "near-api-js": "5.1.1" }
+}

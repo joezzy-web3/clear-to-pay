@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Clear to Pay for Agents</title>
+<meta name="description" content="Plug Clear to Pay into your AI agent: an MCP server for Claude, Cursor or any MCP client, a few lines of JavaScript with a fenced NEAR key, and a live check of what that key may do. Your agent proposes a payment; the contract decides.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Integrate: one page for agent builders. Night hero, then four numbered stations on manifest paper:
+   check the key, add the MCP server, call the contract from code, read the verdict. Code sits on deep navy. */
+:root{
+  --paper:#EEF1EC; --card:#FFFFFF; --navy:#10264A; --night:#0E2242; --deep:#0B1A33; --mute:#55657C; --line:#D5DCD7;
+  --signal:#E6BE4F; --clear:#127A4A; --held:#B98A00; --seize:#A93A30; --nmute:#9FB0C6; --cell:#FAFBF9;
+  --display:"Big Shoulders Display",Impact,"Arial Narrow",sans-serif;
+  --body:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--navy);font:400 16px/1.6 var(--body)}
+a{color:inherit}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.in{max-width:1180px;margin:0 auto}
+code,pre,kbd{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--signal);outline-offset:2px}
+
+/* header */
+.top{background:var(--night);color:var(--paper)}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px}
+.logo{display:inline-flex;align-items:center;gap:10px;font:800 24px/1 var(--display);letter-spacing:.02em;text-decoration:none;color:var(--paper)}
+.crumb{font:500 13px var(--mono);color:var(--nmute);text-decoration:none;margin-left:10px}
+.links{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.links a{font:500 14.5px var(--body);text-decoration:none;padding:8px 12px;border-radius:999px;color:var(--paper)}
+.links a:hover{background:#1A3460}
+.links a.hot{background:var(--signal);color:var(--navy)}
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:clamp(24px,4vw,56px);align-items:end;padding-block:clamp(36px,6vw,80px) clamp(44px,6vw,84px)}
+.kick{display:inline-block;font:500 12.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;background:var(--signal);color:var(--navy);padding:8px 12px}
+h1{font:800 clamp(46px,7.4vw,104px)/.95 var(--display);margin:18px 0 0;letter-spacing:.005em}
+h1 mark{background:none;color:var(--signal)}
+.lede{font-size:clamp(17px,1.6vw,20px);line-height:1.55;color:#D5DEEA;max-width:42em;margin:20px 0 0}
+.flow{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:f}
+.flow li{counter-increment:f;display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;background:#13284A;box-shadow:inset 0 0 0 1px #24406B;padding:12px 14px}
+.flow li::before{content:counter(f);font:800 22px/1.1 var(--display);color:var(--signal)}
+.flow b{display:block;font-weight:600}
+.flow span{font-size:14px;color:var(--nmute);line-height:1.45}
+
+/* stations */
+main{padding-block:clamp(36px,6vw,72px)}
+.st{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(18px,3.5vw,48px);padding-block:clamp(30px,4.5vw,52px);border-top:2px solid var(--navy)}
+.st:first-child{border-top:0;padding-top:0}
+.num{font:500 12.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+h2{font:800 clamp(32px,4vw,52px)/1 var(--display);margin:10px 0 14px}
+.st p{margin:0 0 12px}
+.st .side p{color:#2B3D57}
+.note{font-size:14.5px;color:var(--mute)}
+.body{display:grid;gap:14px;min-width:0}
+
+/* code */
+.code{position:relative;background:var(--deep);color:#D6E0EC;min-width:0}
+.code header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px 9px 16px;border-bottom:1px solid #1E3560;font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--nmute)}
+.code pre{margin:0;padding:14px 16px 16px;overflow-x:auto;font:400 13px/1.65 var(--mono);tab-size:2}
+.code .c{color:#7F93AE}.code .s{color:#BFE0C9}.code .k{color:var(--signal)}
+.copy{font:500 12px var(--mono);letter-spacing:.06em;border:0;background:#1A3460;color:var(--paper);padding:6px 10px;cursor:pointer}
+.copy.done{background:var(--clear)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{font:600 14px var(--body);border:0;padding:9px 14px;cursor:pointer;background:var(--card);color:var(--navy);box-shadow:inset 0 0 0 1px var(--line)}
+.tabs button[aria-selected="true"]{background:var(--navy);color:var(--paper);box-shadow:none}
+
+/* tables and lists */
+table{width:100%;border-collapse:collapse;background:var(--card);font-size:14.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);background:var(--cell)}
+td code{font-size:13px;background:var(--cell);padding:1px 5px;white-space:nowrap}
+.tw{overflow-x:auto}
+
+/* live key check */
+.check{background:var(--card);box-shadow:inset 0 0 0 1px var(--line);padding:16px;display:grid;gap:12px}
+.check form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.check input{font:400 15px var(--mono);padding:11px 12px;border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:0;width:100%;min-width:0}
+.btn{font:600 15px var(--body);border:0;padding:11px 18px;cursor:pointer;background:var(--navy);color:var(--paper);text-decoration:none;display:inline-block}
+.btn.y{background:var(--signal);color:var(--navy)}
+.presets{display:flex;gap:8px;flex-wrap:wrap;font-size:14px;align-items:center}
+.presets button{font:500 13px var(--mono);border:0;background:var(--cell);box-shadow:inset 0 0 0 1px var(--line);padding:6px 10px;cursor:pointer;color:var(--navy)}
+.keys{display:grid;gap:8px}
+.key{display:grid;grid-template-columns:110px minmax(0,1fr);gap:4px 12px;padding:12px 14px;border-left:4px solid var(--clear);background:#EEF6F1;font-size:14px}
+.key.full{border-color:var(--seize);background:#F8ECEA}
+.key dt{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);padding-top:2px}
+.key dd{margin:0;font:400 13.5px var(--mono);overflow-wrap:anywhere}
+.key .tag{grid-column:1/-1;font:600 14.5px var(--body)}
+.msg{font-size:14.5px;color:var(--mute)}
+.msg.err{color:var(--seize)}
+
+/* verdicts */
+.v{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.v div{background:var(--card);padding:14px;box-shadow:inset 0 0 0 1px var(--line);border-top:6px solid var(--clear)}
+.v div:nth-child(2){border-top-color:var(--held)}.v div:nth-child(3){border-top-color:var(--seize)}
+.v b{font:800 26px/1 var(--display);letter-spacing:.03em;display:block;margin-bottom:6px}
+.v p{font-size:14.5px;margin:0}
+.ran{background:var(--card);box-shadow:inset 0 0 0 1px var(--line);padding:12px 14px;font:400 13px/1.6 var(--mono);overflow-wrap:anywhere}
+.ran b{color:var(--seize);font-weight:500}
+
+/* closer + footer */
+.closer{background:var(--deep);color:var(--paper)}
+.closer .in{padding-block:clamp(48px,7vw,88px);display:grid;gap:14px}
+.tg{font:800 clamp(34px,6vw,80px)/1.08 var(--display);display:inline-block;padding:.04em .2em .1em;justify-self:start}
+.t1{background:var(--paper);color:var(--deep)}.t2{background:var(--signal);color:var(--navy)}
+.closer p{margin:10px 0 0;font:400 13px/1.6 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--nmute)}
+.closer a{color:var(--signal);text-decoration:none;border-bottom:1px solid currentColor}
+footer{border-top:1px solid var(--line);padding-block:24px;color:var(--mute);font-size:14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer a{color:var(--navy)}
+
+@media (max-width:900px){
+  .hero,.st{grid-template-columns:1fr}
+  .links a:not(.hot){display:none}
+  .v{grid-template-columns:1fr}
+}
+@media (max-width:520px){
+  .crumb{display:none}
+  .check form{grid-template-columns:1fr}
+  .key{grid-template-columns:1fr}
+  .code pre{font-size:12px}
+}
+</style>
+</head>
+<body>
+<header class="top gut"><div class="in">
+  <nav class="nav">
+    <span><a class="logo" href="../" title="Clear to Pay home"><svg width="22" height="26" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./">/ For agents</a></span>
+    <div class="links"><a href="../">Home</a><a href="../console/">Judge mode</a><a href="../ledger/">Live ledger</a><a class="hot" href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div>
+  </nav>
+  <div class="hero">
+    <div>
+      <span class="kick">For agent builders</span>
+      <h1>Your agent proposes.<br><mark>The contract decides.</mark></h1>
+      <p class="lede">Give your AI agent the power to pay invoices without the power to pay the wrong ones. It gets a NEAR key that can only call two methods on one contract and can't attach money. Every invoice it sends meets the same rules on chain: the supplier's registered address, the order, a signed delivery and your limits.</p>
+    </div>
+    <ol class="flow">
+      <li><div><b>Check the key</b><span>Ask NEAR what it may do. Below, live.</span></div></li>
+      <li><div><b>Plug it in</b><span>An MCP server for Claude, Cursor or any MCP client.</span></div></li>
+      <li><div><b>Or call it from code</b><span>One function call with near-api-js.</span></div></li>
+      <li><div><b>Read the verdict</b><span>CLEARED pays. HELD waits for a fix. SEIZED stops.</span></div></li>
+    </ol>
+  </div>
+</div></header>
+
+<main class="gut"><div class="in">
+
+<section class="st" id="key">
+  <div class="side">
+    <div class="num">01 · Check the key</div>
+    <h2>What may this key do?</h2>
+    <p>Before an agent holds a key, ask the chain what that key can do, not a config file. A Clear to Pay agent key is a <b>function-call key</b>: one contract, two methods (<code>submit_invoice</code>, <code>execute_payment</code>), a gas allowance, and no deposit. It can't transfer tokens, add keys or touch any other contract.</p>
+    <p class="note">Paste any testnet account. Every key on it is listed with its fence. A full-access key is marked red: never give one to an agent.</p>
+  </div>
+  <div class="body">
+    <div class="check">
+      <form id="kf"><input id="acct" value="judge-buyer.cleartopay.testnet" aria-label="NEAR account" autocomplete="off" spellcheck="false"><button class="btn y" type="submit">Check on NEAR</button></form>
+      <div class="presets"><span class="note">Try:</span><button type="button" data-a="judge-buyer.cleartopay.testnet">Judge mode's public key</button><button type="button" data-a="buyer.cleartopay.testnet">The live buyer</button></div>
+      <div id="kout" class="keys" aria-live="polite"></div>
+    </div>
+    <div class="code"><header><span>Same check, from a terminal</span><button class="copy" type="button">Copy</button></header><pre>near account list-keys buyer.cleartopay.testnet network-config testnet now</pre></div>
+  </div>
+</section>
+
+<section class="st" id="mcp">
+  <div class="side">
+    <div class="num">02 · Plug it in</div>
+    <h2>Add the MCP server</h2>
+    <p><code>reader/tools/mcp_server.py</code> speaks MCP over stdio with the Python standard library only. Clone the repo, point it at a folder of invoices, and ask your agent things like <i>“inspect INV-2208.pdf”</i>, <i>“why was receipt 1 held, and what do I tell the supplier?”</i> or <i>“is Qingmar payable yet?”</i></p>
+    <p class="note"><code>CTP_MCP_DOCS</code> is the only folder the agent may name files in. Links and <code>..</code> are refused. Hidden text in a PDF is reported by page and reason only; its words never reach the agent.</p>
+  </div>
+  <div class="body">
+    <div class="code"><header><span>First, once</span><button class="copy" type="button">Copy</button></header><pre>git clone https://github.com/joezzy-web3/clear-to-pay
+mkdir -p ~/invoices</pre></div>
+    <div class="tabs" role="tablist" aria-label="MCP client">
+      <button type="button" role="tab" aria-selected="true" data-t="desk">Claude Desktop</button><button type="button" role="tab" aria-selected="false" data-t="cc">Claude Code</button><button type="button" role="tab" aria-selected="false" data-t="cur">Cursor</button><button type="button" role="tab" aria-selected="false" data-t="wsl">Windows + WSL</button>
+    </div>
+    <div class="code" data-p="desk"><header><span>claude_desktop_config.json · macOS or Linux</span><button class="copy" type="button">Copy</button></header><pre>{
+  "mcpServers": {
+    "clear-to-pay": {
+      "command": "env",
+      "args": ["CTP_MCP_DOCS=/Users/YOU/invoices",
+               "python3", "/Users/YOU/clear-to-pay/reader/tools/mcp_server.py"]
+    }
+  }
+}</pre></div>
+    <div class="code" data-p="cc" hidden><header><span>Terminal</span><button class="copy" type="button">Copy</button></header><pre>claude mcp add clear-to-pay -e CTP_MCP_DOCS=$HOME/invoices -- python3 $HOME/clear-to-pay/reader/tools/mcp_server.py</pre></div>
+    <div class="code" data-p="cur" hidden><header><span>~/.cursor/mcp.json</span><button class="copy" type="button">Copy</button></header><pre>{
+  "mcpServers": {
+    "clear-to-pay": {
+      "command": "python3",
+      "args": ["/Users/YOU/clear-to-pay/reader/tools/mcp_server.py"],
+      "env": { "CTP_MCP_DOCS": "/Users/YOU/invoices" }
+    }
+  }
+}</pre></div>
+    <div class="code" data-p="wsl" hidden><header><span>claude_desktop_config.json · Windows, repo in WSL</span><button class="copy" type="button">Copy</button></header><pre>{
+  "mcpServers": {
+    "clear-to-pay": {
+      "command": "wsl",
+      "args": ["env", "CTP_MCP_DOCS=/home/YOU/invoices",
+               "python3", "/home/YOU/clear-to-pay/reader/tools/mcp_server.py"]
+    }
+  }
+}</pre></div>
+    <div class="tw"><table>
+      <thead><tr><th>Tool</th><th>What it does</th><th>Sends?</th></tr></thead>
+      <tbody>
+        <tr><td><code>inspect_invoice</code></td><td>Scan a PDF. With <code>read_with_ai</code>, the attested model reads it inside a TEE.</td><td>no</td></tr>
+        <tr><td><code>get_receipt</code> <code>list_receipts</code></td><td>Verdicts, reasons, payments</td><td>no</td></tr>
+        <tr><td><code>supplier_status</code> <code>pool</code></td><td>The registered address, the 72-hour clock, the pool and limits</td><td>no</td></tr>
+        <tr><td><code>next_step</code></td><td>The facts, who acts, and a checked draft for a person</td><td>no</td></tr>
+        <tr><td><code>verify_reading</code></td><td>Re-check a saved AI reading offline</td><td>no</td></tr>
+        <tr><td><code>submit_invoice</code> <code>retry_payment</code></td><td>Send with the agent's fenced key</td><td>only if enabled</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Sending is off until the operator turns it on: add <code>CTP_MCP_ALLOW_SUBMIT=1</code>, <code>CTP_AGENT_ACCOUNT</code> (the buyer) and <code>CTP_AGENT_KEY_FILE</code> (the function-call key's file, needs near-cli-rs) to the server's environment. Before every send the server asks NEAR what the key may do, and refuses anything wider than the fence above or a gas allowance over <code>CTP_MCP_MAX_ALLOWANCE</code> (1 NEAR by default). Reads that matter must agree across every configured RPC server.</p>
+  </div>
+</section>
+
+<section class="st" id="code">
+  <div class="side">
+    <div class="num">03 · Or call it from code</div>
+    <h2>One function call</h2>
+    <p>Any agent framework that can run JavaScript can submit. Check the fence first, then send the five signed objects: the invoice, the supplier's signature, the delivery note, the delivery signatures and the document's fingerprint. Your code never chooses where money goes: the contract pays only the supplier's registered address.</p>
+    <p class="note">The full script is <a href="https://github.com/joezzy-web3/clear-to-pay/blob/main/tools/integrate/submit.mjs" target="_blank" rel="noopener">tools/integrate/submit.mjs</a>. Out of the box it uses Judge mode's public key on the demo contract, so you can run it with no account.</p>
+  </div>
+  <div class="body">
+    <div class="code"><header><span>submit.mjs · near-api-js 5</span><button class="copy" type="button">Copy</button></header><pre><span class="k">import</span> { connect, keyStores, KeyPair, providers } <span class="k">from</span> <span class="s">"near-api-js"</span>;
+
+<span class="k">const</span> ACCOUNT = <span class="s">"buyer.example.testnet"</span>, CONTRACT = <span class="s">"pay.example.testnet"</span>;
+<span class="k">const</span> key = KeyPair.fromString(process.env.CTP_KEY);   <span class="c">// a function-call key, never full access</span>
+<span class="k">const</span> keyStore = <span class="k">new</span> keyStores.InMemoryKeyStore();
+<span class="k">await</span> keyStore.setKey(<span class="s">"testnet"</span>, ACCOUNT, key);
+<span class="k">const</span> near = <span class="k">await</span> connect({ networkId: <span class="s">"testnet"</span>, nodeUrl: <span class="s">"https://test.rpc.fastnear.com"</span>, keyStore });
+
+<span class="c">// 1. Ask NEAR what this key may do. Refuse anything wider.</span>
+<span class="k">const</span> ak = <span class="k">await</span> near.connection.provider.query({ request_type: <span class="s">"view_access_key"</span>, finality: <span class="s">"final"</span>,
+  account_id: ACCOUNT, public_key: key.getPublicKey().toString() });
+<span class="k">const</span> fc = ak.permission?.FunctionCall;
+<span class="k">if</span> (!fc || fc.receiver_id !== CONTRACT || [...fc.method_names].sort().join() !== <span class="s">"execute_payment,submit_invoice"</span>)
+  <span class="k">throw new</span> Error(<span class="s">"this key is not fenced to Clear to Pay"</span>);
+
+<span class="c">// 2. Submit the signed objects. The contract decides.</span>
+<span class="k">const</span> account = <span class="k">await</span> near.account(ACCOUNT);
+<span class="k">const</span> outcome = <span class="k">await</span> account.functionCall({ contractId: CONTRACT, methodName: <span class="s">"submit_invoice"</span>,
+  args: { invoice, supplier_signature, delivery, delivery_signatures, document_hash },
+  gas: 300_000_000_000_000n, attachedDeposit: 0n });
+<span class="k">const</span> { receipt_id, verdict, reasons, payment } = providers.getTransactionLastResult(outcome);</pre></div>
+    <div class="code"><header><span>Run it against the demo contract</span><button class="copy" type="button">Copy</button></header><pre>cd clear-to-pay/tools/integrate && npm install
+node submit.mjs                    <span class="c"># dry run: reads the key's fence, prints the call</span>
+node submit.mjs --send --attack    <span class="c"># a fooled agent swaps the payee</span></pre></div>
+    <div class="ran">A real run on 8 Nov 2026:<br>key fence (read from NEAR): judge.cleartopay.testnet · execute_payment, submit_invoice · gas allowance 4.988 NEAR · no deposit possible<br>submit_invoice INV-2208-J30 · payee qingmar-payments.testnet<br><b>receipt #16: SEIZED · invalid_supplier_signature, payee_mismatch</b><br><a href="https://testnet.nearblocks.io/txns/8HgbsoAvr39cQJnwMnU2eL4ejVpLTmBjhqjmu6o4ufHY" target="_blank" rel="noopener">View the transaction on NearBlocks</a></div>
+  </div>
+</section>
+
+<section class="st" id="verdict">
+  <div class="side">
+    <div class="num">04 · Read the verdict</div>
+    <h2>Three answers, one receipt</h2>
+    <p>Every call writes a receipt on chain and returns <code>receipt_id</code>, <code>verdict</code>, machine-readable <code>reasons</code> and, when cleared, where the <code>payment</code> stands. Teach your agent one rule per verdict.</p>
+    <p class="note">Every reason code is listed in the <a href="https://github.com/joezzy-web3/clear-to-pay#readme" target="_blank" rel="noopener">README</a> and <a href="https://github.com/joezzy-web3/clear-to-pay/blob/main/llms.txt" target="_blank" rel="noopener">llms.txt</a>. The MCP tool <code>next_step</code> turns any receipt into who acts next and a checked draft for a person.</p>
+  </div>
+  <div class="body">
+    <div class="v">
+      <div><b>CLEARED</b><p>Paid from the pool to the registered address, within your limits. Report the receipt.</p></div>
+      <div><b>HELD</b><p>Something doesn't add up: a price, a quantity, a missing delivery signature, a limit, or a new address still in its 72-hour wait. Nothing is marked used. Fix it, then submit again.</p></div>
+      <div><b>SEIZED</b><p>It tried to pay somewhere it must not, was forged, or repeats something already used. Don't retry. Tell a person.</p></div>
+    </div>
+    <div class="code"><header><span>What comes back</span><button class="copy" type="button">Copy</button></header><pre>{ <span class="s">"receipt_id"</span>: 16,
+  <span class="s">"verdict"</span>: <span class="s">"Seized"</span>,
+  <span class="s">"reasons"</span>: [<span class="s">"invalid_supplier_signature"</span>, <span class="s">"payee_mismatch"</span>],
+  <span class="s">"payment"</span>: null }</pre></div>
+    <p class="note">Holding a fenced key, your agent can at worst submit an invoice that gets HELD or SEIZED, or burn its gas allowance. Changing a supplier's address needs the supplier's key, your approval and 72 hours. Pausing, limits and approvals stay with your own wallet.</p>
+  </div>
+</section>
+
+</div></main>
+
+<section class="closer gut"><div class="in">
+  <span class="tg t1">Let the agent work.</span>
+  <span class="tg t2">Keep the money rules on chain.</span>
+  <p>Testnet · eight security reviews, not a professional audit · <a href="../console/">Try Judge mode</a> · <a href="https://github.com/joezzy-web3/clear-to-pay#run-your-own" target="_blank" rel="noopener">Run your own contract</a></p>
+</div></section>
+<div class="gut"><footer class="in"><span>Clear to Pay · built on NEAR for the NEAR Hackathon · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></span><span>Amounts are test USDC on NEAR testnet.</span></footer></div>
+
+<script>
+(() => {
+  const RPCS = ["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org"];
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const near = (y) => (y == null ? "unlimited" : (Number(BigInt(y) / 10n ** 18n) / 1e6).toFixed(3) + " NEAR");
+  async function rpc(params) {
+    let last;
+    for (const u of RPCS) {
+      try {
+        const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params }) });
+        const j = await r.json();
+        if (j.error) throw new Error(j.error.cause?.name === "UNKNOWN_ACCOUNT" ? "no such account on testnet" : j.error.data || j.error.message);
+        return j.result;
+      } catch (e) { last = e; if (/no such account/.test(e.message)) throw e; }
+    }
+    throw last;
+  }
+  async function check(a) {
+    const out = $("kout");
+    a = a.trim().toLowerCase();
+    if (!/^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(a) || a.length < 2 || a.length > 64) { out.innerHTML = `<p class="msg err">That isn't a NEAR account name.</p>`; return; }
+    out.innerHTML = `<p class="msg">Asking NEAR…</p>`;
+    try {
+      const r = await rpc({ request_type: "view_access_key_list", finality: "final", account_id: a });
+      const ks = r.keys || [];
+      if (!ks.length) { let real = true; try { await rpc({ request_type: "view_account", finality: "final", account_id: a }); } catch { real = false; } out.innerHTML = real ? `<p class="msg">${esc(a)} has no keys.</p>` : `<p class="msg err">There is no account called ${esc(a)} on NEAR testnet.</p>`; return; }
+      ks.sort((x, y) => (x.access_key.permission === "FullAccess") - (y.access_key.permission === "FullAccess"));
+      out.innerHTML = `<p class="msg">${ks.length} key${ks.length > 1 ? "s" : ""} on <b>${esc(a)}</b>, read live from NEAR testnet:</p>` + ks.map((k) => {
+        const p = k.access_key.permission, fc = p.FunctionCall;
+        if (!fc) return `<dl class="key full"><dd class="tag">Full access: the owner's key. Never give it to an agent.</dd><dt>Key</dt><dd>${esc(k.public_key)}</dd></dl>`;
+        const ctp = fc.method_names.length === 2 && [...fc.method_names].sort().join() === "execute_payment,submit_invoice";
+        return `<dl class="key"><dd class="tag">${ctp ? "A Clear to Pay agent key: fenced" : "Function-call key: fenced"}</dd><dt>Key</dt><dd>${esc(k.public_key)}</dd><dt>Contract</dt><dd>${esc(fc.receiver_id)}</dd><dt>Methods</dt><dd>${fc.method_names.length ? esc(fc.method_names.join(", ")) : "any method on that contract"}</dd><dt>Gas left</dt><dd>${near(fc.allowance)}</dd><dt>Money</dt><dd>can't attach any</dd></dl>`;
+      }).join("");
+    } catch (e) { out.innerHTML = `<p class="msg err">${esc(e.message || "NEAR didn't answer. Try again.")}</p>`; }
+  }
+  $("kf").addEventListener("submit", (e) => { e.preventDefault(); check($("acct").value); });
+  document.querySelectorAll(".presets button").forEach((b) => b.addEventListener("click", () => { $("acct").value = b.dataset.a; check(b.dataset.a); }));
+  check($("acct").value);
+
+  // tabs
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  tabs.forEach((t) => t.addEventListener("click", () => {
+    tabs.forEach((x) => x.setAttribute("aria-selected", String(x === t)));
+    document.querySelectorAll("[data-p]").forEach((p) => (p.hidden = p.dataset.p !== t.dataset.t));
+  }));
+
+  // copy buttons
+  document.querySelectorAll(".copy").forEach((b) => b.addEventListener("click", async () => {
+    const t = b.closest(".code").querySelector("pre").innerText;
+    try { await navigator.clipboard.writeText(t); b.textContent = "Copied"; b.classList.add("done"); }
+    catch { b.textContent = "Select and copy"; }
+    setTimeout(() => { b.textContent = "Copy"; b.classList.remove("done"); }, 1600);
+  }));
+})();
+</script>
+</body>
+</html>
