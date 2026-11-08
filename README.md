@@ -217,6 +217,27 @@ Each of these extends something that already works today:
 - **Payouts on any chain through NEAR Intents.** The payout record already names a chain and a token; the contract checks them like any other field. Next, a cleared invoice pays out on the supplier's chain of choice.
 - **Supplier key rotation in one step.** Replacing a stolen key works today in two steps ([If a supplier is hacked](#if-a-supplier-is-hacked)); next, one buyer-approved key change.
 
+## Run your own
+
+Each company runs its **own** Clear to Pay contract, and the contract's owner is that company's buyer. No company can ever touch another's money, rules or suppliers. Our two contracts (Live and Demo) are ours; a judge can attack the Demo one in [Judge mode](https://clear-to-pay.vercel.app/console/#judge) with no wallet, and anyone can deploy their own:
+
+**1. A developer deploys it once** (NEAR CLI and `cargo near`; replace `acme.testnet` with the company's account, which becomes the buyer):
+```bash
+git clone https://github.com/joezzy-web3/clear-to-pay && cd clear-to-pay
+cargo near build non-reproducible-wasm
+near account create-account fund-myself pay.acme.testnet '5 NEAR' autogenerate-new-keypair save-to-legacy-keychain \
+  sign-as acme.testnet network-config testnet sign-with-legacy-keychain send
+near contract deploy pay.acme.testnet use-file target/near/clear_to_pay.wasm with-init-call new \
+  json-args '{"owner":"acme.testnet"}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config testnet sign-with-legacy-keychain send
+near contract call-function as-transaction 3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af storage_deposit \
+  json-args '{"account_id":"pay.acme.testnet"}' prepaid-gas '30.0 Tgas' attached-deposit '0.00125 NEAR' \
+  sign-as acme.testnet network-config testnet sign-with-legacy-keychain send   # so the contract can hold testnet USDC
+```
+
+**2. The company does the rest in the browser**, with no terminal: open [Buyer setup with its contract](https://clear-to-pay.vercel.app/console/setup/?contract=pay.acme.testnet) (the `?contract=` part puts **Your own contract** next to Demo and Live; it is remembered in that browser, and the page only accepts an address that answers as a Clear to Pay contract), connect the `acme.testnet` wallet, allow USDC (Advanced), create the first order with the wizard (supplier, items, delivery signers, limits, one signature) and top up the pool. Every link it sends (supplier, signers, delivery notes) carries the contract, so the Supplier and Sign pages, the Inbox and the [ledger](https://clear-to-pay.vercel.app/ledger/?contract=pay.acme.testnet) all work with it.
+
+Telegram alerts and the signature relay watch the contracts listed in the alerts worker (ours); a company that wants them adds its contract to `CONTRACTS` in `workers/alerts/wrangler.toml` and deploys its own worker. Without them, signatures travel by link and QR code. Next: a factory contract, so a company launches its own guard from the browser with one wallet approval and no developer.
+
 ## NEAR stack used
 
 | Piece | Where |

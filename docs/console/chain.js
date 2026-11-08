@@ -131,3 +131,42 @@ export async function relayIds(net) {
 export async function relayGet(net, id) {
   const r = await fetch(`${RELAY}/relay?net=${net}&id=${id}`, { cache: "no-store" }); return r.ok ? r.text() : null;
 }
+
+// ---------------------------------------------------------------- a company's own Clear to Pay contract (README: Run your own)
+// Kept in this browser, or opened once with ?contract=pay.acme.testnet. It joins CONTRACTS as "own", so every page
+// (Buyer setup, Inbox, Sign, ledger) works with it exactly as with ours. Only a contract that answers get_owner is accepted.
+const OWN = "ctp-own-contract";
+export function ownContract() {
+  try { const q = new URLSearchParams(location.search).get("contract"); if (q && isAccount(q) && !["guard.cleartopay.testnet", "judge.cleartopay.testnet"].includes(q)) localStorage.setItem(OWN, q); } catch {}
+  try { const v = localStorage.getItem(OWN); return v && isAccount(v) ? v : null; } catch { return null; }
+}
+{ const o = ownContract(); if (o) CONTRACTS.own = o; }
+/** Adds a "Your own contract" button (data key "own") to a page's contract switch, before the page wires its
+ *  buttons. Until a real Clear to Pay contract is set, clicking it opens a small form instead of switching;
+ *  once set, it switches like Demo and Live. Hold Alt (or click it again while on it) to change the address. */
+export function ownSwitch(group, makeButton) {
+  const b = makeButton(CONTRACTS.own);
+  group.appendChild(b);
+  const form = document.createElement("div");
+  form.className = "ownform"; form.hidden = true;
+  form.innerHTML = `<label>Your contract's address<input placeholder="pay.yourcompany.testnet" autocomplete="off" spellcheck="false"></label><button type="button">Use it</button><button type="button" class="x">Cancel</button><small>Deployed with the steps in the README (Run your own). It stays in this browser.</small><p class="err" hidden></p>`;
+  group.insertAdjacentElement("afterend", form);
+  const [inp] = form.getElementsByTagName("input"), [use, cancel] = form.getElementsByTagName("button"), err = form.querySelector(".err");
+  if (CONTRACTS.own) inp.value = CONTRACTS.own;
+  b.addEventListener("click", (e) => {
+    if (!e.isTrusted && CONTRACTS.own) return; // our own programmatic click after "Use it": let the page switch
+    if (CONTRACTS.own && !e.altKey && b.getAttribute("aria-pressed") !== "true") return;
+    e.stopImmediatePropagation(); form.hidden = false; inp.focus();
+  }, true);
+  cancel.onclick = () => (form.hidden = true);
+  use.onclick = async () => {
+    const v = inp.value.trim().toLowerCase(); err.hidden = true;
+    if (!isAccount(v)) { err.hidden = false; err.textContent = "That is not a NEAR account name."; return; }
+    let owner = null; try { owner = await view(v, "get_owner"); } catch {}
+    if (!owner) { err.hidden = false; err.textContent = `No Clear to Pay contract answers at ${v}. Check the address, and that it is deployed and initialised.`; return; }
+    try { localStorage.setItem(OWN, v); } catch {}
+    CONTRACTS.own = v; form.hidden = true; const sm = b.querySelector("small"); if (sm) sm.textContent = v;
+    b.click();
+  };
+  return b;
+}

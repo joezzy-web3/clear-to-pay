@@ -226,7 +226,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <script type="module">
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
-import { CONTRACTS, walletFix, relaySend } from "../chain.js";
+import { CONTRACTS, walletFix, relaySend, ownSwitch } from "../chain.js";
 import { rpc } from "../chain.js";
 import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 import { buildInvoice } from "../invoice-flow.js";
@@ -424,12 +424,13 @@ function paintRole() {
   $("send-buyer").disabled = !KEY; $("send-note").textContent = KEY ? "Sends only your public key." : "Make your key below first.";
   if (ROLE === "signer" || ROLE === "supplier") guide(ROLE);
 }
-let NET = (() => { try { return localStorage.getItem("ctp-sign-contract") === "live" ? "live" : "demo"; } catch { return "demo"; } })();
+let NET = (() => { try { const q = new URLSearchParams(location.search).get("contract"), k = localStorage.getItem("ctp-sign-contract"); return q && CONTRACTS.own === q ? "own" : k && CONTRACTS[k] ? k : "demo"; } catch { return "demo"; } })();
 const HC = () => CONTRACTS[NET];
 const H72 = 72n * 3600n * 1_000_000_000n;
 const nsDate = (ns) => new Date(Number(BigInt(ns) / 1_000_000n)).toLocaleString([], { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 function pickRole(r) { const b = document.querySelector(`.roles button[data-role="${r}"]`); if (b && b.getAttribute("aria-pressed") !== "true") b.click(); }
 addEventListener("ctp-role", (e) => { ROLE = e.detail; if (HOME) { paintRole(); paintHome(); paintKey(); } });
+ownSwitch(document.querySelector(".switch2"), () => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.textContent = "Own"; x.title = CONTRACTS.own || "your company's contract"; return x; });
 document.querySelectorAll(".switch2 button").forEach((b) => b.addEventListener("click", () => { NET = b.dataset.c; try { localStorage.setItem("ctp-sign-contract", NET); } catch {} paintHome(); }));
 async function paintHome() {
   if (!HOME) return;
@@ -641,8 +642,8 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
 (async () => {
   const r = P.get("r");
   if (r === "signer" || r === "supplier") { // a link from the buyer to this person's page
-    try { localStorage.setItem("ctp-role", r); if (P.get("c") === "live" || P.get("c") === "demo") localStorage.setItem("ctp-sign-contract", P.get("c")); if (r === "signer" && isRole(P.get("as") || "")) localStorage.setItem("ctp-signer-as", P.get("as")); } catch {}
-    ROLE = r; if (P.get("c") === "live" || P.get("c") === "demo") NET = P.get("c"); if (isRole(P.get("as") || "")) AS = P.get("as");
+    try { localStorage.setItem("ctp-role", r); if (P.get("c") && CONTRACTS[P.get("c")]) localStorage.setItem("ctp-sign-contract", P.get("c")); if (r === "signer" && isRole(P.get("as") || "")) localStorage.setItem("ctp-signer-as", P.get("as")); } catch {}
+    ROLE = r; if (P.get("c") && CONTRACTS[P.get("c")]) NET = P.get("c"); if (isRole(P.get("as") || "")) AS = P.get("as");
     document.querySelector(`.roles button[data-role="${r}"]`)?.getAttribute("aria-pressed") === "true" || document.querySelector(`.roles button[data-role="${r}"]`)?.click();
     history.replaceState(null, "", location.pathname);
   }

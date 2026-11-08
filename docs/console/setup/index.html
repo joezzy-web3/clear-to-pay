@@ -297,11 +297,11 @@ label.confirm.big{padding-left:48px!important}
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import * as W from "./order.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy, walletFix } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy, walletFix, ownSwitch } from "../chain.js";
 initMenu();
 
 const YOCTO = "1", TGAS = (n) => (BigInt(n) * 10n ** 12n).toString();
-const S = { c: sessionStorage.getItem("ctp-setup-contract") === "live" ? "live" : "demo", owner: null, me: null, wallet: null, selector: null, modal: null };
+const S = { c: (() => { const q = new URLSearchParams(location.search).get("contract"), k = sessionStorage.getItem("ctp-setup-contract"); return q && CONTRACTS.own === q ? "own" : k && CONTRACTS[k] ? k : "demo"; })(), owner: null, me: null, wallet: null, selector: null, modal: null };
 const contract = () => CONTRACTS[S.c];
 
 // ---------------------------------------------------------------- the forms: one contract call each
@@ -690,6 +690,7 @@ function paintWho() {
   n.hidden = !(S.me && S.owner && S.me !== S.owner);
   n.textContent = `Only the buyer account can do this. ${S.me} is signed in; ${contract()} belongs to ${S.owner}. You can still fill the forms and review them.`;
 }
+ownSwitch(document.querySelector(".switch"), (addr) => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.setAttribute("aria-pressed", "false"); x.innerHTML = `Your own contract<small>${addr ? esc(addr) : "your company's guard"}</small>`; return x; });
 document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => {
   S.c = b.dataset.c; sessionStorage.setItem("ctp-setup-contract", S.c);
   document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));

@@ -834,7 +834,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   let showAll = false;
   function select(id) {
     contract = id; mode = "connecting"; showAll = false;
-    try { history.replaceState(null, "", id === "cleartopay.testnet" ? "#v1" : id === "judge.cleartopay.testnet" ? "#judge" : location.pathname); } catch {}
+    try { history.replaceState(null, "", id === "cleartopay.testnet" ? "#v1" : id === "judge.cleartopay.testnet" ? "#judge" : id === OWN ? location.pathname + "?contract=" + encodeURIComponent(id) : location.pathname); } catch {}
     document.querySelectorAll(".switch button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.net === id)));
     $("nb").href = "https://testnet.nearblocks.io/address/" + id;
     $("vout").textContent = ""; drawDoc(null);
@@ -842,6 +842,11 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     return refresh();
   }
 
+  // a company's own Clear to Pay contract (README: Run your own): ?contract=pay.acme.testnet, remembered like the Console does
+  const OWN = (() => { const ok = (v) => typeof v === "string" && /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(v) && v.length <= 64;
+    try { const q = new URLSearchParams(location.search).get("contract"); if (ok(q) && !["guard.cleartopay.testnet", "judge.cleartopay.testnet", "cleartopay.testnet"].includes(q)) localStorage.setItem("ctp-own-contract", q); } catch {}
+    try { const v = localStorage.getItem("ctp-own-contract"); return ok(v) ? v : null; } catch { return null; } })();
+  if (OWN) { const b = document.createElement("button"); b.type = "button"; b.dataset.net = OWN; b.setAttribute("aria-pressed", "false"); b.innerHTML = "Your own contract<small></small>"; b.querySelector("small").textContent = OWN; document.querySelector(".switch").appendChild(b); }
   document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => select(b.dataset.net)));
   document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
     filter = b.dataset.f; showAll = false; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderList();
@@ -853,7 +858,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   $("file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) verify(f); });
 
   drawDoc(null);
-  select(location.hash === "#v1" ? "cleartopay.testnet" : location.hash === "#judge" ? "judge.cleartopay.testnet" : "guard.cleartopay.testnet");
+  select(location.hash === "#v1" ? "cleartopay.testnet" : location.hash === "#judge" ? "judge.cleartopay.testnet" : OWN && new URLSearchParams(location.search).get("contract") === OWN ? OWN : "guard.cleartopay.testnet");
   setInterval(() => { if (mode === "live") refresh(); }, 30000);
 })();
 </script>

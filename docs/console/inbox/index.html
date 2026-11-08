@@ -245,10 +245,10 @@ import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { compareReading, submitArgs } from "../invoice-flow.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix, relayIds, relayGet } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix, relayIds, relayGet, ownSwitch } from "../chain.js";
 initMenu();
 
-const S = { c: (() => { try { return localStorage.getItem("ctp-inbox-contract") === "live" ? "live" : "demo"; } catch { return "demo"; } })(),
+const S = { c: (() => { try { const q = new URLSearchParams(location.search).get("contract"), k = localStorage.getItem("ctp-inbox-contract"); return q && CONTRACTS.own === q ? "own" : k && CONTRACTS[k] ? k : "demo"; } catch { return "demo"; } })(),
   owner: null, me: null, wallet: null, selector: null, modal: null, filter: "todo", receipts: [], tx: {} };
 const contract = () => CONTRACTS[S.c];
 const usd = (u) => fromUnits(u) + " USDC";
@@ -630,6 +630,7 @@ function setContract(k, reload = true) {
   document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === k)));
   if (reload) { load(); paintSigs(); }
 }
+ownSwitch(document.querySelector(".switch"), (addr) => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.setAttribute("aria-pressed", "false"); x.innerHTML = `Your own contract<small>${addr ? esc(addr) : "your company's guard"}</small>`; return x; });
 document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => setContract(b.dataset.c)));
 document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
   S.filter = b.dataset.f; S.shown = PAGE; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); paint();

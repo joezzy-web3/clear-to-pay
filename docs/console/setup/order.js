@@ -159,7 +159,9 @@ function showLink(box, link, label) {
 }
 export function rolePageLink(role, roleName, order) {
   const q = new URLSearchParams({ r: role, c: netOf(K.contract()) || "demo" }); if (roleName) q.set("as", roleName); if (order) q.set("o", order);
-  return new URL("../sign/#" + q.toString(), location.href).href;
+  const u = new URL("../sign/#" + q.toString(), location.href);
+  if (q.get("c") === "own") u.search = "?contract=" + encodeURIComponent(K.contract()); // their browser learns the company's own contract
+  return u.href;
 }
 
 // ---------------------------------------------------------------- the steps
