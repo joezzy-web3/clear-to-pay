@@ -154,18 +154,26 @@ export function ownSwitch(group, makeButton) {
   const [inp] = form.getElementsByTagName("input"), [use, cancel] = form.getElementsByTagName("button"), err = form.querySelector(".err");
   if (CONTRACTS.own) inp.value = CONTRACTS.own;
   // While the form is open the button shows as chosen; Cancel, Esc or another choice puts things back.
-  let was = null;
+  let was = null, card = null;
+  // The page's contract card must not keep showing the previous contract while the address is being typed.
+  const CARD = ["f-c", "f-owner", "f-pool", "f-todo"];
+  const blankCard = () => {
+    if (card) return; card = {};
+    for (const id of CARD) { const el = document.getElementById(id); if (!el) continue; card[id] = [el.textContent, el.className]; el.textContent = id === "f-c" ? "type your address, then Use it" : "–"; el.className = ""; }
+  };
+  const restoreCard = () => { if (!card) return; for (const id in card) { const el = document.getElementById(id); if (el) [el.textContent, el.className] = card[id]; } card = null; };
   const open = () => {
     if (!was) { was = [...group.querySelectorAll('button[aria-pressed="true"]')].filter((x) => x !== b); was.forEach((x) => x.setAttribute("aria-pressed", "false")); }
-    b.setAttribute("aria-pressed", "true"); form.hidden = false; err.hidden = true; inp.focus();
+    b.setAttribute("aria-pressed", "true"); form.hidden = false; err.hidden = true; blankCard(); inp.focus();
   };
   const close = (restore) => {
     form.hidden = true;
     if (was && restore) { b.setAttribute("aria-pressed", "false"); was.forEach((x) => x.setAttribute("aria-pressed", "true")); }
+    if (restore) restoreCard(); else card = null; // otherwise the page reads the newly chosen contract into the card
     was = null;
   };
   b.addEventListener("click", (e) => {
-    if (!e.isTrusted && CONTRACTS.own) { was = null; return; } // our own programmatic click after "Use it": let the page switch
+    if (!e.isTrusted && CONTRACTS.own) { was = null; card = null; return; } // our own programmatic click after "Use it": let the page switch
     if (CONTRACTS.own && !e.altKey && b.getAttribute("aria-pressed") !== "true") return;
     e.stopImmediatePropagation(); open();
   }, true);
