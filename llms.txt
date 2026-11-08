@@ -41,11 +41,21 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - Alerts: a Cloudflare Worker (workers/alerts, `npm test`) watches both contracts and messages each subscriber on Telegram by role (buyer, a supplier, delivery signers)
 - Inspect an invoice (five cases, step by step, real outputs and links): https://clear-to-pay.vercel.app/inspect/
 
-## Not built yet (stated, not claimed)
+## Limits, stated
 
-- The Intel TDX and NVIDIA certificate chains checked in the browser (the CLI reader checks them on every reading; Judge mode checks signatures and bindings only; the OutLayer route checks NEAR AI's signature and quote binding in the enclave, not NVIDIA)
-- NEAR Intents cross-chain payouts; an on-chain list of flagged addresses (today the Console warns from the receipts, in the browser); proof of control is optional (NEP-413), not required by the contract
-- Two colluding insiders in different roles can still confirm a false delivery
+- The browser checks the AI reading's signatures and bindings; the full Intel TDX and NVIDIA certificate chains are checked by the CLI reader on every reading, not in the browser.
+- Proof of control of a payout account (NEP-413) is offered at registration, not required by the contract.
+- Two colluding insiders in different roles can still confirm a false delivery (the rule counts keys in roles).
+
+## Where it goes next
+
+- One shared on-chain flagged list for every Clear to Pay contract (today every buyer of a deployment is warned from its seized receipts).
+- Payouts on any chain through NEAR Intents (the payout record already names chain and token).
+- Hardware-backed signer keys (passkeys, the phone's secure chip) for large deployments; one-step supplier key rotation (two steps today).
+
+## The AI reading on chain
+
+- When the buyer submits from the Inbox after the AI check, the attested reading rides along in the submit_invoice transaction as `ai_reading` (ignored by the contract, kept by the chain). Re-check it: `node tools/console-crypto/recheck.mjs <tx-hash> <buyer-account>`.
 
 ## Main files
 

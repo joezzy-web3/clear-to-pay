@@ -592,7 +592,7 @@ async function aiCheck(k, file) {
     if (r.held) return set({ held: true, match: false, cmp: r.pdf.hidden.slice(0, 6).map((h) => ({ ok: false, label: "Hidden: " + h.text, detail: h.why })) });
     const cmp = [{ ok: !!r.ok, label: "The reading is signed and attested", detail: r.ok ? "the enclave's key, NEAR AI's signature, OutLayer's attestation" : "a check failed; open the details" }]
       .concat(compareReading(r.reading && r.reading.extraction, x.invoice));
-    set({ match: cmp.every((c) => c.ok), cmp, checks: r.checks, att: r.attestation });
+    set({ match: cmp.every((c) => c.ok), cmp, checks: r.checks, att: r.attestation, proof: r.ok ? { output: r.output, attestation_url: r.attestation_url } : null });
   } catch (e) {
     const m = e.message || String(e), busy = /HTTP 5\d\d|unavailable|overloaded|bad_gateway|timed? ?out/i.test(m);
     set({ error: (e.name === "AbortError" ? "The reader took too long." : busy ? "NEAR AI's model is unavailable right now (" + ((m.match(/HTTP \d{3}/) || ["busy"])[0]) + "). Try again in a minute: choose the PDF again. Nothing was decided." : m) + " You can also submit without it: the contract checks every rule." });
@@ -603,12 +603,12 @@ async function submitOne(k) {
   if (!note) return;
   if (!S.wallet) { out.innerHTML = `<p class="err">Connect the buyer's wallet first (top of the page).</p>`; return; }
   if (S.me !== S.owner) { out.innerHTML = `<p class="err">Only the buyer account can submit (${esc(S.owner)}).</p>`; return; }
-  const a = S.ai[x.signature], ai = !a || a.running || a.error ? "The AI has not read the PDF." : a.match ? "The AI's reading matches what the supplier signed." : "WARNING: the AI's reading does NOT match what the supplier signed.";
+  const a = S.ai[x.signature], ai = (!a || a.running || a.error ? "The AI has not read the PDF." : a.match ? "The AI's reading matches what the supplier signed." : "WARNING: the AI's reading does NOT match what the supplier signed.") + (a && a.proof ? " The signed reading goes on chain with this transaction, so anyone can re-check it." : "");
   if (!confirm(`Submit ${x.invoice.invoice_number} (${usd(x.invoice.total)}) with delivery note ${note.note.note_id}?\n\n${ai}\n\nThe contract checks every rule again and pays only ${x.invoice.supplier_id}'s registered address.`)) return;
   try {
     sessionStorage.setItem("ctp-inbox-pending", JSON.stringify({ submit: x.invoice.invoice_number }));
     out.innerHTML = `<p class="muted">Waiting for your wallet…</p>`;
-    const res = await S.wallet.signAndSendTransaction({ receiverId: contract(), actions: [{ type: "FunctionCall", params: { methodName: "submit_invoice", args: submitArgs(x, note), gas: (300n * 10n ** 12n).toString(), deposit: "0" } }] });
+    const res = await S.wallet.signAndSendTransaction({ receiverId: contract(), actions: [{ type: "FunctionCall", params: { methodName: "submit_invoice", args: submitArgs(x, note, a && a.proof ? { ...a.proof, matched: a.match } : null), gas: (300n * 10n ** 12n).toString(), deposit: "0" } }] });
     sessionStorage.removeItem("ctp-inbox-pending");
     out.innerHTML = verdictHtml(res);
     await load();

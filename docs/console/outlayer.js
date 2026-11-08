@@ -110,7 +110,7 @@ export async function aiRead(bytes) {
   let att = null;
   try { att = await (await fetch(READER.api + res.attestation_url, { cache: "no-store" })).json(); } catch {}
   const all = checks.concat(att ? checkAttestation(att, res.output) : [{ ok: false, label: "OutLayer's attestation", detail: "could not be fetched" }]);
-  return { sha, pdf, reading, checks: all, ok: all.every((c) => c.ok), attestation: READER.api + res.attestation_url };
+  return { sha, pdf, reading, checks: all, ok: all.every((c) => c.ok), attestation: READER.api + res.attestation_url, output: res.output, attestation_url: res.attestation_url };
 }
 export const MAX_PDF_BYTES = MAX_BYTES;
 

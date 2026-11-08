@@ -53,8 +53,13 @@ export function pairs(invoices, readyNotes) {
   return invoices.map((x) => ({ inv: x, notes: readyNotes.filter((n) => n.note.order_id === x.invoice.order_id) }));
 }
 
-/** The exact arguments of submit_invoice. */
-export function submitArgs(inv, note) {
-  return { invoice: inv.invoice, supplier_signature: inv.signature, delivery: note.note,
+/** The exact arguments of submit_invoice. With an attested reading, it rides along as `ai_reading`:
+ *  the contract ignores unknown fields (it decides on the signed objects only), but the transaction keeps
+ *  them on chain for good, so anyone can re-check the reading later (tools/console-crypto/recheck.mjs). */
+export const READER_ID = "cleartopay-reader.testnet/reader";
+export function submitArgs(inv, note, reading) {
+  const args = { invoice: inv.invoice, supplier_signature: inv.signature, delivery: note.note,
     delivery_signatures: note.signatures.map((s) => ({ key: s.key, signature: s.signature })), document_hash: inv.document_hash };
+  if (reading && reading.output) args.ai_reading = { reader: READER_ID, output: reading.output, attestation_url: reading.attestation_url, matched_signed_invoice: !!reading.matched };
+  return args;
 }

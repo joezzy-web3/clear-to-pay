@@ -207,10 +207,15 @@ The rule is the same everywhere: whoever benefits from saying "delivered" is nev
 
 **Done since the first plan:** address changes are approved or cancelled in the browser (Inbox); a supplier can prove control of its payout account with its own wallet (NEP-413) when it registers; and [Inspect an invoice](https://clear-to-pay.vercel.app/inspect/) walks five attacks through every check, no wallet.
 
-**Next, so nobody needs a terminal** (planned, not claimed):
-- **Submitting the OutLayer reading directly:** today the browser checks the enclave's signature; next, the agent submits the signed reading and anyone can re-check it from the receipt.
-- **Delivery signers sign with their wallet (NEP-413)** instead of a key kept in browser storage.
-- **A shared, on-chain list of flagged addresses** that other buyers' contracts can read. Today the list is built in the browser (below).
+**The AI's reading goes on chain with the payment.** When the buyer submits from the Inbox after the AI check, the attested reading rides along in the same `submit_invoice` transaction (`ai_reading`). The contract ignores it on purpose (it decides on the signed objects only), but the transaction keeps it on chain for good, so anyone can re-check it from the transaction alone: `node tools/console-crypto/recheck.mjs <tx-hash> <buyer-account>` verifies the enclave's signature, that it is a reading of the signed document, NEAR AI's signature and OutLayer's attestation, then compares it with what the supplier signed.
+
+### Where it goes next
+
+Each of these extends something that already works today:
+- **One flagged list for every buyer on NEAR.** Every seized invoice already flags its address for every buyer of the same deployment (Buyer setup, the Inbox and the ledger warn before anyone approves it). Next, a shared on-chain list, so every Clear to Pay contract on NEAR learns from every seizure: the network gets safer with each attack it stops.
+- **Hardware-backed signer keys for large deployments.** Signer keys are already made on the phone and never leave it, with no wallet needed, which is what keeps signing to one tap. For companies that want more, the same keys can live in a passkey or the phone's secure chip.
+- **Payouts on any chain through NEAR Intents.** The payout record already names a chain and a token; the contract checks them like any other field. Next, a cleared invoice pays out on the supplier's chain of choice.
+- **Supplier key rotation in one step.** Replacing a stolen key works today in two steps ([If a supplier is hacked](#if-a-supplier-is-hacked)); next, one buyer-approved key change.
 
 ## NEAR stack used
 

@@ -60,3 +60,24 @@ assert.deepEqual(F.submitArgs(signed, note), { invoice: inv, supplier_signature:
   delivery_signatures: [{ key: "ed25519:A", signature: "s1" }, { key: "ed25519:B", signature: "s2" }], document_hash: C.base64.encode(doc) });
 
 console.log("flow: ok (invoice built from the order, the real reading matches, edits are flagged, submit carries the signed bytes)");
+
+// the attested reading rides along with Submit, and anyone can re-check it from the submit arguments alone
+{
+  const proof = JSON.parse(fs.readFileSync(new URL("../../../docs/proof/outlayer/https-01-clean.json", import.meta.url)));
+  const att = JSON.parse(fs.readFileSync(new URL("../../../docs/proof/outlayer/attestation-https-01-clean.json", import.meta.url)));
+  const SHA = "3276bc7062369039adbd80623b11509903aeb30bd008a1e8b4407ff14faaf5bd";
+  const s2 = { invoice: inv, signature: sig, document_hash: Buffer.from(SHA, "hex").toString("base64") };
+  const without = F.submitArgs(s2, note);
+  assert.equal("ai_reading" in without, false, "no reading, nothing extra");
+  const args = F.submitArgs(s2, note, { output: proof.output, attestation_url: proof.attestation_url, matched: true });
+  assert.deepEqual(Object.keys(args), ["invoice", "supplier_signature", "delivery", "delivery_signatures", "document_hash", "ai_reading"]);
+  assert.equal(args.ai_reading.reader, "cleartopay-reader.testnet/reader");
+  const { recheck } = await import("../recheck.mjs");
+  const r = await recheck(JSON.parse(JSON.stringify(args)), att);
+  assert.ok(r.ok && r.matches, "re-checked from the arguments: genuine, and it matches the signed invoice");
+  const t = structuredClone(args); t.ai_reading.output.reading = t.ai_reading.output.reading.replace("7.80", "9.80");
+  assert.equal((await recheck(t, att)).ok, false, "a reading edited after the fact fails the re-check");
+  const other = structuredClone(args); other.document_hash = Buffer.alloc(32, 1).toString("base64");
+  assert.equal((await recheck(other, att)).ok, false, "a reading of another document fails the re-check");
+  console.log("flow: the attested reading rides along with Submit and re-checks from the arguments alone");
+}
