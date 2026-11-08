@@ -216,6 +216,7 @@ Each of these extends something that already works today:
 - **One flagged list for every buyer on NEAR.** Every seized invoice already flags its address for every buyer of the same deployment (Buyer setup, the Inbox and the ledger warn before anyone approves it). Next, a shared on-chain list, so every Clear to Pay contract on NEAR learns from every seizure: the network gets safer with each attack it stops.
 - **Hardware-backed signer keys for large deployments.** Signer keys are already made on the phone and never leave it, with no wallet needed, which is what keeps signing to one tap. For companies that want more, the same keys can live in a passkey or the phone's secure chip.
 - **Payouts on any chain through NEAR Intents.** The payout record already names a chain and a token; the contract checks them like any other field. Next, a cleared invoice pays out on the supplier's chain of choice.
+- **Launching a guard from the browser.** A company already runs its own contract: a developer deploys it with four commands ([Run your own](#run-your-own)) and everything after that is done in the browser. Next, a factory contract turns the deploy into one wallet approval, so no developer is needed at all.
 - **Supplier key rotation in one step.** Replacing a stolen key works today in two steps ([If a supplier is hacked](#if-a-supplier-is-hacked)); next, one buyer-approved key change.
 
 ## Run your own
@@ -237,7 +238,7 @@ near contract call-function as-transaction 3e2210e1184b45b64c8a434c0a7e7b23cc04e
 
 **2. The company does the rest in the browser**, with no terminal: open [Buyer setup with its contract](https://clear-to-pay.vercel.app/console/setup/?contract=pay.acme.testnet) (the `?contract=` part puts **Your own contract** next to Demo and Live; it is remembered in that browser, and the page only accepts an address that answers as a Clear to Pay contract), connect the `acme.testnet` wallet, allow USDC (Advanced), create the first order with the wizard (supplier, items, delivery signers, limits, one signature) and top up the pool. Every link it sends (supplier, signers, delivery notes) carries the contract, so the Supplier and Sign pages, the Inbox and the [ledger](https://clear-to-pay.vercel.app/ledger/?contract=pay.acme.testnet) all work with it.
 
-Telegram alerts and the signature relay watch the contracts listed in the alerts worker (ours); a company that wants them adds its contract to `CONTRACTS` in `workers/alerts/wrangler.toml` and deploys its own worker. Without them, signatures travel by link and QR code. Next: a factory contract, so a company launches its own guard from the browser with one wallet approval and no developer.
+Telegram alerts and the signature relay watch the contracts listed in the alerts worker (ours); a company that wants them adds its contract to `CONTRACTS` in `workers/alerts/wrangler.toml` and deploys its own worker. Without them, signatures travel by link and QR code.
 
 ## NEAR stack used
 

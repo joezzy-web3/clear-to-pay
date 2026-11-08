@@ -50,9 +50,11 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 
 ## Where it goes next
 
+Each extends something that already works today:
 - One shared on-chain flagged list for every Clear to Pay contract (today every buyer of a deployment is warned from its seized receipts).
 - Payouts on any chain through NEAR Intents (the payout record already names chain and token).
 - Hardware-backed signer keys (passkeys, the phone's secure chip) for large deployments; one-step supplier key rotation (two steps today).
+- Launching a guard from the browser with one wallet approval, through a factory contract (today a developer deploys it with four commands, and everything after that is in the browser).
 
 ## The AI reading on chain
 
