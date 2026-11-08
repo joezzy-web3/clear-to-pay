@@ -28,3 +28,23 @@ assert.equal(sent.length, before + 1); assert.match(sent.at(-1).text, /^ALERT \|
 await worker.scheduled({}, env); assert.equal(sent.length, before + 1);   // no change, no message
 await post("/stop"); assert.equal(JSON.parse(kv.get("subs:demo"))["42"], undefined);
 console.log("ok  worker: webhook secret, subscribe, first tick silent, one alert per change, stop");
+
+// remember first, then speak: a second tick that starts while the first is still sending does not repeat the alert
+{
+  const kv2 = new Map(), sent2 = []; let release;
+  const env2 = { ...env, STATE: { get: async (k) => kv2.get(k) ?? null, put: async (k, v) => void kv2.set(k, v) } };
+  globalThis.fetch = async (url, init) => {
+    const u = String(url), body = JSON.parse(init.body);
+    if (u.includes("api.telegram.org")) { if (body.text && body.text.startsWith("ALERT")) { sent2.push(body); if (sent2.length === 1) await new Promise((r) => (release = r)); } return new Response(JSON.stringify({ ok: true })); }
+    return new Response(JSON.stringify({ result: { result: [...new TextEncoder().encode(JSON.stringify(chain[body.params.method_name]))] } }));
+  };
+  kv2.set("subs:demo", JSON.stringify({ 42: { roles: ["buyer"] } }));
+  await worker.scheduled({}, env2);                                        // first tick: remembers
+  chain = { ...chain, get_delivery_signers: [...chain.get_delivery_signers, { key: "ed25519:TWO", role: "storekeeper" }] };
+  const slow = worker.scheduled({}, env2);                                 // sends, and Telegram hangs
+  await new Promise((r) => setTimeout(r, 20));
+  await worker.scheduled({}, env2);                                        // the next tick starts meanwhile
+  release(); await slow;
+  assert.equal(sent2.length, 1, "one alert, not two");
+  console.log("ok  worker: a slow tick and the next one do not send the same alert twice");
+}

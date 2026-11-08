@@ -16,7 +16,7 @@ const nets = (env) => Object.fromEntries(String(env.CONTRACTS || "").split(",").
 
 async function call(rpc, contract, method, args) {
   const body = JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: btoa(JSON.stringify(args)) } });
-  const r = await fetch(rpc, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+  const r = await fetch(rpc, { method: "POST", headers: { "Content-Type": "application/json" }, body, signal: AbortSignal.timeout(10000) }); // a slow server must not stretch a tick into the next one
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || "RPC error");
   return JSON.parse(new TextDecoder().decode(Uint8Array.from(j.result.result)));
@@ -54,9 +54,10 @@ async function tick(env, key, contract) {
   } catch { /* the second server is down: not an alarm on its own */ }
   if (old) alerts.push(...changes(old, now));
   const subs = JSON.parse((await env.STATE.get(`subs:${key}`)) || "{}");
-  for (const a of alerts) for (const chat of recipients(a, subs)) await say(env, chat, format(a, contract));
+  // remember first, then speak: if a tick is slow and the next one starts, it already sees this state and does not repeat the alerts
   const next = JSON.stringify(now);
   if (next !== raw) await env.STATE.put(stateKey, next); // write only on change (KV write budget)
+  for (const a of alerts) for (const chat of recipients(a, subs)) await say(env, chat, format(a, contract));
   return alerts.length;
 }
 
