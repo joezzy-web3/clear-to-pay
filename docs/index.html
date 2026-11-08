@@ -890,7 +890,7 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
       text.innerHTML = `<b>Live on NEAR testnet</b> · ${n} verdict${n === 1 ? "" : "s"} on chain, ${stopped} stopped before money moved`;
     } else {
       pill.className = "live sample";
-      text.innerHTML = `<b>Sample data</b> · this view can't reach NEAR · <a href="https://joezzy-web3.github.io/clear-to-pay/">open the live site</a>`;
+      text.innerHTML = `<b>Sample data</b> · this view can't reach NEAR · <a href="https://clear-to-pay.vercel.app/">open the live site</a>`;
     }
     const pick = d.receipts.find((r) => r.verdict === "Cleared" && r.payment && r.payment.status === "Settled") || d.receipts.find((r) => r.verdict === "Seized") || d.receipts[0];
     if (!pick) return;
