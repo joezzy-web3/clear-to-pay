@@ -14,7 +14,7 @@
 **Invariant:** only the NEAR contract authorises payment, and it pays only the supplier's registered address, after the order check and a delivery signed by two different roles.
 **Try it:** [Judge mode](https://clear-to-pay.vercel.app/console/), no wallet, no install.
 **Proof:** [first real payment, settled on testnet](https://testnet.nearblocks.io/txns/23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn) · [a fooled agent's submit, SEIZED](https://testnet.nearblocks.io/txns/8HgbsoAvr39cQJnwMnU2eL4ejVpLTmBjhqjmu6o4ufHY) · 127 contract tests, 253 reader tests ([how to run them](#try-it))
-**Limit:** testnet hackathon code; eight security reviews, not a professional audit.
+**Status:** running on NEAR testnet, with eight security reviews behind it; a professional audit comes before mainnet.
 
 **Why it holds**
 - The AI can be fooled; the payment rules cannot. The contract never asks the document, the AI or the agent where to pay.
