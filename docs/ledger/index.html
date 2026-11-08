@@ -306,6 +306,26 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .tryband:hover .tb-go{text-decoration:underline}
 @media (max-width:760px){.tryband{grid-template-columns:1fr}.tb-k{justify-self:start}}
 
+.filters button b{font:500 11px var(--mono);letter-spacing:0;margin-left:7px;padding:2px 6px;border-radius:999px;background:var(--cell);color:var(--mute)}
+.filters button[aria-pressed="true"] b{background:rgba(255,255,255,.16);color:var(--paper)}
+.lsearch{display:block;margin-top:22px}.lsearch input{font:400 15px var(--mono);padding:12px 14px;border:1px solid var(--line);background:var(--card);color:var(--navy);border-radius:10px;width:100%}
+.lsearch input:focus{outline:2px solid var(--signal);outline-offset:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.lrows{display:grid;gap:8px}
+.lrows-h{margin:8px 0 2px;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.lrow{background:var(--card);border-radius:12px;box-shadow:0 0 0 1px var(--line);border-left:6px solid var(--clear);min-width:0;overflow:hidden}
+.lrow.Held{border-left-color:var(--held)}.lrow.Seized{border-left-color:var(--seize)}
+.lrow>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:92px minmax(0,1.2fr) minmax(0,1fr) 132px;gap:14px;align-items:center;padding:12px 16px}
+.lrow>summary::-webkit-details-marker{display:none}
+.lrow>summary:hover{background:var(--cell)}
+.lrow>summary:focus-visible{outline:3px solid var(--signal);outline-offset:-3px}
+.lrow .v{font:800 18px/1 var(--display);letter-spacing:.04em}
+.lrow.Cleared .v{color:var(--clear)}.lrow.Held .v{color:var(--held)}.lrow.Seized .v{color:var(--seize)}
+.lrow .n{font:800 20px/1.1 var(--display);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lrow .n small{font:400 12.5px var(--mono);color:var(--mute);margin-left:10px;letter-spacing:0}
+.lrow .st{font:400 13px var(--mono);color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lrow .st.bad{color:var(--seize)}
+.lrow .amt{font:800 20px/1 var(--display);font-variant-numeric:tabular-nums;text-align:right}.lrow .amt small{font:500 11px var(--mono);color:var(--mute);margin-left:4px}
+.lrow-in{padding:14px;background:var(--paper)}
+@media (max-width:640px){.lrow>summary{grid-template-columns:74px minmax(0,1fr) 112px;gap:10px}.lrow .st,.lrow .n small{display:none}}
 .list .more{justify-self:center;font:600 15px var(--body);background:transparent;color:var(--navy);border:0;box-shadow:inset 0 0 0 2px var(--navy);padding:12px 18px;cursor:pointer;margin-top:6px}
 .list .more:focus-visible{outline:3px solid var(--signal);outline-offset:2px}
 
@@ -355,9 +375,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div><span class="kick">Receipts</span><h2>Every invoice the agent <mark>submitted</mark>.</h2>
     <p class="lead">Newest first. Each receipt is the contract's own record: the verdict, every reason, the address the invoice asked to pay, and the document's fingerprint.</p></div>
     <div class="filters" role="group" aria-label="Filter receipts">
-      <button type="button" data-f="all" aria-pressed="true">All</button><button type="button" data-f="Cleared" aria-pressed="false">Cleared</button><button type="button" data-f="Held" aria-pressed="false">Held</button><button type="button" data-f="Seized" aria-pressed="false">Seized</button>
+      <button type="button" data-f="all" aria-pressed="true">All<b data-n="all"></b></button><button type="button" data-f="Cleared" aria-pressed="false">Cleared<b data-n="Cleared"></b></button><button type="button" data-f="Held" aria-pressed="false">Held<b data-n="Held"></b></button><button type="button" data-f="Seized" aria-pressed="false">Seized<b data-n="Seized"></b></button>
     </div>
   </div>
+  <label class="lsearch"><span class="sr">Find a receipt</span><input id="lsearch" type="search" placeholder="Find: invoice number, supplier, order, address or #receipt" autocomplete="off" spellcheck="false"></label>
   <div class="flagged" id="flagged" hidden></div>
   <div class="list" id="list" aria-live="polite"></div>
 </div></section>
@@ -645,21 +666,12 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     const rows = Object.entries(by).sort((a, b) => b[1].length - a[1].length);
     const el = $("flagged"); el.hidden = !rows.length; if (!rows.length) { el.innerHTML = ""; return; }
     el.innerHTML = `<b>Flagged addresses on this contract</b><span>Each was the payee on an invoice seized because it was not the supplier's registered address. A warning for anyone about to approve one, not a block.</span><ul>${rows.slice(0, 8).map(([a, ids]) => `<li><code>${esc(a)}</code><small>${ids.length} seized · receipt${ids.length === 1 ? "" : "s"} ${ids.slice(0, 6).map((i) => `<a href="#r${i}">#${i}</a>`).join(" ")}${ids.length > 6 ? " …" : ""}</small></li>`).join("")}</ul>`;
-    el.querySelectorAll("a[href^='#r']").forEach((a) => a.addEventListener("click", () => { if (!showAll) { showAll = true; renderList(); } }));
+    el.querySelectorAll("a[href^='#r']").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); revealReceipt(Number(a.getAttribute("href").slice(2))); }));
   }
 
-  function renderList() {
-    renderFlagged();
-    const box = $("list");
-    const list = receipts.filter((r) => filter === "all" || r.verdict === filter);
-    if (!receipts.length) {
-      box.innerHTML = `<div class="empty"><div class="seal">${seal("Waiting", "–")}</div><div><b>No receipts on this contract yet.</b><p>The first invoices run once the supplier's 72-hour wait ends. Open <a href="#top" id="go-v1">the first verdicts (v1)</a> to see the HELD and SEIZED invoices from 30 October.</p></div></div>`;
-      const g = $("go-v1"); if (g) g.addEventListener("click", (e) => { e.preventDefault(); select("cleartopay.testnet"); });
-      return;
-    }
-    if (!list.length) { box.innerHTML = `<div class="empty"><div></div><div><b>No ${filter.toLowerCase()} receipts.</b></div></div>`; return; }
-    const shown = showAll ? list : list.slice(0, 10);
-    box.innerHTML = shown.map((r) => {
+  // The newest few as full certificates; everything older as one-line rows that open into theirs.
+  const FULL = 3, ROWS = 20;
+  function cert(r, withId = true) {
       const ok = onFile ? r.payee.address === onFile : null;
       const reasons = r.reasons.length
         ? r.reasons.map((code) => { const [k, t] = REASONS[code] || ["warn", code.replace(/_/g, " ")]; return `<li class="${k}"><i aria-hidden="true"></i><span>${esc(t)}<code>${esc(code)}</code></span></li>`; }).join("")
@@ -667,11 +679,11 @@ a.crumb:hover{color:var(--paper);background:#13284A}
       const p = payments[r.id];
       const pay = r.verdict === "Cleared"
         ? `<div class="pay"><span class="st ${p ? (p.status === "Settled" ? "" : ["Failed", "Expired", "Cancelled"].includes(p.status) ? "off" : "wait") : "wait"}">${esc(p ? p.status : "Authorized")}</span><span>${p ? `attempt ${p.attempt} · to <code>${esc(p.recipient.address)}</code>` : "payment record not found"}</span></div>` : "";
-      return `<article class="hcard" id="r${r.id}" data-v="${r.verdict}">
+      return `<article class="hcard"${withId ? ` id="r${r.id}"` : ""} data-v="${r.verdict}">
         <div class="h-main">
           <header class="h-head"><span><svg width="14" height="16" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="#EEF1EC"/><circle cx="15" cy="9" r="8" fill="#EEF1EC"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/></svg>${r.verdict === "Cleared" ? "Clearance certificate" : "Inspection"}</span><span>decided ${esc(fmt(when(r.decided_at)))}</span></header>
           <div class="h-body">
-            <div class="h-top"><span class="h-ref">${esc(r.invoice_number)} · Qingmar Steel Co.</span><span class="h-amt">${usdc(r.amount)}<small>USDC</small></span></div>
+            <div class="h-top"><span class="h-ref">${esc(r.invoice_number)} · ${esc(r.supplier_id === "qingmar-steel" ? "Qingmar Steel Co." : r.supplier_id)}</span><span class="h-amt">${usdc(r.amount)}<small>USDC</small></span></div>
             <div class="h-grid">
               <div><small>Purchase order</small><b>${esc(r.order_id)}</b></div>
               <div class="${ok === false ? "bad" : ""}"><small>Asked to pay</small><b>${esc(r.payee.address)}</b></div>
@@ -686,8 +698,45 @@ a.crumb:hover{color:var(--paper);background:#13284A}
         </div>
         <aside class="h-stub"><div class="seal ${r.verdict}">${seal(r.verdict, r.id)}</div><div class="stubno">receipt #${r.id}</div></aside>
       </article>`;
-    }).join("") + (list.length > shown.length ? `<button type="button" class="more" id="more">Show ${list.length - shown.length} older receipt${list.length - shown.length === 1 ? "" : "s"}</button>` : "");
-    const m = $("more"); if (m) m.addEventListener("click", () => { showAll = true; renderList(); });
+  }
+  function row(r) {
+    const ok = onFile ? r.payee.address === onFile : null, p = payments[r.id];
+    const st = r.verdict === "Cleared" ? (p ? p.status : "Authorized") : (REASONS[r.reasons[0]] ? r.reasons[0].replace(/_/g, " ") : (r.reasons[0] || ""));
+    return `<details class="lrow ${r.verdict}" id="r${r.id}"><summary><span class="v">${r.verdict.toUpperCase()}</span><span class="n">${esc(r.invoice_number)}<small>#${r.id} · ${esc(r.order_id)}</small></span><span class="st${ok === false ? " bad" : ""}">${ok === false ? "asked to pay " + esc(r.payee.address) : esc(st)}</span><span class="amt">${usdc(r.amount)}<small>USDC</small></span></summary><div class="lrow-in"></div></details>`;
+  }
+  function renderList() {
+    renderFlagged();
+    const box = $("list");
+    const q = ($("lsearch")?.value || "").trim().toLowerCase().replace(/^#/, "");
+    const hit = (r) => !q || String(r.id) === q || [r.invoice_number, r.supplier_id, r.order_id, r.payee?.address].some((x) => String(x || "").toLowerCase().includes(q));
+    const list = receipts.filter((r) => (filter === "all" || r.verdict === filter) && hit(r));
+    document.querySelectorAll(".filters [data-n]").forEach((el) => { const f = el.dataset.n; el.textContent = receipts.filter((r) => f === "all" || r.verdict === f).length; });
+    if (!receipts.length) {
+      box.innerHTML = `<div class="empty"><div class="seal">${seal("Waiting", "–")}</div><div><b>No receipts on this contract yet.</b><p>The first invoices run once the supplier's 72-hour wait ends. Open <a href="#top" id="go-v1">the first verdicts (v1)</a> to see the HELD and SEIZED invoices from 30 October.</p></div></div>`;
+      const g = $("go-v1"); if (g) g.addEventListener("click", (e) => { e.preventDefault(); select("cleartopay.testnet"); });
+      return;
+    }
+    if (!list.length) { box.innerHTML = q ? `<div class="empty"><div></div><div><b>No receipt matches “${esc(q)}”.</b><p>Search covers the invoice number, supplier, order, payee address and receipt number.</p></div></div>` : `<div class="empty"><div></div><div><b>No ${filter.toLowerCase()} receipts.</b></div></div>`; return; }
+    const full = q ? [] : list.slice(0, FULL), rest = q ? list : list.slice(FULL), rows = rest.slice(0, shownRows);
+    box.innerHTML = full.map((r) => cert(r)).join("")
+      + (rows.length ? `<div class="lrows">${full.length ? `<p class="lrows-h">Older receipts · tap one to open its certificate</p>` : ""}${rows.map(row).join("")}</div>` : "")
+      + (rest.length > rows.length ? `<button type="button" class="more" id="more">Show ${Math.min(ROWS, rest.length - rows.length)} older (${rest.length - rows.length} more)</button>` : "");
+    box.querySelectorAll("details.lrow").forEach((d) => d.addEventListener("toggle", () => {
+      if (!d.open || d.dataset.filled) return;
+      const r = receipts.find((x) => "r" + x.id === d.id); if (!r) return;
+      d.querySelector(".lrow-in").innerHTML = cert(r, false); d.dataset.filled = "1"; linkTransactions();
+    }));
+    const m = $("more"); if (m) m.addEventListener("click", () => { shownRows += ROWS; renderList(); });
+  }
+  /** Show receipt #id wherever it sits: widen the list if needed, open its row, scroll to it. */
+  function revealReceipt(id) {
+    const i = receipts.filter((r) => filter === "all" || r.verdict === filter).findIndex((r) => r.id === id);
+    if (i < 0) { filter = "all"; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.f === "all"))); }
+    if ($("lsearch")) $("lsearch").value = "";
+    shownRows = Math.max(shownRows, i + 1); renderList();
+    const el = $("r" + id); if (!el) return;
+    if (el.tagName === "DETAILS") el.open = true;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   // One square per receipt, in order, coloured by verdict; quiet dither around them.
@@ -831,9 +880,9 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     }
   }
 
-  let showAll = false;
+  let shownRows = 20;
   function select(id) {
-    contract = id; mode = "connecting"; showAll = false;
+    contract = id; mode = "connecting"; shownRows = ROWS;
     try { history.replaceState(null, "", id === "cleartopay.testnet" ? "#v1" : id === "judge.cleartopay.testnet" ? "#judge" : id === OWN ? location.pathname + "?contract=" + encodeURIComponent(id) : location.pathname); } catch {}
     document.querySelectorAll(".switch button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.net === id)));
     $("nb").href = "https://testnet.nearblocks.io/address/" + id;
@@ -848,8 +897,9 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     try { const v = localStorage.getItem("ctp-own-contract"); return ok(v) ? v : null; } catch { return null; } })();
   if (OWN) { const b = document.createElement("button"); b.type = "button"; b.dataset.net = OWN; b.setAttribute("aria-pressed", "false"); b.innerHTML = "Your own contract<small></small>"; b.querySelector("small").textContent = OWN; document.querySelector(".switch").appendChild(b); }
   document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => select(b.dataset.net)));
+  { let t; $("lsearch").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { shownRows = ROWS; renderList(); }, 150); }); }
   document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
-    filter = b.dataset.f; showAll = false; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderList();
+    filter = b.dataset.f; shownRows = ROWS; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderList();
   }));
   const drop = $("drop");
   ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
