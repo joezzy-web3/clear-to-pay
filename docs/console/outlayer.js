@@ -8,7 +8,7 @@ import { READER, PAYMENT_WORDS, checkReading, checkAttestation } from "./outlaye
 
 const PDFJS = new URL("./vendor/pdfjs-4.10.38/", import.meta.url).href; // pdfjs-dist 4.10.38 from npm, kept here byte for byte (SHA256SUMS)
 const CONTRACT = "judge.cleartopay.testnet";
-const MAX_BYTES = 2_000_000, MAX_PAGES = 5, MAX_TEXT = 40_000;
+const MAX_BYTES = 10_000_000, MAX_PAGES = 5, MAX_TEXT = 40_000; // the file is opened here; only its text (at most MAX_TEXT) goes to the reader
 const $ = (id) => document.getElementById(id);
 
 let pdfjs = null;
@@ -128,7 +128,7 @@ async function run(file) {
   const st = [];
   try {
     if (!file) return;
-    if (file.size > MAX_BYTES || !/pdf$/i.test(file.type || file.name)) throw new Error("A PDF up to 2 MB, please.");
+    if (file.size > MAX_BYTES || !/pdf$/i.test(file.type || file.name)) throw new Error("A PDF up to 10 MB, please.");
     st[0] = "run"; steps(st);
     const bytes = new Uint8Array(await file.arrayBuffer()), sha = C.sha256Hex(bytes);
     const pdf = await readPdf(bytes);

@@ -510,7 +510,7 @@ function sendInvoice(c, mine) {
     body.innerHTML = `<label class="field">Invoice number<input id="si-no" placeholder="INV-2209" autocomplete="off" spellcheck="false"></label>
       <table class="silines"><tr><th>Item</th><th>Price</th><th>Left</th><th>Invoice now</th></tr>
       ${order.lines.map((l, i) => { const left = (BigInt(l.qty) - BigInt(order.invoiced[i] || 0)).toString(); return `<tr><td>${esc(l.sku)}</td><td>${esc(order.token === USDC ? fromUnits(l.unit_price) : l.unit_price)}</td><td>${esc(left)}</td><td><input data-sku="${esc(l.sku)}" value="${esc(left)}" inputmode="numeric" aria-label="Quantity of ${esc(l.sku)}"></td></tr>`; }).join("")}</table>
-      <label class="field">The invoice PDF<span>stays on this phone; its sha-256 fingerprint is what you sign</span><input type="file" id="si-pdf" accept="application/pdf,.pdf"></label>
+      <label class="field">The invoice PDF<span>stays on this phone; its sha-256 fingerprint is what you sign. For the buyer's AI check: a normal (text) PDF, up to 5 pages. A scan can still be signed and paid; the buyer then checks it by eye.</span><input type="file" id="si-pdf" accept="application/pdf,.pdf"></label>
       <div class="big"><span>Paid to</span><b>${esc(route.address)}</b><span style="text-transform:none;letter-spacing:0">${mine.payable_route ? "your address on file" : "on file, payable after its 72-hour wait"}</span></div>
       <div class="big total"><span>Total</span><b id="si-total">–</b></div>
       <p class="err" id="si-err" hidden></p>
