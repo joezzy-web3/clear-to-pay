@@ -3,6 +3,7 @@
 // Filling fields never opens the wallet. The draft autosaves in this browser. The single
 // transaction carries every owner call as an action, so NEAR applies all of it or none of it.
 import * as C from "../crypto.js";
+import { shareBox, MSG } from "../share.js";
 import { rpc } from "../chain.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { $, esc, short, view, TX, USDC, isRef, isSupplierId, isRole, isAccount, isPubKey, toUnits, fromUnits, encodeLink, decodeLink, copy, alertLink, netOf } from "../chain.js";
@@ -153,10 +154,7 @@ function readReply(text) {
   return o;
 }
 function inviteLink(j) { return new URL("../sign/#j=" + encodeLink({ contract: K.contract(), ...j }), location.href).href; }
-function showLink(box, link, label) {
-  box.innerHTML = `<div class="linkout"><code>${esc(link)}</code><div class="qr">${C.qrSvg(link)}</div></div><div class="row"><button class="btn" type="button">${esc(label)}</button></div>`;
-  box.querySelector("button").onclick = (e) => copy(link, e.target);
-}
+function showLink(box, link, label, msg = "", subject = "Clear to Pay") { shareBox(box, link, { msg, subject, copyLabel: label }); }
 export function rolePageLink(role, roleName, order) {
   const q = new URLSearchParams({ r: role, c: netOf(K.contract()) || "demo" }); if (roleName) q.set("as", roleName); if (order) q.set("o", order);
   const u = new URL("../sign/#" + q.toString(), location.href);
@@ -211,7 +209,7 @@ function paintSupplier(b) {
     $("wz-called").onchange = (e) => { s.calledFor = e.target.checked ? `${s.addr.trim()}|${s.key.trim()}` : ""; save(); paint(); };
     $("wz-suse").onclick = () => { try { const o = readReply($("wz-sreply").value); if (o.kind && o.kind !== "supplier") throw new Error("That is a delivery signer's reply; paste it at step 3."); s.key = o.key; if (o.supplier_id) s.id = o.supplier_id; if (o.address) s.addr = o.address; s.proof = o.proof || null; s.calledFor = ""; save(); paint(); msg("Reply read. Now call the supplier and check the address."); } catch (e) { msg(e.message, true); } };
     if (s.proof) checkProof(s, K.contract()).then((r) => { const el = $("wz-proof"); if (el) el.innerHTML = proofLine(r); });
-    $("wz-sinv").onclick = () => { const id = $("wz-sid").value.trim(); if (!isSupplierId(id)) { msg("Type the supplier id first (a-z, 0-9, '-', '_', '.').", true); return; } s.id = id; save(); showLink($("wz-sinvout"), inviteLink({ kind: "supplier", supplier_id: id }), "Copy the invitation"); };
+    $("wz-sinv").onclick = () => { const id = $("wz-sid").value.trim(); if (!isSupplierId(id)) { msg("Type the supplier id first (a-z, 0-9, '-', '_', '.').", true); return; } s.id = id; save(); showLink($("wz-sinvout"), inviteLink({ kind: "supplier", supplier_id: id }), "Copy the invitation", MSG.inviteSupplier(id), "Join as our supplier on Clear to Pay"); };
   }
   b.querySelectorAll('input[name="wz-sm"]').forEach((r) => (r.onchange = () => { s.mode = r.value; s.id = ""; save(); paint(); }));
 }
@@ -252,7 +250,7 @@ function paintSigners(b) {
   b.querySelectorAll("[data-arm]").forEach((x) => (x.onclick = () => { g.add.splice(+x.dataset.arm, 1); save(); paint(); }));
   $("wz-gadd").onclick = () => { g.add.push({ key: "", role: "" }); save(); paint(); };
   $("wz-guse").onclick = () => { try { const o = readReply($("wz-greply").value); if (o.kind === "supplier") throw new Error("That is the supplier's reply; it belongs at step 1."); if (X.signers.some((s) => s.key === o.key)) { g.pick = [...new Set([...g.pick, o.key])]; } else if (!g.add.some((s) => s.key === o.key)) g.add.push({ key: o.key, role: isRole(o.role) ? o.role : "" }); save(); paint(); msg("Signer added. Register a key only if you sent that person the invitation."); } catch (e) { msg(e.message, true); } };
-  $("wz-ginv").onclick = () => { const r = $("wz-grole").value.trim(); if (!isRole(r)) { msg("Role: 1 to 32 of a-z, 0-9, '-'.", true); return; } showLink($("wz-ginvout"), inviteLink({ kind: "signer", role: r }), "Copy the invitation"); };
+  $("wz-ginv").onclick = () => { const r = $("wz-grole").value.trim(); if (!isRole(r)) { msg("Role: 1 to 32 of a-z, 0-9, '-'.", true); return; } showLink($("wz-ginvout"), inviteLink({ kind: "signer", role: r }), "Copy the invitation", MSG.inviteSigner(r), "Confirm deliveries with Clear to Pay"); };
 }
 function paintLimits(b) {
   const l = D.lim, L = X.limits, set = BigInt(L.per_invoice) > 0n;
@@ -299,8 +297,8 @@ function paintDone(b) {
     <p class="note">When goods arrive, make the delivery link for the signers: <button class="linkbtn" type="button" id="wz-dlink">Make the delivery link for ${esc(p.po)}</button>. Pool top-up and the agent's key are separate approvals under <button class="linkbtn" type="button" id="wz-adv">Advanced</button>.</p>
     <div class="row"><button class="btn ghost" type="button" id="wz-new">Start a new order</button></div>`;
   $("wz-po-dl2").onclick = () => printPO(p, d);
-  $("wz-rsup").onclick = () => showLink($("wz-rlout"), rolePageLink("supplier", null, p.po), "Copy the supplier's link"); // opens their page with this order loaded, ready to invoice
-  b.querySelectorAll("[data-rl]").forEach((x) => (x.onclick = () => showLink($("wz-rlout"), rolePageLink("signer", x.dataset.rl), `Copy the ${x.dataset.rl}'s link`)));
+  $("wz-rsup").onclick = () => showLink($("wz-rlout"), rolePageLink("supplier", null, p.po), "Copy the supplier's link", MSG.order(p.po, p.sup.id), `Purchase order ${p.po}`); // opens their page with this order loaded, ready to invoice
+  b.querySelectorAll("[data-rl]").forEach((x) => (x.onclick = () => showLink($("wz-rlout"), rolePageLink("signer", x.dataset.rl), `Copy the ${x.dataset.rl}'s link`, MSG.rolePage(x.dataset.rl), `Your Clear to Pay page: ${x.dataset.rl}`)));
   $("wz-dlink").onclick = () => K.openAdvanced("link", { order: p.po, lines: p.lines, roles: p.roles });
   $("wz-adv").onclick = () => K.openAdvanced("pool");
   remember(d); // orders signed before this list existed join it when opened

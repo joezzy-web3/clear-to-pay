@@ -296,6 +296,7 @@ label.confirm.big{padding-left:48px!important}
 <script type="module">
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
+import { shareBox, MSG } from "../share.js";
 import * as W from "./order.js";
 import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy, walletFix, ownSwitch } from "../chain.js";
 initMenu();
@@ -569,12 +570,8 @@ async function makeLink(id) {
   try {
     const links = await f.make();
     $("pv-" + id).textContent = links.map((x) => `Signing link for ${x.role}:\n${x.link}`).join("\n\n");
-    out.innerHTML = `<p class="muted">${links.length > 1 ? `${links.length} links, one per role. ` : ""}Send each to the right person. When they tap Sign, it reaches your Inbox by itself.</p>` + links.map((x, i) => {
-      const msg = `Please check delivery ${x.note} (order ${x.order}) and sign it as ${x.role}: ${x.link}`;
-      return `<div class="rolelink"><h4 class="h4" style="margin:14px 0 6px">${esc(x.role)}</h4><div class="linkout"><code>${esc(x.link)}</code><div class="qr">${C.qrSvg(x.link)}</div></div>
-        <div class="row"><button class="btn" type="button" data-cl="${i}">Copy the link</button><a class="btn ghost" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Send on WhatsApp</a>${navigator.share ? `<button class="btn ghost" type="button" data-sh="${i}">Share…</button>` : ""}</div></div>`; }).join("");
-    out.querySelectorAll("[data-cl]").forEach((b) => (b.onclick = (e) => copy(links[+b.dataset.cl].link, e.target)));
-    out.querySelectorAll("[data-sh]").forEach((b) => (b.onclick = async () => { const x = links[+b.dataset.sh]; try { await navigator.share({ title: "Sign delivery " + x.note, text: `Sign delivery ${x.note} as ${x.role}`, url: x.link }); } catch {} }));
+    out.innerHTML = `<p class="muted">${links.length > 1 ? `${links.length} links, one per role. ` : ""}Send each to the right person. When they tap Sign, it reaches your Inbox by itself.</p>` + links.map((x, i) => `<div class="rolelink"><h4 class="h4" style="margin:14px 0 0">${esc(x.role)}</h4><div data-rs="${i}"></div></div>`).join("");
+    links.forEach((x, i) => shareBox(out.querySelector(`[data-rs="${i}"]`), x.link, { msg: MSG.delivery(x.note, x.order, x.role), subject: `Sign delivery ${x.note}`, copyLabel: "Copy the link" }));
   } catch (e) { out.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
 
@@ -630,8 +627,7 @@ function wireInvite() {
     if (j.kind === "supplier") { j.supplier_id = $("i-sup").value.trim(); if (!isSupplierId(j.supplier_id)) { $("i-out").innerHTML = `<p class="err">Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'</p>`; return; } }
     else { j.role = $("i-role").value.trim(); if (!isRole(j.role)) { $("i-out").innerHTML = `<p class="err">Role: 1 to 32 of a-z, 0-9, '-'.</p>`; return; } }
     const link = new URL("../sign/#j=" + encodeLink(j), location.href).href;
-    $("i-out").innerHTML = `<div class="linkout"><code>${esc(link)}</code><div class="qr">${C.qrSvg(link)}</div></div><div class="row"><button class="btn" type="button" id="i-copy">Copy the link</button></div>`;
-    $("i-copy").onclick = (e) => copy(link, e.target);
+    shareBox($("i-out"), link, j.kind === "supplier" ? { msg: MSG.inviteSupplier(j.supplier_id), subject: "Join as our supplier on Clear to Pay", copyLabel: "Copy the invitation" } : { msg: MSG.inviteSigner(j.role), subject: "Confirm deliveries with Clear to Pay", copyLabel: "Copy the invitation" });
   };
 }
 /** A link sent back by an invited person: fill the right form, never sign anything. */

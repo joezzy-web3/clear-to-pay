@@ -211,7 +211,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <h3 id="res-h">Signed</h3>
     <p class="muted" id="res-p">Send this back to the buyer: share the link (it opens their Inbox, already checked), show the QR code, or copy it.</p>
     <div class="out"><pre id="res-json"></pre><div class="qr" id="qr" aria-label="QR code of the send-back link"></div></div>
-    <div class="row"><button class="btn" id="copy" type="button">Copy</button><button class="btn ghost" id="share" type="button">Send back</button><button class="btn ghost" id="copylink" type="button">Copy the link</button></div>
+    <div class="row"><button class="btn" id="copy" type="button">Copy</button><button class="btn ghost" id="share" type="button">Send back</button><a class="btn ghost" id="wa" target="_blank" rel="noopener" hidden>Send back on WhatsApp</a><button class="btn ghost" id="copylink" type="button">Copy the link</button></div>
   </section>
 </div></main>
 <section class="closer gut" aria-label="Closing"><div class="in">
@@ -378,6 +378,7 @@ function showResult(key, sig, returned) {
   $("qr").innerHTML = C.qrSvg(link);
   $("copy").onclick = (e) => copy(JSON.stringify(out), e.target);
   $("copylink").onclick = (e) => copy(link, e.target);
+  $("wa").hidden = true; // a signature reaches the Inbox by itself
   $("share").onclick = async () => { if (navigator.share) { try { await navigator.share({ title: "Signed " + (JOB.kind === "delivery" ? JOB.note.note_id : JOB.invoice.invoice_number), url: link }); } catch {} } else copy(link, $("share")); };
   $("result").hidden = false;
   if (!returned) { // carry it to the buyer's Inbox by itself; the link, QR and share stay as the fallback
@@ -629,6 +630,7 @@ function sendJoin() {
   $("copy").textContent = "Copy details"; $("copy").onclick = (e) => copy(JSON.stringify(a), e.target);
   $("copylink").onclick = (e) => copy(link, e.target);
   $("share").onclick = async () => { if (navigator.share) { try { await navigator.share({ title: "Clear to Pay: my details", url: link }); } catch {} } else copy(link, $("share")); };
+  $("wa").hidden = false; $("wa").href = "https://wa.me/?text=" + encodeURIComponent(`Here is my Clear to Pay reply${sup ? ` for "${JOIN.supplier_id}" (payout address ${a.address})` : ` as ${JOIN.role}`}. Open it to register me:\n${link}`);
   $("result").hidden = false; $("result").scrollIntoView({ behavior: "smooth", block: "start" });
   const al = alertLink(JOIN.contract, sup ? { supplier: JOIN.supplier_id } : "signers");
   if (al) { $("tg").hidden = false; $("tg-a").href = al; $("tg-t").textContent = sup ? "Hear on Telegram the moment anyone tries to change your payout address, and when your invoices are decided and paid." : "Hear on Telegram when a delivery signer is added or removed."; }

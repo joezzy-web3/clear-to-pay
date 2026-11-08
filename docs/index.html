@@ -72,6 +72,33 @@ section.s{padding-block:clamp(64px,9vw,120px)}
 h2{font:800 clamp(40px,5vw,72px)/1.06 var(--display);margin:18px 0 0;max-width:16ch;text-wrap:balance}
 .s p.lead{font:400 18px/1.55 var(--body);color:var(--mute);max-width:56ch;margin:16px 0 0}
 
+/* no-terminal flow: five stations on one line, laptop for the buyer, phones for everyone else */
+.nt-grid{list-style:none;margin:44px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;position:relative;counter-reset:nt}
+.nt-grid::before{content:"";position:absolute;left:28px;right:calc(20% - 14px);top:27px;border-top:2px dashed #9AA9BC}
+.nt-grid li{counter-increment:nt;position:relative;display:grid;gap:10px;align-content:start}
+.nt-dev{position:relative;z-index:1;width:56px;height:56px;border-radius:50%;background:var(--paper);box-shadow:inset 0 0 0 2px var(--navy);display:grid;place-items:center;color:var(--navy)}
+.nt-dev::after{content:counter(nt);position:absolute;right:-6px;top:-6px;width:22px;height:22px;border-radius:50%;background:var(--signal);color:var(--navy);font:800 14px/22px var(--display);text-align:center}
+.nt-card{background:#fff;border-radius:14px;padding:15px 16px 16px;box-shadow:0 0 0 1px var(--line),0 18px 40px -30px rgba(14,34,66,.7);display:grid;gap:6px;min-height:100%}
+.nt-who{font:500 12px/1.2 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.nt-card b{font:600 17px/1.3 var(--body);color:var(--navy)}
+.nt-card span{font-size:14.5px;line-height:1.5;color:#3C4C63}
+.nt-grid li.end .nt-dev{background:var(--clear);box-shadow:none;color:#fff}
+.nt-grid li.end .nt-card{background:var(--navy)}
+.nt-grid li.end .nt-card b{color:#fff}.nt-grid li.end .nt-card span,.nt-grid li.end .nt-who{color:#C9D3E1}
+.nt-stamp{justify-self:start;margin-top:4px;font:800 22px/1 var(--display);letter-spacing:.06em;color:#7FD3A4;border:2px solid currentColor;padding:5px 10px 4px;transform:rotate(-4deg)}
+.nt-foot{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;justify-content:space-between;margin-top:28px;padding-top:22px;border-top:1px solid var(--line)}
+.nt-proof{font:400 14px/1.6 var(--mono);color:var(--mute);max-width:70ch;margin:0}
+.nt-proof b{color:var(--clear);font-weight:500}
+.nt-proof a{color:var(--navy)}
+.nt-ctas{display:flex;gap:10px;flex-wrap:wrap}
+@media (max-width:1000px){
+  .nt-grid{grid-template-columns:1fr;gap:12px}
+  .nt-grid::before{display:none}
+  .nt-grid li:not(:last-child)::after{content:"";position:absolute;left:27px;top:56px;bottom:-12px;border-left:2px dashed #9AA9BC}
+  .nt-card{min-height:0}
+  .nt-grid li{grid-template-columns:56px minmax(0,1fr);gap:14px}
+}
+
 /* globe band */
 .night{background:var(--night);color:#EEF1EC}
 .night h2{color:#EEF1EC}.night .kick{background:rgba(255,255,255,.08);color:#9FB0C6;box-shadow:none}
@@ -357,6 +384,23 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
       <div class="step on"><div class="card"><b>Pay</b><span>Cleared invoices are paid in USDC on NEAR, under a key with a spending limit.</span></div><div class="dot"></div></div>
     </div>
     <p class="hz-note">Held invoices wait at anchor while the agent asks the supplier one precise question. Seized ones never leave port.</p>
+  </div>
+</div></section>
+
+<section class="s gut" id="phones"><div class="in">
+  <span class="kick"><i></i>No terminal</span>
+  <h2>A laptop for the buyer. <mark>Phones for everyone else.</mark></h2>
+  <p class="lead">Nobody installs anything or touches a command line. The buyer signs once with a NEAR wallet; the supplier and the people at the gate sign on their phones with keys that never leave them. Every signature finds its own way back.</p>
+  <ol class="nt-grid">
+    <li><div class="nt-dev"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 5.5h16v10H4zM2 18.5h20"/></svg></div><div class="nt-card"><span class="nt-who">Buyer · laptop</span><b>Signs the order once</b><span>Supplier, payout address, lines and limits, approved in one wallet signature. Then one tap sends the order on WhatsApp.</span></div></li>
+    <li><div class="nt-dev"><svg width="24" height="26" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div><div class="nt-card"><span class="nt-who">Supplier · phone</span><b>Sends the invoice from the order</b><span>Opens the link, picks what was delivered, signs. Prices and the payout address come from the chain, so they can't be typed wrong.</span></div></li>
+    <li><div class="nt-dev"><svg width="24" height="26" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div><div class="nt-card"><span class="nt-who">The gate · two phones</span><b>Sign what arrived</b><span>The storekeeper and the weighbridge, two people on two phones. Each checks the delivery note against the goods and taps Sign.</span></div></li>
+    <li><div class="nt-dev"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 5.5h16v10H4zM2 18.5h20"/></svg></div><div class="nt-card"><span class="nt-who">Buyer · Inbox</span><b>The Inbox fills itself</b><span>Signatures arrive on their own and are checked against the chain before they're kept. The AI reads the PDF and compares it with what the supplier signed.</span></div></li>
+    <li class="end"><div class="nt-dev"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="nt-card"><span class="nt-who">The contract</span><b>Submit. The contract decides.</b><span>Cleared invoices are paid in USDC to the registered address, straight from the pool. A new payout address waits 72 hours first.</span><span class="nt-stamp">CLEARED</span></div></li>
+  </ol>
+  <div class="nt-foot">
+    <p class="nt-proof">Run live on testnet, 8 Nov 2026: order PO-261107-001 → delivery signed by the storekeeper and the weighbridge → INV-2301 from the supplier's page → <b>CLEARED, receipt #4, SETTLED, 0.20 USDC.</b> <a href="ledger/">See it on the live ledger</a></p>
+    <div class="nt-ctas"><a class="btn pri" href="console/setup/">Set up as a buyer</a><a class="btn sec" href="console/sign/">Open a signer's page</a></div>
   </div>
 </div></section>
 
