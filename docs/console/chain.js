@@ -153,12 +153,25 @@ export function ownSwitch(group, makeButton) {
   group.insertAdjacentElement("afterend", form);
   const [inp] = form.getElementsByTagName("input"), [use, cancel] = form.getElementsByTagName("button"), err = form.querySelector(".err");
   if (CONTRACTS.own) inp.value = CONTRACTS.own;
+  // While the form is open the button shows as chosen; Cancel, Esc or another choice puts things back.
+  let was = null;
+  const open = () => {
+    if (!was) { was = [...group.querySelectorAll('button[aria-pressed="true"]')].filter((x) => x !== b); was.forEach((x) => x.setAttribute("aria-pressed", "false")); }
+    b.setAttribute("aria-pressed", "true"); form.hidden = false; err.hidden = true; inp.focus();
+  };
+  const close = (restore) => {
+    form.hidden = true;
+    if (was && restore) { b.setAttribute("aria-pressed", "false"); was.forEach((x) => x.setAttribute("aria-pressed", "true")); }
+    was = null;
+  };
   b.addEventListener("click", (e) => {
-    if (!e.isTrusted && CONTRACTS.own) return; // our own programmatic click after "Use it": let the page switch
+    if (!e.isTrusted && CONTRACTS.own) { was = null; return; } // our own programmatic click after "Use it": let the page switch
     if (CONTRACTS.own && !e.altKey && b.getAttribute("aria-pressed") !== "true") return;
-    e.stopImmediatePropagation(); form.hidden = false; inp.focus();
+    e.stopImmediatePropagation(); open();
   }, true);
-  cancel.onclick = () => (form.hidden = true);
+  group.addEventListener("click", (e) => { const t = e.target.closest("button"); if (t && t !== b && !form.hidden) close(false); }, true);
+  form.addEventListener("keydown", (e) => { if (e.key === "Escape") { close(true); b.focus(); } if (e.key === "Enter" && e.target === inp) use.click(); });
+  cancel.onclick = () => close(true);
   use.onclick = async () => {
     const v = inp.value.trim().toLowerCase(); err.hidden = true;
     if (!isAccount(v)) { err.hidden = false; err.textContent = "That is not a NEAR account name."; return; }
