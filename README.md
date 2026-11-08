@@ -8,6 +8,19 @@
 
 > **Try it in 60 seconds → [Judge mode](https://clear-to-pay.vercel.app/console/).** No wallet, no install. Check the AI's signed reading in your browser, then let a fooled agent submit a poisoned invoice and watch the NEAR contract seize it, live on testnet. The honest invoice clears and pays 0.78 USDC to the registered address.
 
+## Judge summary
+
+**Threat:** a poisoned invoice convinces an AI agent to pay an attacker.
+**Invariant:** only the NEAR contract authorises payment, and it pays only the supplier's registered address, after the order check and a delivery signed by two different roles.
+**Try it:** [Judge mode](https://clear-to-pay.vercel.app/console/), no wallet, no install.
+**Proof:** [first real payment, settled on testnet](https://testnet.nearblocks.io/txns/23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn) · [a fooled agent's submit, SEIZED](https://testnet.nearblocks.io/txns/8HgbsoAvr39cQJnwMnU2eL4ejVpLTmBjhqjmu6o4ufHY) · 127 contract tests, 253 reader tests ([how to run them](#try-it))
+**Limit:** testnet hackathon code; eight security reviews, not a professional audit.
+
+**Why it holds**
+- The AI can be fooled; the payment rules cannot. The contract never asks the document, the AI or the agent where to pay.
+- NEAR itself limits the agent's key to two methods on one contract, with no money attached.
+- The poisoned-invoice attack runs live on chain, from your browser, every time someone presses the button.
+
 Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this README lists only what is already built and proven, and says so where something is still to come.
 
 ---

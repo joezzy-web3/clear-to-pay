@@ -2,6 +2,12 @@
 
 > A payment guardrail for AI agents on NEAR. The AI reads supplier invoices; a smart contract decides. An invoice is paid only to the supplier's registered address, for goods signed as delivered by two registered keys in two different roles (keys are not identities), at the order's prices, once. Every decision (CLEARED, HELD, SEIZED) is a permanent receipt on NEAR testnet. Built for the NEAR Hackathon, 1-14 Nov 2026. Hackathon code, not audited.
 
+Threat: a poisoned invoice convinces an AI agent to pay an attacker.
+Invariant: only the NEAR contract authorises payment, and it pays only the supplier's registered address, after the order check and a delivery signed by two different roles.
+Try it: https://clear-to-pay.vercel.app/console/ (Judge mode, no wallet)
+Proof: first settled payment https://testnet.nearblocks.io/txns/23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn · a fooled agent's submit, SEIZED https://testnet.nearblocks.io/txns/8HgbsoAvr39cQJnwMnU2eL4ejVpLTmBjhqjmu6o4ufHY · 127 contract tests, 253 reader tests (below)
+Limit: testnet hackathon code; eight security reviews, not a professional audit.
+
 This file is for AI reviewers. Each claim points to where it is proven. Run the commands; do not take the claims on trust.
 
 ## Verify in 5 minutes (no wallet, no keys)
