@@ -129,6 +129,26 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .filters button{font:600 14px var(--body);border:0;padding:10px 14px;cursor:pointer;background:#fff;color:var(--navy);box-shadow:inset 0 0 0 1px var(--line)}
 .filters button[aria-pressed="true"]{background:var(--navy);color:var(--paper);box-shadow:none}
 .ilist{display:grid;gap:12px}
+.filters{flex-wrap:wrap}
+.filters button b{font:500 12px var(--mono);margin-left:7px;padding:2px 6px;background:var(--cell);color:var(--mute);border-radius:999px}
+.filters button[aria-pressed="true"] b{background:rgba(255,255,255,.16);color:var(--paper)}
+.isearch{display:block;margin:12px 0 4px}.isearch input{font:400 15px var(--mono);padding:11px 12px;border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:0;width:100%}
+.isearch input:focus{outline:2px solid var(--signal);outline-offset:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.irow{background:#fff;border:1px solid var(--line);border-left:6px solid var(--clear);min-width:0}
+.irow.HELD{border-left-color:var(--held)}.irow.SEIZED{border-left-color:var(--seize)}
+.irow>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:86px minmax(0,1.3fr) minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 14px;font-size:14.5px}
+.irow>summary::-webkit-details-marker{display:none}
+.irow>summary:hover{background:var(--cell)}
+.irow .v{font:800 17px/1 var(--display);letter-spacing:.04em}
+.irow.CLEARED .v{color:var(--clear)}.irow.HELD .v{color:var(--held)}.irow.SEIZED .v{color:var(--seize)}
+.irow .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.irow .n small{font:400 12.5px var(--mono);color:var(--mute);margin-left:8px}
+.irow .st{font:400 13px var(--mono);color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.irow .amt{font:500 14px var(--mono);text-align:right}
+.irow[open]>summary{border-bottom:1px solid var(--line)}
+.irow .ic{border:0}
+.handled{font:500 13px var(--body);border:0;background:none;color:var(--mute);text-decoration:underline;cursor:pointer;padding:6px 0;justify-self:start}
+@media (max-width:640px){.irow>summary{grid-template-columns:70px minmax(0,1fr) auto}.irow .st,.irow .n small{display:none}}
 .ic{display:grid;grid-template-columns:168px minmax(0,1fr);background:#fff;border:1px solid var(--line);min-width:0}
 .ic-l{display:grid;align-content:start;gap:6px;padding:18px 16px;color:#fff}
 .ic.CLEARED .ic-l{background:var(--clear)}.ic.HELD .ic-l{background:var(--held)}.ic.SEIZED .ic-l{background:var(--seize)}
@@ -225,7 +245,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 
   <section aria-labelledby="h-inv">
     <div class="ib-h"><div><span class="kick">Invoices</span><h2 id="h-inv">What needs you.</h2></div>
-      <div class="filters" role="group" aria-label="Show"><button type="button" data-f="todo" aria-pressed="true">Needs action</button><button type="button" data-f="all" aria-pressed="false">All</button></div></div>
+      <div class="filters" role="group" aria-label="Show"><button type="button" data-f="todo" aria-pressed="true">Needs action<b data-n="todo"></b></button><button type="button" data-f="held" aria-pressed="false">Held<b data-n="held"></b></button><button type="button" data-f="seized" aria-pressed="false">Seized<b data-n="seized"></b></button><button type="button" data-f="paid" aria-pressed="false">Paid<b data-n="paid"></b></button><button type="button" data-f="all" aria-pressed="false">All<b data-n="all"></b></button></div></div>
+    <label class="isearch"><span class="sr">Find an invoice</span><input id="isearch" type="search" placeholder="Find: invoice number, supplier, order or #receipt" autocomplete="off" spellcheck="false"></label>
     <p class="msg" id="cap" hidden>This contract has more than 2,000 receipts; only the newest 2,000 are checked here. Older ones are on the ledger.</p>
     <p class="nochat"><b>No chat between parties, on purpose.</b> Invoice fraud works through messages. Clear to Pay's rule: confirm anything by a phone number you already had. HELD gives you the question to send; SEIZED means don't reply.</p>
     <div class="ilist" id="ilist"><p class="muted">Reading the contract…</p></div>
@@ -326,7 +347,7 @@ async function submitted(r) {
 }
 
 // ---------------------------------------------------------------- the list
-const MAX_RECEIPTS = 2000, PAGE = 30, VERDICTS = new Set(["Cleared", "Held", "Seized"]);
+const MAX_RECEIPTS = 2000, PAGE = 15, VERDICTS = new Set(["Cleared", "Held", "Seized"]);
 const cacheKey = () => "ctp-inbox-receipts:" + contract();
 function readCache() {
   try {
@@ -336,7 +357,18 @@ function readCache() {
   } catch { return {}; }
 }
 function writeCache(o) { try { localStorage.setItem(cacheKey(), JSON.stringify(o)); } catch {} }
-const isTodo = (r) => r.verdict === "Held" || r.verdict === "Seized" || (r.verdict === "Cleared" && r.payment && r.payment.status !== "Settled");
+// What needs the buyer. A HELD invoice stops needing you once a corrected copy of it clears; anything
+// HELD or SEIZED can be marked handled (kept in this browser only: the receipts themselves never change).
+const doneKey = () => "ctp-handled:" + contract();
+let DONE = null, DONE_K = "";
+const readDone = () => { if (DONE && DONE_K === doneKey()) return DONE; DONE_K = doneKey(); try { DONE = new Set(JSON.parse(localStorage.getItem(DONE_K) || "[]")); } catch { DONE = new Set(); } return DONE; };
+const setDone = (id, on) => { const d = readDone(); on ? d.add(id) : d.delete(id); try { localStorage.setItem(doneKey(), JSON.stringify([...d])); } catch {} };
+const resolvedBy = (r) => r.verdict === "Held" ? S.receipts.find((x) => x.id > r.id && x.verdict === "Cleared" && x.supplier_id === r.supplier_id && x.invoice_number === r.invoice_number) : null;
+const isTodo = (r) => {
+  if (r.verdict === "Cleared") return !!(r.payment && r.payment.status !== "Settled");
+  return !readDone().has(r.id) && !resolvedBy(r);
+};
+const FILTERS = { todo: isTodo, held: (r) => r.verdict === "Held", seized: (r) => r.verdict === "Seized", paid: (r) => r.verdict === "Cleared" && r.payment?.status === "Settled", all: () => true };
 async function load() {
   $("f-c").textContent = contract();
   try {
@@ -367,9 +399,16 @@ async function load() {
   paintWho(); paint();
 }
 function paint() {
-  const all = S.receipts.filter((r) => S.filter === "all" || isTodo(r)), rs = all.slice(0, S.shown || PAGE);
-  $("ilist").innerHTML = rs.length ? rs.map(card).join("") + (all.length > rs.length ? `<div class="row"><button class="btn ghost" type="button" id="more">Show ${Math.min(PAGE, all.length - rs.length)} older (${all.length - rs.length} more)</button></div>` : "")
-    : `<div class="empty"><b>Nothing needs you.</b><span>Every invoice on ${esc(contract())} is paid or was refused for good.</span></div>`;
+  const f = FILTERS[S.filter] || FILTERS.todo, q = ($("isearch")?.value || "").trim().toLowerCase().replace(/^#/, "");
+  for (const k in FILTERS) { const el = document.querySelector(`[data-n="${k}"]`); if (el) el.textContent = S.receipts.filter(FILTERS[k]).length; }
+  const todo = S.receipts.filter(isTodo).length; if (S.owner) { $("f-todo").textContent = todo ? `${todo} need you` : "nothing waiting"; $("f-todo").className = todo ? "wait" : "ok"; }
+  const hit = (r) => !q || String(r.id) === q || [r.invoice_number, r.supplier_id, r.order_id].some((x) => String(x || "").toLowerCase().includes(q));
+  const all = S.receipts.filter((r) => f(r) && hit(r)), rs = all.slice(0, S.shown || PAGE);
+  $("ilist").innerHTML = rs.length ? rs.map((r) => (S.filter === "todo" ? card(r) : row(r))).join("") + (all.length > rs.length ? `<div class="row"><button class="btn ghost" type="button" id="more">Show ${Math.min(PAGE, all.length - rs.length)} older (${all.length - rs.length} more)</button></div>` : "")
+    : q ? `<div class="empty"><b>No invoice matches “${esc(q)}”.</b><span>Search covers the invoice number, supplier, order and receipt number.</span></div>`
+    : S.filter === "todo" ? `<div class="empty"><b>Nothing needs you.</b><span>Every invoice on ${esc(contract())} is paid, resolved or handled.</span></div>`
+    : `<div class="empty"><b>None here yet.</b><span>Nothing on ${esc(contract())} in this view.</span></div>`;
+  document.querySelectorAll("[data-done]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); setDone(+b.dataset.done, b.dataset.on === "1"); paint(); }));
   if ($("more")) $("more").onclick = () => { S.shown = (S.shown || PAGE) + PAGE; paint(); };
   document.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => act(b.dataset.act, Number(b.dataset.id))));
   document.querySelectorAll("[data-facts]").forEach((b) => (b.onclick = () => facts(Number(b.dataset.facts), b)));
@@ -394,7 +433,12 @@ function card(r) {
   }
   return `<article class="ic ${v}"><div class="ic-l"><span class="vd">${v}</span><small>#${r.id} · ${esc(when)}</small></div>
     <div class="ic-m"><h3>${esc(r.invoice_number)} <span>${esc(r.supplier_id)} · ${esc(r.order_id)} · ${esc(usd(r.amount))}</span></h3>
-    ${r.reasons?.length ? `<p class="rs">${r.reasons.map((x) => `<code>${esc(x)}</code>`).join(" ")}</p>` : ""}<p class="who">${esc(who)}</p>${body}</div></article>`;
+    ${r.reasons?.length ? `<p class="rs">${r.reasons.map((x) => `<code>${esc(x)}</code>`).join(" ")}</p>` : ""}<p class="who">${esc(who)}</p>${body}${v !== "CLEARED" && !resolvedBy(r) ? (readDone().has(r.id) ? `<button class="handled" type="button" data-done="${r.id}" data-on="0">Handled · undo</button>` : `<button class="handled" type="button" data-done="${r.id}" data-on="1">Mark as handled</button>`) : ""}</div></article>`;
+}
+function row(r) {
+  const v = r.verdict.toUpperCase(), when = new Date(Number(BigInt(r.decided_at) / 1_000_000n)).toLocaleDateString([], { day: "2-digit", month: "short" });
+  const by = resolvedBy(r), st = v === "CLEARED" ? (STAT[r.payment?.status] || "Paid") : by ? `resolved by #${by.id}` : readDone().has(r.id) ? "handled" : (r.reasons || [])[0] || "";
+  return `<details class="irow ${v}"><summary><span class="v">${v}</span><span class="n">${esc(r.invoice_number)}<small>#${r.id} · ${esc(when)}</small></span><span class="st">${esc(r.supplier_id)} · ${esc(st)}</span><span class="amt">${esc(usd(r.amount))}</span></summary>${card(r)}</details>`;
 }
 async function facts(id, btn) {
   const r = S.receipts.find((x) => x.id === id), out = $("fx-" + id); btn.disabled = true; out.innerHTML = `<p class="muted">Reading the submitted invoice…</p>`;
@@ -632,6 +676,7 @@ function setContract(k, reload = true) {
 }
 ownSwitch(document.querySelector(".switch"), (addr) => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.setAttribute("aria-pressed", "false"); x.innerHTML = `Your own contract<small>${addr ? esc(addr) : "your company's guard"}</small>`; return x; });
 document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => setContract(b.dataset.c)));
+{ let t; $("isearch").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { S.shown = PAGE; paint(); }, 150); }); }
 document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
   S.filter = b.dataset.f; S.shown = PAGE; document.querySelectorAll(".filters button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); paint();
 }));
