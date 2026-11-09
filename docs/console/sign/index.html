@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="../console.css">
+<link rel="stylesheet" href="../wallet.css">
 <style>
 /* Sign: one job per screen, phone first. The note is the paper; the button is the only loud thing. */
 .hero{grid-template-columns:1fr;padding-block:clamp(26px,5vw,48px) clamp(24px,4vw,36px)}
@@ -166,7 +167,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <h3 id="h-join">You're invited</h3>
     <p class="plain" id="join-p"></p>
     <ol class="steps" id="join-steps"></ol>
-    <label class="field" id="join-addr-l" hidden>Your payout account on NEAR<span>where you want to be paid; the buyer will confirm it with you by phone</span><input id="join-addr" placeholder="yourcompany.near" autocomplete="off" spellcheck="false"></label>
+    <label class="field" id="join-addr-l" hidden>Your payout account on NEAR<span>where you want to be paid; the buyer will confirm it with you by phone</span><input id="join-addr" placeholder="yourcompany.near" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label>
     <div class="proof" id="proof" hidden>
       <b>Optional: prove this address is yours</b>
       <p class="plain">If you can sign in to <b id="proof-addr">this account</b> with a NEAR wallet (Meteor or MyNearWallet), sign one short message with it. No money moves and nothing is sent on chain. The buyer's page checks it and shows "proved by the account itself" next to their phone call. The call is still needed.</p>
@@ -224,6 +225,8 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/" aria-current="page">Sign a delivery</a><a href="../../console/setup/">Buyer setup</a><a href="../../console/inbox/">Inbox</a><a href="../../ledger/">Live ledger</a><a href="../../integrate/">For agent builders</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><a href="../../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
 
 <script type="module">
+// A link that fails to parse is almost always cut off by a chat app: say that, not the parser's words.
+const linkWhy = (e) => (/^(the |this )/.test(e?.message || "") ? e.message.replace(/\.?$/, ".") : "the link is damaged or cut off (chat apps sometimes cut long links). Ask the buyer to send it again, or to send the QR code instead.");
 import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import { CONTRACTS, walletFix, relaySend, ownSwitch } from "../chain.js";
@@ -254,7 +257,7 @@ function paintKey() {
   } else {
     el.innerHTML = `<p class="plain">No key on this phone yet. Make one here, or import the key file the buyer's team gave you (the <code>ctp-sign</code> JSON).</p>
       <div class="row" style="margin-top:0"><button class="btn" id="gen" type="button">Make a key on this phone</button><label class="btn ghost" for="file">Import a key file</label><input type="file" id="file" accept=".json,application/json" hidden></div>
-      <details><summary class="muted" style="cursor:pointer">Or paste the key file</summary><textarea id="paste" spellcheck="false" aria-label="Key file JSON"></textarea><div class="row"><button class="btn ghost" id="usepaste" type="button">Use this key</button></div></details>`;
+      <details><summary class="muted" style="cursor:pointer">Or paste the key file</summary><textarea id="paste" spellcheck="false" autocapitalize="none" autocorrect="off" aria-label="Key file JSON"></textarea><div class="row"><button class="btn ghost" id="usepaste" type="button">Use this key</button></div></details>`;
     $("gen").onclick = async () => setKey(C.newKeyFile(), true);
     $("file").onchange = async (e) => { const f = e.target.files[0]; if (f) importKey(await f.text()); };
     $("usepaste").onclick = () => importKey($("paste").value);
@@ -277,7 +280,7 @@ function parseJob() {
   if (P.get("n")) {
     const n = decodeLink(P.get("n"));
     const okLines = Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isU64(l.qty));
-    if (!isAccount(n.contract) || !isRef(n.order_id) || !isRef(n.note_id) || !okLines || !isRole(n.role) || !Number.isInteger(n.policy_version) || n.policy_version < 0 || n.policy_version > 4294967295) throw new Error("this delivery link is damaged or incomplete");
+    if (!isAccount(n.contract) || !isRef(n.order_id) || !isRef(n.note_id) || !okLines || !isRole(n.role) || !Number.isInteger(n.policy_version) || n.policy_version < 0 || n.policy_version > 4294967295) throw new Error("the link is damaged or cut off (chat apps sometimes cut long links). Ask the buyer to send it again, or to send the QR code instead.");
     const unit = typeof n.unit === "string" && /^[a-z]{1,6}$/i.test(n.unit) ? n.unit : "";
     return { kind: "delivery", contract: n.contract, role: n.role, policy_version: n.policy_version, unit,
       note: { order_id: n.order_id, note_id: n.note_id, lines: n.lines.map((l) => ({ sku: l.sku, qty: String(l.qty) })) }, raw: P.get("n") };
@@ -288,7 +291,7 @@ function parseJob() {
     const route = v.payee || {};
     const okLines = Array.isArray(v.lines) && v.lines.length >= 1 && v.lines.length <= 50 && v.lines.every((l) => isRef(l.sku) && isU64(l.qty) && isU128(l.unit_price));
     if (!isAccount(x.contract) || !isSupplierId(v.supplier_id) || !isRef(v.invoice_number) || !isRef(v.order_id) || !isPrintable(v.token, 128) || !okLines || !isU128(v.total)
-        || !isPrintable(route.chain, 32) || !isPrintable(route.token, 128) || !isPrintable(route.address, 128) || !doc || doc.length !== 32) throw new Error("this invoice link is damaged or incomplete");
+        || !isPrintable(route.chain, 32) || !isPrintable(route.token, 128) || !isPrintable(route.address, 128) || !doc || doc.length !== 32) throw new Error("the link is damaged or cut off (chat apps sometimes cut long links). Ask the buyer to send it again, or to send the QR code instead.");
     const invoice = { supplier_id: v.supplier_id, invoice_number: v.invoice_number, order_id: v.order_id, token: v.token,
       lines: v.lines.map((l) => ({ sku: l.sku, qty: String(l.qty), unit_price: String(l.unit_price) })), total: String(v.total), payee: { chain: route.chain, token: route.token, address: route.address } };
     return { kind: "invoice", contract: x.contract, invoice, doc, docB64: x.document_hash, raw: P.get("i") };
@@ -497,7 +500,7 @@ function sendInvoice(c, mine) {
   $("home-body").insertAdjacentHTML("beforeend", `<div class="sendinv" id="sendinv">
     <h3 style="font:800 22px var(--display);margin:6px 0 0">Send an invoice</h3>
     <p class="plain">Pick the order. The items and prices come from the order on chain, and the payee is your address on file: nobody can change them on this page, not even someone who took over your phone. Your PDF stays here; only its fingerprint is signed.</p>
-    <div class="row" style="margin-top:0;align-items:flex-end"><label class="field" style="flex:1;margin:0">Order<input id="si-order" placeholder="PO-1184" autocomplete="off" spellcheck="false"></label><button class="btn ghost" type="button" id="si-load">Load the order</button></div>
+    <div class="row" style="margin-top:0;align-items:flex-end"><label class="field" style="flex:1;margin:0">Order<input id="si-order" placeholder="PO-1184" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label><button class="btn ghost" type="button" id="si-load">Load the order</button></div>
     <div id="si-body"></div></div>`);
   // the buyer's link may carry the order (#…&o=PO-…): load it straight away
   const pre = P.get("o") || "";
@@ -509,7 +512,7 @@ function sendInvoice(c, mine) {
     if (!order) { body.innerHTML = `<p class="err">No order ${esc(id)} on ${esc(c)}.</p>`; return; }
     if (order.supplier_id !== mine.supplier_id) { body.innerHTML = `<p class="err">Order ${esc(id)} is for ${esc(order.supplier_id)}, not your company.</p>`; return; }
     const unit = order.token === USDC ? " USDC" : " units";
-    body.innerHTML = `<label class="field">Invoice number<input id="si-no" placeholder="INV-2209" autocomplete="off" spellcheck="false"></label>
+    body.innerHTML = `<label class="field">Invoice number<input id="si-no" placeholder="INV-2209" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label>
       <table class="silines"><tr><th>Item</th><th>Price</th><th>Left</th><th>Invoice now</th></tr>
       ${order.lines.map((l, i) => { const left = (BigInt(l.qty) - BigInt(order.invoiced[i] || 0)).toString(); return `<tr><td>${esc(l.sku)}</td><td>${esc(order.token === USDC ? fromUnits(l.unit_price) : l.unit_price)}</td><td>${esc(left)}</td><td><input data-sku="${esc(l.sku)}" value="${esc(left)}" inputmode="numeric" aria-label="Quantity of ${esc(l.sku)}"></td></tr>`; }).join("")}</table>
       <label class="field">The invoice PDF<span>stays on this phone; its sha-256 fingerprint is what you sign. For the buyer's AI check: a normal (text) PDF, up to 5 pages. A scan can still be signed and paid; the buyer then checks it by eye.</span><input type="file" id="si-pdf" accept="application/pdf,.pdf"></label>
@@ -542,9 +545,9 @@ function sendInvoice(c, mine) {
 let JOIN = null;
 function parseJoin() {
   const j = decodeLink(P.get("j"));
-  if (!isAccount(j.contract) || !["supplier", "signer"].includes(j.kind)) throw new Error("this invitation is damaged");
-  if (j.kind === "supplier" && !isSupplierId(j.supplier_id)) throw new Error("this invitation is damaged");
-  if (j.kind === "signer" && !isRole(j.role)) throw new Error("this invitation is damaged");
+  if (!isAccount(j.contract) || !["supplier", "signer"].includes(j.kind)) throw new Error("the link is damaged or cut off (chat apps sometimes cut long links). Ask the buyer to send it again, or to send the QR code instead.");
+  if (j.kind === "supplier" && !isSupplierId(j.supplier_id)) throw new Error("the link is damaged or cut off (chat apps sometimes cut long links). Ask the buyer to send it again, or to send the QR code instead.");
+  if (j.kind === "signer" && !isRole(j.role)) throw new Error("the link is damaged or cut off (chat apps sometimes cut long links). Ask the buyer to send it again, or to send the QR code instead.");
   return { contract: j.contract, kind: j.kind, supplier_id: j.supplier_id || null, role: j.role || null };
 }
 function paintJoin() {
@@ -571,7 +574,12 @@ async function proveAddress() {
     const run = async () => {
       const acc = selector.store.getState().accounts.find((a) => a.active)?.accountId;
       if (!acc) return false;
-      if (acc !== addr) { st.textContent = `You signed in as ${acc}, not ${addr}. Sign in with the payout account itself.`; return true; }
+      if (acc !== addr) {
+        // signed in elsewhere as another account: sign out here and ask again, so the right account can sign
+        st.textContent = `Your wallet is signed in as ${acc}, not ${addr}. Choose ${addr} in the wallet window.`;
+        try { await (await selector.wallet()).signOut(); } catch {}
+        modal.show(); return false;
+      }
       const at = new Date().toISOString(), nonce = crypto.getRandomValues(new Uint8Array(32));
       const message = C.payoutProofText({ address: addr, supplier_id: JOIN.supplier_id, contract: JOIN.contract, key: KEY.public_key, at });
       const callbackUrl = location.origin + location.pathname + "?proof=1";
@@ -582,8 +590,19 @@ async function proveAddress() {
       if (r) { sessionStorage.removeItem("ctp-proof-pending"); await accept({ account: r.accountId, publicKey: r.publicKey, signature: r.signature, nonce: C.base64.encode(nonce), at, callbackUrl, key: KEY.public_key, address: addr }); }
       return true;
     };
-    if (!(await run())) { modal.show(); const un = selector.store.observable.subscribe(async () => { if (await run()) un.unsubscribe?.(); }); }
-  } catch (e) { st.textContent = "The wallet did not sign: " + (e.message || e); }
+    let done = false;
+    modal.on?.("onHide", ({ hideReason }) => { if (!done && hideReason === "user-triggered") st.textContent = "The wallet window was closed before signing. Press the button to try again, or send your details without proof: the phone call is what counts."; });
+    if (!(await run())) {
+      st.textContent = `Choose your wallet in the window that opened, then sign in with ${addr}.`;
+      modal.show();
+      const un = selector.store.observable.subscribe(async () => { if (await run()) { done = true; un.unsubscribe?.(); } });
+    } else done = true;
+  } catch (e) {
+    const m = String(e?.message || e || "");
+    st.textContent = /reject|cancel|denied|closed/i.test(m) ? "You declined in the wallet, so nothing was signed. Press the button to try again, or send your details without proof."
+      : /load|fetch|import|network/i.test(m) ? "The wallet couldn't load. Check your connection and press the button again, or send your details without proof."
+      : `The wallet didn't sign (${m.slice(0, 120)}). Press the button to try again, or send your details without proof.`;
+  }
 }
 /** Check a proof here exactly as the buyer's page will, then keep it for the reply. */
 async function accept(p) {
@@ -651,13 +670,13 @@ $("join-go").addEventListener("click", () => { if (!$("join-go").disabled) sendJ
   }
   const back = await proofReturned();
   if (P.get("j")) {
-    try { JOIN = parseJoin(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This invitation cannot be used: " + e.message + "."; }
+    try { JOIN = parseJoin(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This invitation cannot be used: " + linkWhy(e); }
     KEY = await loadKey(); paintKey();
     if (JOIN && back) { $("join-addr").value = back.address; await accept(back); }
     if (JOIN) { ROLE = JOIN.kind; paintJoin(); paintRole(); if (!back) guide(JOIN.kind); $("live").className = "live on"; $("liveText").innerHTML = "<b>Invitation</b> · " + esc(JOIN.contract); }
     return;
   }
-  try { JOB = parseJob(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This link cannot be used: " + e.message + "."; }
+  try { JOB = parseJob(); } catch (e) { $("nolink").hidden = false; $("nolink").className = "msg bad"; $("nolink").textContent = "This link cannot be used: " + linkWhy(e); }
   KEY = await loadKey(); paintKey();
   if (!JOB) {
     if ($("nolink").className === "msg bad") { $("nolink").hidden = false; return; }

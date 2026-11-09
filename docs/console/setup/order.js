@@ -35,7 +35,9 @@ function paintRecent() {
   $("wz-new2").onclick = () => { if (D.done || confirm("Start a new order? The draft in this browser is cleared.")) { D = blank(); save(); paint(); } };
 }
 function save() { try { localStorage.setItem(key(), JSON.stringify(D)); $("wz-saved").textContent = "Draft saved in this browser"; } catch { $("wz-saved").textContent = "This browser would not keep the draft"; } }
-const fail = (step, m) => { const e = new Error(m); e.step = step; throw e; };
+/** A refusal says what is wrong and how to fix it, and names the box it is about (the page jumps there). */
+const fail = (step, m, field) => { const e = new Error(m); e.step = step; e.field = field; throw e; };
+const shown = (v) => (String(v).length > 40 ? String(v).slice(0, 40) + "…" : String(v));
 const usdUnits = (u) => fromUnits(u) + " USDC";
 const whenText = (ms) => new Date(ms).toLocaleString([], { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -54,54 +56,60 @@ export function plan(d, x, contract) {
   // 1. supplier
   let sup;
   if (d.sup.mode === "existing") {
-    sup = x.suppliers.find((s) => s.id === d.sup.id) || fail(1, "Choose a registered supplier, or add a new one.");
+    sup = x.suppliers.find((s) => s.id === d.sup.id) || fail(1, "Pick a supplier from the list, or switch to New supplier and add one.", "wz-sid");
   } else {
     const id = d.sup.id.trim(), k = d.sup.key.trim(), a = d.sup.addr.trim();
-    if (!isSupplierId(id)) fail(1, "Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
-    if (x.suppliers.some((s) => s.id === id)) fail(1, `${id} is already registered: choose it from the list instead.`);
-    if (!isPubKey(k)) fail(1, "The supplier's public signing key must look like ed25519:… (paste their reply to fill it).");
-    if (supKeys.has(k)) fail(1, "That key already belongs to another supplier.");
-    if (sigKeys.has(k)) fail(1, "That key is a delivery signer's key; a supplier needs its own.");
-    if (!isAccount(a)) fail(1, "The payout account must be a NEAR account id.");
-    if (d.sup.calledFor !== `${a}|${k}`) fail(1, "Tick that you called the supplier and they read this address back to you.");
+    if (!id) fail(1, "Type a short id for this supplier, for example acme-steel. It's how the contract names them.", "wz-sid");
+    if (!isSupplierId(id)) fail(1, `“${shown(id)}” can't be a supplier id. Use lowercase letters, digits and - _ . only, no spaces, up to 64 characters. Example: acme-steel.`, "wz-sid");
+    if (x.suppliers.some((s) => s.id === id)) fail(1, `${id} is already registered on this contract. Switch to Registered supplier and pick it from the list.`, "wz-sid");
+    if (!k) fail(1, "The supplier's signing key is missing. Send them the invitation (button below), then paste their reply: it fills the key for you.", "wz-skey");
+    if (!isPubKey(k)) fail(1, "That isn't a signing key. It starts with ed25519: followed by 43–44 letters and digits. Paste the supplier's reply instead of typing it.", "wz-skey");
+    if (supKeys.has(k)) fail(1, "That key already belongs to another supplier. Each supplier needs its own: send this supplier the invitation so their phone makes one.", "wz-skey");
+    if (sigKeys.has(k)) fail(1, "That key belongs to one of your delivery signers. A supplier needs its own key: send them the invitation.", "wz-skey");
+    if (!a) fail(1, "Type the NEAR account the supplier will be paid to, for example acme.testnet.", "wz-saddr");
+    if (!isAccount(a)) fail(1, `“${shown(a)}” isn't a NEAR account. It looks like name.testnet (or a 64-character hex address), lowercase, no spaces. Copy it from the supplier's reply.`, "wz-saddr");
+    if (d.sup.calledFor !== `${a}|${k}`) fail(1, "Call the supplier on a number you already had and ask them to read this payout address back to you. Then tick that you called them.", "wz-called");
     sup = { id, key: k, addr: a, isNew: true, from: Date.now() + H72 };
   }
   // 2. order lines
   const po = d.po.id.trim();
-  if (!isRef(po)) fail(2, "Order number: 1 to 64 of A-Z, a-z, 0-9, '-', '_', '.', '/'.");
-  const rows = d.po.lines.filter((l) => l.sku.trim() || l.qty.trim() || l.price.trim());
-  if (!rows.length || rows.length > 50) fail(2, "An order needs 1 to 50 lines.");
+  if (!isRef(po)) fail(2, po ? `“${shown(po)}” can't be an order number. Use letters, digits and - _ . / only, no spaces, up to 64 characters. Example: PO-1184.` : "Give the order a number, for example PO-1184.", "wz-po");
+  const rows = d.po.lines.map((l, i) => ({ ...l, i })).filter((l) => l.sku.trim() || l.qty.trim() || l.price.trim());
+  if (!rows.length) fail(2, "Add at least one line: the item code, how many, and the price for one.", '[data-l="0"][data-f="sku"]');
+  if (rows.length > 50) fail(2, "An order holds at most 50 lines. Split it into two orders.");
   const lines = rows.map((l, n) => {
     const sku = l.sku.trim(), qty = l.qty.trim(), u = toUnits(l.price);
-    if (!isRef(sku)) fail(2, `Line ${n + 1}: the item code is not valid.`);
-    if (!/^[1-9]\d{0,19}$/.test(qty) || BigInt(qty) > U64_MAX) fail(2, `Line ${n + 1}: quantity must be a whole number above 0.`);
-    if (!u || u === "0" || BigInt(u) > U128_MAX) fail(2, `Line ${n + 1}: price in USDC, up to 6 decimals, above 0.`);
+    const at = (f) => `[data-l="${l.i}"][data-f="${f}"]`;
+    if (!sku) fail(2, `Line ${n + 1}: type the item code, the same one the supplier will put on the invoice (for example AH36-12mm).`, at("sku"));
+    if (!isRef(sku)) fail(2, `Line ${n + 1}: “${shown(sku)}” can't be an item code. Use letters, digits and - _ . / only, no spaces.`, at("sku"));
+    if (!/^[1-9]\d{0,19}$/.test(qty) || BigInt(qty) > U64_MAX) fail(2, `Line ${n + 1}: the quantity must be a whole number above 0, like 10. No decimals, commas or units.`, at("qty"));
+    if (!u || u === "0" || BigInt(u) > U128_MAX) fail(2, `Line ${n + 1}: the price is in USDC for one item, above 0, with up to 6 decimals, like 7.80. No $ sign or commas.`, at("price"));
     return { sku, qty, unit_price: u };
   });
-  if (new Set(lines.map((l) => l.sku)).size !== lines.length) fail(2, "The same item is on two lines.");
+  if (new Set(lines.map((l) => l.sku)).size !== lines.length) fail(2, "The same item code is on two lines. Put it on one line with the total quantity.");
   const total = lines.reduce((t, l) => t + BigInt(l.qty) * BigInt(l.unit_price), 0n);
-  if (total > U128_MAX) fail(2, "The order total is too large.");
+  if (total > U128_MAX) fail(2, "The order total is too large for the contract. Split it into smaller orders.");
   // 3. delivery signers
   const picked = x.signers.filter((s) => d.sig.pick.includes(s.key));
   const added = d.sig.add.filter((s) => s.key.trim() || s.role.trim()).map((s, n) => {
     const k = s.key.trim(), r = s.role.trim();
-    if (!isPubKey(k)) fail(3, `New signer ${n + 1}: the key must look like ed25519:…`);
-    if (!isRole(r)) fail(3, `New signer ${n + 1}: role is 1 to 32 of a-z, 0-9, '-'.`);
-    if (sigKeys.has(k)) fail(3, `New signer ${n + 1} is already registered: tick it in the list instead.`);
-    if (supKeys.has(k) || k === sup.key) fail(3, `New signer ${n + 1}'s key is a supplier's key; signers need their own.`);
+    if (!isPubKey(k)) fail(3, `New signer ${n + 1}: that isn't a signing key (ed25519: then 43–44 letters and digits). Send that person the invitation and paste their reply.`, `[data-a="${n}"][data-f="key"]`);
+    if (!isRole(r)) fail(3, `New signer ${n + 1}: the role is one lowercase word like storekeeper or weighbridge (letters, digits, -), no spaces.`, `[data-a="${n}"][data-f="role"]`);
+    if (sigKeys.has(k)) fail(3, `New signer ${n + 1} is already registered. Tick it in the list above instead of adding it again.`, `[data-a="${n}"][data-f="key"]`);
+    if (supKeys.has(k) || k === sup.key) fail(3, `New signer ${n + 1}'s key belongs to a supplier. A delivery signer needs their own key: send them the invitation.`, `[data-a="${n}"][data-f="key"]`);
     return { key: k, role: r };
   });
-  if (new Set(added.map((s) => s.key)).size !== added.length) fail(3, "The same new key is listed twice.");
-  if (x.signers.length + added.length > 20) fail(3, "A contract holds at most 20 delivery signers.");
+  if (new Set(added.map((s) => s.key)).size !== added.length) fail(3, "The same new key is listed twice. Remove one of them.");
+  if (x.signers.length + added.length > 20) fail(3, "A contract holds at most 20 delivery signers. Reuse the registered ones by ticking them.");
   const roles = [...new Set([...picked, ...added].map((s) => s.role))];
-  if (roles.length < 2) fail(3, "Choose signers in at least two different roles (for example storekeeper and weighbridge).");
-  if (roles.length > 5) fail(3, "At most 5 roles per order.");
+  if (roles.length < 2) fail(3, "Pick signers in at least two different roles, for example a storekeeper and a weighbridge. Two people in the same role don't count as two checks.", "wz-roles");
+  if (roles.length > 5) fail(3, "An order can ask for at most 5 roles. Untick some.", "wz-roles");
   // 4. limits
   const inv = toUnits(d.lim.inv), per = toUnits(d.lim.per), hours = String(d.lim.hours).trim(), maxs = String(d.lim.max).trim();
-  if (!inv || !per || inv === "0") fail(4, "Limits are USDC amounts above 0, up to 6 decimals.");
-  if (BigInt(inv) > BigInt(per)) fail(4, "The single-invoice limit cannot be above the period limit.");
-  if (!/^\d{1,4}$/.test(hours) || +hours < 1 || +hours > 8784) fail(4, "The period is 1 to 8784 hours.");
-  if (!/^\d{1,4}$/.test(maxs) || +maxs < 1 || +maxs > 1000) fail(4, "Submissions per day: 1 to 1000.");
+  if (!inv || !per || inv === "0") fail(4, "Both limits are USDC amounts above 0, like 500 or 1200.50. No $ sign or commas.", !inv || inv === "0" ? "wz-linv" : "wz-lper");
+  if (BigInt(inv) > BigInt(per)) fail(4, "The limit for one invoice cannot be above the limit for the whole period. Raise the period limit or lower the single-invoice one.", "wz-linv");
+  if (!/^\d{1,4}$/.test(hours) || +hours < 1 || +hours > 8784) fail(4, "The period is in hours, a whole number from 1 to 8784 (one year). 720 is about a month.", "wz-lh");
+  if (!/^\d{1,4}$/.test(maxs) || +maxs < 1 || +maxs > 1000) fail(4, "Submissions per day is a whole number from 1 to 1000.", "wz-lmax");
   const L = x.limits, limitsChanged = inv !== String(L.per_invoice) || per !== String(L.per_supplier_per_period) || hours !== String(L.period_hours) || +maxs !== +(L.max_submissions_per_day || 0);
   // the transaction
   const actions = [];
@@ -111,7 +119,7 @@ export function plan(d, x, contract) {
   actions.push(["set_delivery_policy", { order_id: po, required: 2, roles }]);
   if (limitsChanged) actions.push(["set_limits", { per_invoice: inv, per_supplier_per_period: per, period_hours: hours, max_submissions_per_day: +maxs }]);
   const tgas = actions.reduce((t, [m]) => t + WIZARD_GAS[m], 0);
-  if (tgas > MAX_TX_TGAS) fail(3, `This order needs ${tgas} Tgas, above NEAR's ${MAX_TX_TGAS} per transaction: add fewer new signers at once.`);
+  if (tgas > MAX_TX_TGAS) fail(3, `This would be too big for one NEAR transaction (${tgas} of ${MAX_TX_TGAS} Tgas). Add fewer new signers now; register the rest with the next order.`);
   return { contract, sup, po, lines, total: total.toString(), picked, added, roles, limits: { inv, per, hours, max: +maxs, changed: limitsChanged }, actions, tgas };
 }
 export const walletActions = (p) => p.actions.map(([m, args]) => ({ type: "FunctionCall", params: { methodName: m, args, gas: (BigInt(WIZARD_GAS[m]) * 10n ** 12n).toString(), deposit: "1" } }));
@@ -168,7 +176,7 @@ function stepper() {
   $("wz-steps").querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => go(+b.dataset.go)));
 }
 function go(n) { D.step = n; D.max = Math.max(D.max, n); save(); paint(); $("wiz").scrollIntoView({ block: "start", behavior: "smooth" }); }
-const field = (id, label, hint, value, attrs = "") => `<label>${esc(label)}${hint ? `<span>${esc(hint)}</span>` : ""}<input id="${id}" value="${esc(value)}" autocomplete="off" spellcheck="false" ${attrs}></label>`;
+const field = (id, label, hint, value, attrs = "") => `<label>${esc(label)}${hint ? `<span>${esc(hint)}</span>` : ""}<input id="${id}" value="${esc(value)}" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off" ${attrs}></label>`;
 
 function paintSupplier(b) {
   const s = D.sup, opts = X.suppliers.map((x) => `<option value="${esc(x.id)}" ${x.id === s.id ? "selected" : ""}>${esc(x.id)} → ${esc(x.addr)}${x.payable ? "" : " (in its 72-hour wait)"}</option>`).join("");
@@ -202,6 +210,7 @@ function paintSupplier(b) {
         <div class="row" style="margin-top:0"><button class="btn" type="button" id="wz-sinv">Make the supplier's invitation</button></div><div id="wz-sinvout"></div></div></div>`;
     const bind = (id, f) => ($(id).oninput = (e) => { s[f] = e.target.value; if (f !== "id") { s.calledFor = ""; $("wz-called").checked = false; } if (f === "addr") $("wz-caddr").textContent = s.addr.trim() || "this address"; save(); });
     bind("wz-sid", "id"); bind("wz-skey", "key"); bind("wz-saddr", "addr");
+    for (const k of ["wz-sid", "wz-saddr"]) $(k).addEventListener("blur", (e) => { const v = e.target.value.trim().toLowerCase(); if (v !== e.target.value) { e.target.value = v; e.target.dispatchEvent(new Event("input")); } });
     // An address named in a seized invoice: a warning with the receipts, never a block (flags.js).
     injectCss();
     let ft; const flag = () => { clearTimeout(ft); ft = setTimeout(async () => { const a = s.addr.trim(), h = await flagsFor(a); if ($("wz-flag") && s.addr.trim() === a) $("wz-flag").innerHTML = flagHtml(a, h); }, 300); };
@@ -209,7 +218,10 @@ function paintSupplier(b) {
     $("wz-called").onchange = (e) => { s.calledFor = e.target.checked ? `${s.addr.trim()}|${s.key.trim()}` : ""; save(); paint(); };
     $("wz-suse").onclick = () => { try { const o = readReply($("wz-sreply").value); if (o.kind && o.kind !== "supplier") throw new Error("That is a delivery signer's reply; paste it at step 3."); s.key = o.key; if (o.supplier_id) s.id = o.supplier_id; if (o.address) s.addr = o.address; s.proof = o.proof || null; s.calledFor = ""; save(); paint(); msg("Reply read. Now call the supplier and check the address."); } catch (e) { msg(e.message, true); } };
     if (s.proof) checkProof(s, K.contract()).then((r) => { const el = $("wz-proof"); if (el) el.innerHTML = proofLine(r); });
-    $("wz-sinv").onclick = () => { const id = $("wz-sid").value.trim(); if (!isSupplierId(id)) { msg("Type the supplier id first (a-z, 0-9, '-', '_', '.').", true); return; } s.id = id; save(); showLink($("wz-sinvout"), inviteLink({ kind: "supplier", supplier_id: id }), "Copy the invitation", MSG.inviteSupplier(id), "Join as our supplier on Clear to Pay"); };
+    $("wz-sinv").onclick = () => {
+      const el = $("wz-sid"), id = el.value.trim().toLowerCase();
+      if (id !== el.value) { el.value = id; s.id = id; save(); } // phone keyboards capitalise the first letter
+      if (!isSupplierId(id)) { msg(id ? `“${id}” can't be a supplier id: use a-z, 0-9, '-', '_' or '.' only, no spaces.` : "Type the supplier id first (a-z, 0-9, '-', '_', '.').", true); el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus({ preventScroll: true }); return; } s.id = id; save(); showLink($("wz-sinvout"), inviteLink({ kind: "supplier", supplier_id: id }), "Copy the invitation", MSG.inviteSupplier(id), "Join as our supplier on Clear to Pay"); };
   }
   b.querySelectorAll('input[name="wz-sm"]').forEach((r) => (r.onchange = () => { s.mode = r.value; s.id = ""; save(); paint(); }));
 }
@@ -379,6 +391,19 @@ function printPO(p, done) {
 
 // ---------------------------------------------------------------- paint and start
 let msgTimer;
+/** Bring the box a refusal is about into view and put the cursor in it. */
+function focusField(f, text) {
+  if (!f) { $("wz-msg").scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+  const el = f.startsWith("[") ? $("wz-body").querySelector(f) : $(f);
+  if (!el) { $("wz-msg").scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+  el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus?.({ preventScroll: true });
+  $("wz-body").querySelectorAll(".fixnote").forEach((n) => n.remove());
+  const host = el.closest("label") || el.closest(".lrow3") || el;
+  if (text) host.insertAdjacentHTML("afterend", `<p class="fixnote" role="alert">${esc(text)}</p>`);
+  const note = host.nextElementSibling;
+  el.classList.add("needfix");
+  el.addEventListener(el.type === "checkbox" ? "change" : "input", () => { el.classList.remove("needfix"); if (note?.classList.contains("fixnote")) note.remove(); }, { once: true });
+}
 function msg(t, bad) { const m = $("wz-msg"); m.innerHTML = `<p class="${bad ? "err" : "okline"}">${esc(t)}</p>`; clearTimeout(msgTimer); if (!bad) msgTimer = setTimeout(() => (m.innerHTML = ""), 6000); }
 function paint() {
   if (!X) return;
@@ -394,7 +419,7 @@ function paint() {
 async function next() {
   try {
     plan(D, X, K.contract());
-  } catch (e) { if (e.step <= D.step) { msg(e.message, true); return; } }
+  } catch (e) { if (e.step <= D.step) { msg(e.message, true); focusField(e.field, e.message); return; } }
   if (D.step === 2) { // an order number must be new
     try { if (await view(K.contract(), "get_order", { order_id: D.po.id.trim() })) { msg(`${D.po.id.trim()} already exists on ${K.contract()}: choose another order number.`, true); return; } } catch {}
   }

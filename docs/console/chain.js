@@ -149,7 +149,7 @@ export function ownSwitch(group, makeButton) {
   group.appendChild(b);
   const form = document.createElement("div");
   form.className = "ownform"; form.hidden = true;
-  form.innerHTML = `<label>Your contract's address<input placeholder="pay.yourcompany.testnet" autocomplete="off" spellcheck="false"></label><button type="button">Use it</button><button type="button" class="x">Cancel</button><small>Deployed with the steps in the README (Run your own). It stays in this browser.</small><p class="err" hidden></p>`;
+  form.innerHTML = `<label>Your contract's address<input placeholder="pay.yourcompany.testnet" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label><button type="button">Use it</button><button type="button" class="x">Cancel</button><small>Deployed with the steps in the README (Run your own). It stays in this browser.</small><p class="err" hidden></p>`;
   group.insertAdjacentElement("afterend", form);
   const [inp] = form.getElementsByTagName("input"), [use, cancel] = form.getElementsByTagName("button"), err = form.querySelector(".err");
   if (CONTRACTS.own) inp.value = CONTRACTS.own;
@@ -190,4 +190,15 @@ export function ownSwitch(group, makeButton) {
     b.click();
   };
   return b;
+}
+
+// Phone keyboards capitalise the first letter of every box. Every box on these pages takes an id, an
+// account, an amount or a code (lowercase or exact), so none may be changed by the keyboard. Messages
+// people write are textareas and keep their capitals.
+if (typeof document !== "undefined" && typeof MutationObserver !== "undefined") {
+  const calm = (root) => root.querySelectorAll?.('input:not([type]),input[type="text"],input[type="search"]').forEach((i) => {
+    if (!i.hasAttribute("autocapitalize")) { i.setAttribute("autocapitalize", "none"); i.setAttribute("autocorrect", "off"); }
+  });
+  const go = () => { calm(document); new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => n.nodeType === 1 && (n.matches?.("input") ? calm(n.parentNode) : calm(n))))).observe(document.body, { childList: true, subtree: true }); };
+  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", go) : go();
 }

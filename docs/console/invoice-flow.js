@@ -7,19 +7,19 @@ import { toUnits, fromUnits, isRef, isU64 } from "./chain.js";
 /** The invoice a supplier signs, built only from the order on chain and the address on file.
  *  qtys: { sku: "10", ... } (whole units, as on the order). Nothing typed can change the payee or a price. */
 export function buildInvoice({ supplier_id, invoice_number, order_id, order, qtys, route }) {
-  if (!order || order.supplier_id !== supplier_id) throw new Error("this order is not for your company");
-  if (!isRef(invoice_number)) throw new Error("the invoice number: letters, digits and . _ / - only, up to 64");
-  if (!route || !route.address) throw new Error("your company has no payout address on file");
+  if (!order || order.supplier_id !== supplier_id) throw new Error("This order is not for your company. Open the order link the buyer sent to you.");
+  if (!isRef(invoice_number)) throw new Error("The invoice number uses letters, digits and . _ / - only, no spaces, up to 64 characters. Example: INV-2301.");
+  if (!route || !route.address) throw new Error("Your company has no payout address on file with this buyer yet. Ask the buyer to register you: they send you an invitation.");
   const lines = [];
   order.lines.forEach((l, i) => {
     const q = String(qtys[l.sku] ?? "").trim();
     if (q === "" || q === "0") return;
-    if (!/^\d+$/.test(q) || !isU64(q)) throw new Error(`quantity for ${l.sku}: a whole number, please`);
+    if (!/^\d+$/.test(q) || !isU64(q)) throw new Error(`${l.sku}: type how many you delivered as a whole number, like 10. No decimals or units.`);
     const left = BigInt(l.qty) - BigInt(order.invoiced?.[i] ?? 0);
-    if (BigInt(q) > left) throw new Error(`${l.sku}: only ${left} left to invoice on this order`);
+    if (BigInt(q) > left) throw new Error(`${l.sku}: only ${left} left to invoice on this order. Lower the quantity to ${left} or less.`);
     lines.push({ sku: l.sku, qty: q, unit_price: String(l.unit_price) });
   });
-  if (!lines.length) throw new Error("put a quantity on at least one line");
+  if (!lines.length) throw new Error("Put a quantity on at least one line: how many you delivered.");
   const total = lines.reduce((a, l) => a + BigInt(l.qty) * BigInt(l.unit_price), 0n).toString();
   return { supplier_id, invoice_number, order_id, token: order.token, lines, total,
     payee: { chain: route.chain, token: route.token, address: route.address } };

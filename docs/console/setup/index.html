@@ -128,6 +128,8 @@ body.not-buyer #forms > :not(#rolecard){display:none!important}
 .wz-top{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-end}
 .wiz h2{font-size:clamp(32px,4.2vw,54px);max-width:none;margin:6px 0 4px}
 .wz-side{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.needfix{outline:2px solid var(--seize)!important;outline-offset:1px}
+.fixnote{margin:6px 0 4px;padding:8px 12px;border-left:4px solid var(--seize);background:#FBEDEB;color:#7A241C;font:400 14.5px/1.45 var(--body)}
 .btn.sm{padding:8px 12px;font-size:13.5px}.btn.big{padding:16px 26px;font-size:17px}
 .wz-steps{list-style:none;margin:4px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 .wz-steps button{width:100%;display:flex;gap:8px;align-items:center;border:0;cursor:pointer;background:var(--cell);color:var(--navy);box-shadow:inset 0 0 0 1px var(--line);padding:10px;font:600 14px var(--body);text-align:left}
@@ -317,10 +319,10 @@ const FORMS = [
       <label>Payout account on NEAR<span>where USDC is paid</span><input id="s-addr" placeholder="qingmar.cleartopay.testnet" autocomplete="off"></label>`,
     build() {
       const id = $("s-id").value.trim(), key = $("s-key").value.trim(), addr = $("s-addr").value.trim();
-      if (!isSupplierId(id)) fail("Supplier id: 1 to 64 of a-z, 0-9, '-', '_', '.'");
-      if (!isPubKey(key)) fail("The public signing key must look like ed25519:… (44 characters after the colon).");
-      if (!isAccount(addr)) fail("The payout account must be a NEAR account id.");
-      if (S.needCall) fail("Tick the box once the supplier has confirmed this address by phone.");
+      if (!isSupplierId(id)) fail(id ? `“${id.slice(0, 40)}” can't be a supplier id. Use lowercase letters, digits and - _ . only, no spaces. Example: acme-steel.` : "Type a short id for this supplier, for example acme-steel.");
+      if (!isPubKey(key)) fail("That isn't a signing key. It starts with ed25519: followed by 43–44 letters and digits. Paste it from the supplier's reply rather than typing it.");
+      if (!isAccount(addr)) fail(addr ? `“${addr.slice(0, 40)}” isn't a NEAR account. It looks like name.testnet, lowercase, no spaces.` : "Type the NEAR account the supplier will be paid to, for example acme.testnet.");
+      if (S.needCall) fail("Call the supplier on a number you already had, have them read this address back to you, then tick the box.");
       return { method: "register_supplier", args: { supplier_id: id, signing_key: key, route: { chain: "near", token: USDC, address: addr } } };
     },
     async readBack(a) { const s = await view(contract(), "get_supplier", { supplier_id: a.supplier_id }); return s && `${s.supplier_id} → ${s.route_on_file.address}\npayable from ${new Date(Number(BigInt(s.route_payable_from) / 1_000_000n)).toLocaleString()}`; },
@@ -334,16 +336,17 @@ const FORMS = [
       <div><button class="btn ghost" type="button" data-add="o-lines">Add a line</button></div>`,
     build() {
       const id = $("o-id").value.trim(), sup = $("o-sup").value, ls = lines("o-lines");
-      if (!isRef(id)) fail("Order id: 1 to 64 of A-Z, a-z, 0-9, '-', '_', '.', '/'.");
-      if (!isSupplierId(sup)) fail("Choose a registered supplier.");
-      if (!ls.length || ls.length > 50) fail("An order needs 1 to 50 lines.");
+      if (!isRef(id)) fail(id ? `“${id.slice(0, 40)}” can't be an order number. Use letters, digits and - _ . / only, no spaces. Example: PO-1184.` : "Give the order a number, for example PO-1184.");
+      if (!isSupplierId(sup)) fail("Pick a registered supplier. None yet? Register one first (the form above).");
+      if (!ls.length) fail("Add at least one line: the item code, how many, and the price for one.");
+      if (ls.length > 50) fail("An order holds at most 50 lines. Split it into two orders.");
       const out = ls.map(([sku, qty, price], n) => {
-        if (!isRef(sku)) fail(`Line ${n + 1}: the item code is not valid.`);
-        if (!/^[1-9]\d{0,19}$/.test(qty) || BigInt(qty) > (1n << 64n) - 1n) fail(`Line ${n + 1}: quantity must be a whole number above 0, at most 18446744073709551615.`);
-        const u = toUnits(price); if (!u || u === "0") fail(`Line ${n + 1}: price must be in USDC, up to 6 decimals, above 0.`);
+        if (!isRef(sku)) fail(sku ? `Line ${n + 1}: “${sku.slice(0, 40)}” can't be an item code. Use letters, digits and - _ . / only, no spaces.` : `Line ${n + 1}: type the item code the supplier will put on the invoice, for example AH36-12mm.`);
+        if (!/^[1-9]\d{0,19}$/.test(qty) || BigInt(qty) > (1n << 64n) - 1n) fail(`Line ${n + 1}: the quantity must be a whole number above 0, like 10. No decimals, commas or units.`);
+        const u = toUnits(price); if (!u || u === "0") fail(`Line ${n + 1}: the price is in USDC for one item, above 0, up to 6 decimals, like 7.80. No $ sign or commas.`);
         return { sku, qty, unit_price: u };
       });
-      if (new Set(out.map((l) => l.sku)).size !== out.length) fail("The same item is on two lines.");
+      if (new Set(out.map((l) => l.sku)).size !== out.length) fail("The same item code is on two lines. Put it on one line with the total quantity.");
       return { method: "create_order", args: { order_id: id, supplier_id: sup, token: USDC, lines: out },
         note: out.map((l) => `${l.sku}: ${l.qty} at ${fromUnits(l.unit_price)} USDC = unit_price ${l.unit_price}`).join("\n") };
     },
@@ -358,10 +361,10 @@ const FORMS = [
       <label>Most submissions per day<span>1 to 1000, any verdict</span><input id="l-max" inputmode="numeric" placeholder="100"></label>`,
     build() {
       const a = toUnits($("l-inv").value), b = toUnits($("l-per").value), h = $("l-h").value.trim(), m = $("l-max").value.trim();
-      if (!a || !b) fail("Limits are USDC amounts, up to 6 decimals.");
-      if (BigInt(a) > BigInt(b)) fail("The single-invoice limit cannot be above the period limit.");
-      if (!/^\d{1,4}$/.test(h) || +h < 1 || +h > 8784) fail("The period is 1 to 8784 hours.");
-      if (!/^\d{1,4}$/.test(m) || +m < 1 || +m > 1000) fail("Submissions per day: 1 to 1000.");
+      if (!a || !b) fail("Both limits are USDC amounts, like 500 or 1200.50. No $ sign or commas.");
+      if (BigInt(a) > BigInt(b)) fail("The limit for one invoice cannot be above the limit for the whole period. Raise the period limit or lower the single-invoice one.");
+      if (!/^\d{1,4}$/.test(h) || +h < 1 || +h > 8784) fail("The period is in hours, a whole number from 1 to 8784 (one year). 720 is about a month.");
+      if (!/^\d{1,4}$/.test(m) || +m < 1 || +m > 1000) fail("Submissions per day is a whole number from 1 to 1000.");
       return { method: "set_limits", args: { per_invoice: a, per_supplier_per_period: b, period_hours: h, max_submissions_per_day: +m },
         note: `per invoice ${fromUnits(a)} USDC, per supplier ${fromUnits(b)} USDC every ${h} h, ${m} submissions a day` };
     },
@@ -374,8 +377,8 @@ const FORMS = [
       <label>Role<span>a-z, 0-9, '-'</span><input id="d-role" placeholder="weighbridge" autocomplete="off"></label>`,
     build() {
       const key = $("d-key").value.trim(), role = $("d-role").value.trim();
-      if (!isPubKey(key)) fail("The key must look like ed25519:… (44 characters after the colon).");
-      if (!isRole(role)) fail("Role: 1 to 32 of a-z, 0-9, '-'.");
+      if (!isPubKey(key)) fail("That isn't a signing key. It starts with ed25519: followed by 43–44 letters and digits. Send the person an invitation and paste their reply.");
+      if (!isRole(role)) fail("The role is one lowercase word like storekeeper or weighbridge (letters, digits, -), no spaces.");
       return { method: "add_delivery_signer", args: { key, role } };
     },
     async readBack() { return this.now(); },
@@ -391,15 +394,15 @@ const FORMS = [
       <label>Unit shown to the signer<span>optional, e.g. t</span><input id="k-unit" placeholder="t" autocomplete="off"></label>`,
     async make() {
       const order = $("k-order").value.trim(), note = $("k-note").value.trim(), role = $("k-role").value, unit = $("k-unit").value.trim();
-      if (!isRef(order) || !isRef(note)) fail("Order and note ids: 1 to 64 of A-Z, a-z, 0-9, '-', '_', '.', '/'.");
-      if (role !== "*" && !isRole(role)) fail("Register a delivery signer first, then choose its role.");
-      if (unit && !/^[a-z]{1,6}$/i.test(unit)) fail("Unit: up to 6 letters.");
-      const ls = lines("k-lines").map(([sku, qty], n) => { if (!isRef(sku) || !/^[1-9]\d{0,18}$/.test(qty)) fail(`Line ${n + 1}: item code and a whole quantity.`); return { sku, qty }; });
-      if (!ls.length) fail("Add what was delivered.");
-      const o = await view(contract(), "get_order", { order_id: order }); if (!o) fail("No such order on " + contract() + ".");
+      if (!isRef(order) || !isRef(note)) fail("The order number and the delivery note number use letters, digits and - _ . / only, no spaces. Example: PO-1184 and DN-0412.");
+      if (role !== "*" && !isRole(role)) fail("No delivery signer is registered yet. Add one first with “Add a delivery signer”, then pick its role here.");
+      if (unit && !/^[a-z]{1,6}$/i.test(unit)) fail("The unit is up to 6 letters, like t, kg or pcs. Leave it empty if you don't need one.");
+      const ls = lines("k-lines").map(([sku, qty], n) => { if (!isRef(sku) || !/^[1-9]\d{0,18}$/.test(qty)) fail(`Line ${n + 1}: give the item code from the order and a whole number delivered, like AH36-12mm and 10.`); return { sku, qty }; });
+      if (!ls.length) fail("Add at least one line: what was delivered and how many.");
+      const o = await view(contract(), "get_order", { order_id: order }); if (!o) fail(`There's no order ${order} on ${contract()}. Check the number, or switch contract at the top (Demo, Live or your own).`);
       const p = await view(contract(), "get_delivery_policy", { order_id: order });
       const roles = role === "*" ? p.roles : [role];
-      if (!roles.length) fail("This order has no delivery roles set.");
+      if (!roles.length) fail("This order has no delivery roles set, so nobody can sign for it. Orders made with the wizard above set them for you: make this order there.");
       return roles.map((r) => { const n = { contract: contract(), order_id: order, note_id: note, lines: ls, role: r, policy_version: p.version }; if (unit) n.unit = unit;
         return { role: r, note, order, link: new URL("../sign/#n=" + encodeLink(n), location.href).href }; });
     } },
@@ -407,7 +410,7 @@ const FORMS = [
   { id: "token", kicker: "Payments", title: "Allow a token",
     help: "Only allowed tokens can be deposited and paid out. USDC on testnet is filled in.",
     fields: `<label>Token contract<input id="t-id" value="${USDC}" autocomplete="off"></label>`,
-    build() { const t = $("t-id").value.trim(); if (!isAccount(t)) fail("A token contract is a NEAR account id."); return { method: "allow_token", args: { token: t } }; },
+    build() { const t = $("t-id").value.trim(); if (!isAccount(t)) fail("That isn't a token contract address. It's a NEAR account like usdc.fakes.testnet, or a 64-character hex id."); return { method: "allow_token", args: { token: t } }; },
     async readBack() { return this.now(); },
     async now() { const t = await view(contract(), "get_allowed_tokens"); return "Allowed: " + (t.map((x) => short(x, 6)).join(", ") || "none"); } },
 
@@ -421,7 +424,7 @@ const FORMS = [
       if (!AGENT.pub) fail("Make the key first (step 1).");
       if (!AGENT.saved) fail("Download the key file and tick that you can see it (step 2). The wallet step comes after, so the key is never lost.");
       const n = toUnits($("a-allow").value, 24);
-      if (!n || BigInt(n) < 5n * 10n ** 22n || BigInt(n) > 10n ** 24n) fail("Allowance: 0.05 to 1 NEAR.");
+      if (!n || BigInt(n) < 5n * 10n ** 22n || BigInt(n) > 10n ** 24n) fail("The gas allowance is between 0.05 and 1 NEAR, like 0.25.");
       const methodNames = ["submit_invoice", "execute_payment"];
       return { receiver: S.me || S.owner, actions: [{ type: "AddKey", params: { publicKey: AGENT.pub, accessKey: { permission: { receiverId: contract(), allowance: n, methodNames } } } }],
         args: { public_key: AGENT.pub }, preview: `AddKey on your own account (${S.me || S.owner})
@@ -438,7 +441,7 @@ deposit   none (a function-call key can never attach money)` };
     help: "Moves USDC from the buyer's account into the contract with ft_transfer_call. Only the buyer's deposits are accepted; anything else is returned.",
     fields: `<label>Amount<span>USDC</span><input id="p-amt" inputmode="decimal" placeholder="10"></label>`,
     build() {
-      const a = toUnits($("p-amt").value); if (!a || a === "0") fail("Amount in USDC, up to 6 decimals.");
+      const a = toUnits($("p-amt").value); if (!a || a === "0") fail("Type an amount in USDC above 0, like 10 or 12.50. No $ sign or commas.");
       return { receiver: USDC, method: "ft_transfer_call", gas: 100, args: { receiver_id: contract(), amount: a, msg: "" }, note: `${fromUnits(a)} USDC from your account into the pool of ${contract()}` };
     },
     async readBack() { return this.now(); },
