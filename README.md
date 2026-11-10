@@ -6,6 +6,20 @@
 
 ![CI](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/ci.yml/badge.svg) ![Sandbox](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/sandbox.yml/badge.svg) ![Network](https://img.shields.io/badge/NEAR-testnet-10264A) ![Licence](https://img.shields.io/badge/licence-MIT-127A4A)
 
+## In plain words
+
+Companies lose money when a fake invoice, or an email saying "we changed our bank details", gets paid. More and more of those bills will be paid by AI agents, which can be fooled the same way. Clear to Pay pays a supplier only when the invoice matches the order, two different people have confirmed the delivery, and the money goes to the account the supplier registered days earlier. Anything else is held or stopped, and every decision is on a public ledger.
+
+**How a company uses it** (the demo: a fabrication yard in Lagos buying steel plate)
+
+1. **Once:** finance registers the supplier, with its signing key and the account it is paid to, after checking that account by phone on a number already on file. A new account cannot be paid for 72 hours, and any later change needs the supplier's signature, finance's approval and another 72 hours.
+2. **Delivery day:** two people in different roles, here the storekeeper and the weighbridge operator, each confirm on their phone what actually arrived. Neither can do it alone.
+3. **Invoice day:** the supplier sends the PDF as usual and signs the invoice on their phone. The items, prices and payee come from the order, so nothing typed can change them.
+4. **Minutes later:** an AI reads the PDF inside a secure enclave, with hidden text removed, and checks it against what the supplier signed. It decides nothing.
+5. **Instantly:** the contract pays the registered account if everything matches (**CLEARED**), says what to fix (**HELD**), or pays nothing and flags the attempt (**SEIZED**). On testnet, the supplier can then receive the payment on another chain.
+
+Every step runs in the browser today; details in [How a company would use it](#how-a-company-would-use-it).
+
 > **Try it in 60 seconds → [Judge mode](https://clear-to-pay.vercel.app/console/).** No wallet, no install. Check the AI's signed reading in your browser, then let a fooled agent submit a poisoned invoice and watch the NEAR contract seize it, live on testnet. The honest invoice clears and pays 0.78 USDC to the registered address.
 
 ## Judge summary
