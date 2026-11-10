@@ -17,7 +17,7 @@
 **Status:** running on NEAR testnet, with eight security reviews behind it; a professional audit comes before mainnet.
 
 **Why it holds**
-- The AI can be fooled; the payment rules cannot. The contract never asks the document, the AI or the agent where to pay.
+- The AI can be fooled; the payment rules cannot. The contract never asks the document, the AI or the agent where to pay. That is [why the AI is never in charge](#why-the-ai-is-never-in-charge): whatever happens to it, no payment rule depends on it.
 - NEAR itself limits the agent's key to two methods on one contract, with no money attached.
 - The poisoned-invoice attack runs live on chain, from your browser, every time someone presses the button.
 
@@ -170,6 +170,15 @@ The agent never holds the buyer's keys. It signs with a NEAR **function-call acc
 - **Sending is off by default.** The person running the server turns it on (`CTP_MCP_ALLOW_SUBMIT=1`) and gives it the agent's key file. Before every send the server asks NEAR what that key may do, and refuses a full-access key, any key not limited to `submit_invoice` and `execute_payment` on this contract, or a key with unlimited gas allowance; every configured RPC server must answer and agree. The key never appears in an answer.
 - **The contract still decides.** Whatever the agent submits, money only goes to the registered address after every check. 21 offline tests in `reader/tests/test_mcp.py`; setup in [reader/README.md](reader/README.md#use-it-from-an-ai-agent-mcp).
 - **Copy-paste setup.** The [For agent builders page](https://clear-to-pay.vercel.app/integrate/) has the config for Claude Desktop, Claude Code and Cursor, a live check of what any NEAR key may do, and the same submit in JavaScript: [tools/integrate/submit.mjs](tools/integrate/submit.mjs) (`npm install`, then `node submit.mjs` for a dry run against the demo contract with Judge mode's public key, or `node submit.mjs --send --attack` to watch a swapped payee get SEIZED).
+
+### Why the AI is never in charge
+
+No AI service can promise it will never fail, be fooled or be breached. During this hackathon, on 8 November, NEAR AI had a security incident on part of its infrastructure, and handled it quickly: it paused inference, closed the access, patched its servers and rotated credentials, and NEAR Protocol was not affected ([NEAR AI's update](https://x.com/near_ai/status/2119996627654197384)).
+
+That is exactly why Clear to Pay never made the AI sovereign:
+
+- **The contract decides on signed objects only:** the supplier's signed invoice, the delivery signed by two roles, the order, the limits and the registered address. Without the AI, invoices are still submitted and decided; only the AI check in the Inbox goes quiet.
+- **The AI can never choose the payee.** Its answer has no payee field. Whatever happens to the AI, the worst case is a reading a person has to look at, never money sent somewhere else.
 
 ## Why this matters: agents have already been talked into paying
 
