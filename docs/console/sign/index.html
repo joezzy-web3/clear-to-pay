@@ -69,6 +69,7 @@
 .field{display:grid;gap:6px;margin-top:16px;font:600 15px var(--body)}
 .field span{font:400 12.5px var(--mono);color:var(--mute)}
 .field input{font:400 16px var(--mono);padding:12px;border:1px solid var(--line);width:100%;min-width:0}
+.field select{font:400 16px var(--mono);padding:12px;border:1px solid var(--line);width:100%;min-width:0;background:#fff;color:inherit}
 .msg{padding:12px 14px;border-left:4px solid var(--held);background:#FFF6D6;line-height:1.5}
 .msg.bad{border-color:var(--seize);background:#FBECEA}.msg.ok{border-color:var(--clear);background:#E5F2EA}
 @media (max-width:640px){.out{grid-template-columns:1fr}.qr{max-width:240px}}
@@ -233,6 +234,7 @@ import { CONTRACTS, walletFix, relaySend, ownSwitch } from "../chain.js";
 import { rpc } from "../chain.js";
 import { $, esc, short, view, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, encodeLink, fromUnits, USDC, initMenu, copy, alertLink } from "../chain.js";
 import { buildInvoice } from "../invoice-flow.js";
+import * as RA from "../receive-as.js";
 initMenu();
 
 // ---------------------------------------------------------------- the key, kept in IndexedDB for this site only
@@ -491,7 +493,146 @@ async function paintHome() {
       <div class="minis">${inv.length ? inv.map((r) => `<div class="mini"><span class="v ${esc(r.verdict)}">${esc(r.verdict.toUpperCase())}</span><span>${esc(r.invoice_number)} · ${esc(fromUnits(r.amount))} USDC<br><small>${esc((r.reasons || []).join(", ") || "every rule held")}</small></span><small>${r.payment ? esc(r.payment.status === "Settled" ? "paid" : r.payment.status.toLowerCase()) : ""}</small></div>`).join("") : `<p class="muted">No invoices from ${esc(mine.supplier_id)} yet.</p>`}</div>
       ${sal ? `<div class="row"><a class="btn" href="${esc(sal)}" target="_blank" rel="noopener" style="background:#229ED9">Get alerts on Telegram</a></div>` : ""}`;
     sendInvoice(c, mine);
+    receiveAs(mine).catch(() => {});
   } catch { box.innerHTML = `<p class="err">Could not read ${esc(c)}. Try again in a moment.</p>`; }
+}
+
+// ---------------------------------------------------------------- receive on another chain (testnet sandbox): the supplier moves their own money, with their own wallet
+// Optional, and after the fact: the contract has already paid the registered NEAR account. Nothing here
+// touches the contract, the buyer or the agent. The swap runs on Tidepool, a community testnet sandbox
+// for NEAR Intents; the rules for what is sent and what must come back are in ../receive-as.js.
+const RA_KEY = "ctp-receive-pending", RA_DRAFT = "ctp-receive-draft";
+const raGet = () => { try { const v = JSON.parse(localStorage.getItem(RA_KEY) || "null"); return v && /^[0-9a-f]{64}$/.test(v.dep || "") && RA.isEvmAddress(v.to) && RA.destOf(v.dest) ? v : null; } catch { return null; } };
+const raSet = (v) => { try { v ? localStorage.setItem(RA_KEY, JSON.stringify(v)) : localStorage.removeItem(RA_KEY); } catch {} };
+const raDraft = (v) => { try { if (v) sessionStorage.setItem(RA_DRAFT, JSON.stringify(v)); else return JSON.parse(sessionStorage.getItem(RA_DRAFT) || "null"); } catch {} return null; };
+async function tidepool(path, body) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch(RA.TIDEPOOL + path, body ? { method: "POST", signal: ctl.signal, headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : { signal: ctl.signal });
+    const j = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(j && typeof j.message === "string" ? "The swap service said: " + j.message.slice(0, 160) : `The swap service did not answer (${r.status}). Try again in a moment.`);
+    return j;
+  } catch (e) {
+    throw e.name === "AbortError" ? new Error("The swap service took too long to answer. Try again in a moment.")
+      : e instanceof TypeError ? new Error("The swap service could not be reached. Check your connection and try again.") : e;
+  } finally { clearTimeout(t); }
+}
+/** Sign in with the payout account `me` if needed, then ask its wallet to approve `tx`. `beforeSend` runs right before the wallet opens. */
+async function raWallet(me, tx, st, beforeSend) {
+  st.textContent = "Loading the wallet…";
+  const W = await import("../wallet.js");
+  const selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet(), W.setupMyNearWallet()] });
+  const active = () => selector.store.getState().accounts.find((a) => a.active)?.accountId;
+  if (active() !== me) {
+    const modal = W.setupModal(selector, { description: `Sign in with ${me}, the account you were paid to.` });
+    if (active()) { st.textContent = `Your wallet is signed in as ${active()}, not ${me}. Choose ${me} in the wallet window.`; try { await (await selector.wallet()).signOut(); } catch {} }
+    else st.textContent = `Choose your wallet in the window that opened, then sign in with ${me}.`;
+    modal.show();
+    await new Promise((ok, no) => {
+      const un = selector.store.observable.subscribe(() => { if (active() === me) { un.unsubscribe?.(); ok(); } });
+      modal.on?.("onHide", ({ hideReason }) => { if (hideReason === "user-triggered" && active() !== me) { un.unsubscribe?.(); no(new Error("The wallet window was closed")); } });
+    });
+    try { modal.hide(); } catch {}
+  }
+  st.textContent = "Approve the transaction in your wallet…";
+  const w = walletFix(await selector.wallet());
+  beforeSend();
+  return w.signAndSendTransaction(tx);
+}
+let raTimer = null;
+async function receiveAs(mine) {
+  clearTimeout(raTimer);
+  const route = mine.payable_route || mine.route_on_file, me = route.address;
+  if (route.chain !== "near" || !isAccount(me)) return;
+  // back from a redirect wallet: ?transactionHashes=… (sent) or ?errorCode=… (declined)
+  const back = new URLSearchParams(location.search);
+  if (back.has("transactionHashes") || back.has("errorCode")) {
+    const p = raGet();
+    if (p && !p.sent) raSet(back.has("transactionHashes") ? { ...p, sent: true } : null);
+    history.replaceState(null, "", location.pathname + location.hash);
+  }
+  $("home-body").insertAdjacentHTML("beforeend", `<div class="sendinv" id="recvas">
+    <h3 style="font:800 22px var(--display);margin:6px 0 0">Receive on another chain <small style="font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">testnet sandbox</small></h3>
+    <p class="plain">Optional. The buyer's contract pays <b>${esc(me)}</b> on NEAR, as always. From there you can move test USDC to another chain yourself. You approve it in the wallet of ${esc(me)}; the buyer and the contract take no part. It runs on <a href="https://www.usetidepool.tech/" target="_blank" rel="noopener">Tidepool</a>, a community-run testnet sandbox for NEAR Intents: test tokens only, no real money.</p>
+    <div class="stat"><div><span>Your sandbox test USDC</span><b id="ra-bal">reading…</b></div></div>
+    <div id="ra-body"></div></div>`);
+  const body = $("ra-body");
+  let bal = null;
+  const readBal = async () => { try { bal = BigInt(await view(RA.SWAP_TOKEN, "ft_balance_of", { account_id: me })); $("ra-bal").textContent = fromUnits(bal.toString()) + " USDC"; } catch { bal = null; $("ra-bal").textContent = "could not be read"; } };
+
+  const paintPending = (p) => {
+    const d = RA.destOf(p.dest);
+    body.innerHTML = `<div class="big"><span>Swap started ${esc(new Date(p.at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</span><b>${esc(fromUnits(p.amount))} test USDC → ${esc(d.label)}</b><span style="text-transform:none;letter-spacing:0">to ${esc(p.to)}</span></div>
+      <p class="plain" id="ra-st">Asking the swap service…</p>
+      <div class="row"><button class="btn ghost" type="button" id="ra-check">Check again</button><a class="btn ghost" href="${esc(d.explorer + p.to)}#tokentxns" target="_blank" rel="noopener">My address on the explorer</a><button class="btn ghost" type="button" id="ra-clear">Start another</button></div>
+      <p class="note">Start another only clears this page. A swap you already approved still completes.</p>`;
+    let tries = 0;
+    const poll = async () => {
+      clearTimeout(raTimer);
+      const st = $("ra-st"); if (!st) return;
+      let s;
+      try { s = RA.readStatus(await tidepool("/v0/status?depositAddress=" + p.dep)); }
+      catch (e) { st.textContent = e.message + " Press Check again."; return; }
+      st.textContent = s.text + (s.state === "wait" && !p.sent ? " If you closed your wallet without approving, nothing was sent: press Start another." : "");
+      if (s.link) st.insertAdjacentHTML("beforeend", ` <a href="${esc(s.link)}" target="_blank" rel="noopener">See the payout</a>`);
+      if (s.final) { readBal(); return; }
+      if (++tries < 50) raTimer = setTimeout(poll, 6000); else st.insertAdjacentText("beforeend", " Still going after five minutes: press Check again later.");
+    };
+    $("ra-check").onclick = () => { tries = 0; poll(); };
+    $("ra-clear").onclick = () => { clearTimeout(raTimer); raSet(null); paintForm(); };
+    poll();
+  };
+
+  const paintForm = () => {
+    if (bal === null) { body.innerHTML = `<p class="muted">The balance could not be read just now. Reload the page to try again.</p>`; return; }
+    if (bal === 0n) { body.innerHTML = `<p class="plain">${esc(me)} holds no sandbox test USDC, so there is nothing to move yet. The sandbox can only move its own test USDC (<span style="font-family:var(--mono)">${esc(RA.SWAP_TOKEN)}</span>), not Circle's testnet USDC. When the buyer pays you in it, the amount appears here.</p>`; return; }
+    const dr = raDraft() || {};
+    body.innerHTML = `<label class="field">Receive as<select id="ra-dest">${RA.DESTS.map((d) => `<option value="${esc(d.id)}"${d.id === dr.dest ? " selected" : ""}>${esc(d.label)}</option>`).join("")}</select></label>
+      <label class="field">Your address on that chain<span>copy it from your wallet there; money sent to a wrong address cannot be brought back</span><input id="ra-to" placeholder="0x…" value="${esc(RA.isEvmAddress(dr.to) ? dr.to : "")}" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label>
+      <label class="field">Amount of test USDC<span>up to ${esc(fromUnits(bal.toString()))}</span><input id="ra-amt" value="${esc(fromUnits(bal.toString()))}" inputmode="decimal" autocomplete="off"></label>
+      <p class="err" id="ra-err" hidden></p>
+      <div class="row"><button class="btn ghost" type="button" id="ra-quote">Get a quote</button></div>
+      <div id="ra-out"></div>`;
+    const err = (m) => { $("ra-err").hidden = !m; $("ra-err").textContent = m || ""; };
+    $("ra-quote").onclick = async () => {
+      const out = $("ra-out"), btn = $("ra-quote"); err(""); out.innerHTML = "";
+      let req, q;
+      try {
+        req = RA.buildQuote({ destId: $("ra-dest").value, amount: $("ra-amt").value, recipient: $("ra-to").value.trim(), refundTo: me });
+        if (BigInt(req.amount) > bal) throw new Error(`You have ${fromUnits(bal.toString())} test USDC in ${me}. Type that amount or less.`);
+        raDraft({ dest: $("ra-dest").value, to: req.recipient });
+        btn.disabled = true; btn.textContent = "Asking for a quote…";
+        q = RA.checkQuote(await tidepool("/v0/quote", req), req);
+      } catch (e) { err(e.message || String(e)); return; }
+      finally { btn.disabled = false; btn.textContent = "Get a quote"; }
+      const d = RA.destOf($("ra-dest").value);
+      out.innerHTML = `<div class="big"><span>You send</span><b>${esc(fromUnits(q.amountIn))} test USDC</b><span style="text-transform:none;letter-spacing:0">from ${esc(me)} on NEAR</span></div>
+        <div class="big"><span>You receive about</span><b>${esc(fromUnits(q.amountOut))} ${esc(d.label)}</b><span style="text-transform:none;letter-spacing:0">at least ${esc(fromUnits(q.minAmountOut))}, at ${esc(req.recipient)}. The swap service keeps the difference as its fee.</span></div>
+        <p class="note">One approval in the wallet of ${esc(me)}: it registers the swap address with the token (0.00125 NEAR) and sends the USDC to it. This quote is good until ${esc(new Date(q.deadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}. If the swap fails, the money returns to ${esc(me)}.</p>
+        <div class="row"><button class="btn signbtn" type="button" id="ra-send">Approve in my wallet</button></div>
+        <p class="muted" id="ra-st2"></p>`;
+      $("ra-send").onclick = async () => {
+        const st = $("ra-st2"), go = $("ra-send");
+        if (Date.parse(q.deadline) < Date.now() + 120_000) { st.textContent = "This quote has run out. Press Get a quote again."; return; }
+        const p = { dep: q.depositAddress, to: req.recipient, dest: d.id, amount: q.amountIn, at: Date.now(), sent: false };
+        go.disabled = true;
+        try {
+          await raWallet(me, RA.depositTx({ depositAddress: q.depositAddress, amount: q.amountIn }), st, () => raSet(p));
+          p.sent = true; raSet(p); readBal(); paintPending(p);
+        } catch (e) {
+          raSet(null); go.disabled = false;
+          const m = String(e?.message || e || "");
+          st.textContent = /reject|cancel|denied|closed/i.test(m) ? "You did not approve in the wallet, so nothing was sent. Press the button to try again."
+            : /load|fetch|import|network/i.test(m) ? "The wallet couldn't load. Check your connection and press the button again."
+            : `The wallet did not send it (${m.slice(0, 120)}). Nothing was sent unless your wallet shows the transfer. Press the button to try again.`;
+        }
+      };
+    };
+  };
+
+  await readBal();
+  const pending = raGet();
+  if (pending) paintPending(pending); else paintForm();
 }
 
 // ---------------------------------------------------------------- the supplier sends an invoice: built from the order and the address on file
