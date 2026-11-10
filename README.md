@@ -21,7 +21,7 @@
 - NEAR itself limits the agent's key to two methods on one contract, with no money attached.
 - The poisoned-invoice attack runs live on chain, from your browser, every time someone presses the button.
 
-Built for the NEAR Hackathon (1–14 November 2026). Work in progress: this README lists only what is already built and proven, and says so where something is still to come.
+Built for the NEAR Hackathon (1–14 November 2026). This README lists only what is built and proven, and marks clearly where the design reaches further.
 
 ---
 
@@ -280,7 +280,7 @@ Telegram alerts and the signature relay watch the contracts listed in the alerts
 | OutLayer (NEAR's off-chain compute in a TEE): the reader as a WASI P2 component, a sealed project secret, an enclave-derived signing key, a payment key locked to the project, per-call attestations | `outlayer/`, `docs/console/outlayer.js`; `cleartopay-reader.testnet/reader` |
 | A Cloudflare Worker that watches the contracts over NEAR RPC and sends Telegram alerts | `workers/alerts/` |
 
-Still to come: the shared list of seized addresses, cross-chain payouts through NEAR Intents.
+**Built to extend.** Flagged addresses already learn from every SEIZED receipt on a contract; the same list can be shared across buyers, so an address one company caught warns the next. Payouts run on NEAR today; the registered-address rule is designed to carry over unchanged to cross-chain payouts through NEAR Intents, so the contract still pays only the route the supplier registered 72 hours earlier.
 
 ## If a supplier is hacked
 
