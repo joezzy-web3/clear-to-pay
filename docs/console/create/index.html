@@ -34,6 +34,10 @@ ul.rb li::before{content:"· ";color:var(--mute)} ul.rb li.ok::before{content:"�
 .facts2 span{color:var(--nmute);font:400 12.5px var(--mono);letter-spacing:.06em;text-transform:uppercase}
 .facts2 b{font-weight:600;text-align:right} .facts2 b.ok{color:#3DDC84} .facts2 b.wait{color:var(--signal)} .facts2 b.bad{color:#FF8A7A}
 @media (max-width:900px){.step{grid-template-columns:1fr}}
+@media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
+a.crumb{text-decoration:none;padding:6px 8px;border-radius:8px;white-space:nowrap}
+a.crumb:hover{color:var(--paper);background:#13284A}
+.clinks a[aria-current="page"]{color:var(--paper)}
 </style>
 <link rel="stylesheet" href="../polish.css">
 </head>
@@ -42,7 +46,7 @@ ul.rb li::before{content:"· ";color:var(--mute)} ul.rb li.ok::before{content:"�
 <header class="top gut"><div class="in">
   <nav class="nav">
     <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ Create your contract</a></span>
-    <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div>
+    <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/create/" data-page="create" aria-current="page">New contract</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div>
     <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
 
   </nav>
@@ -100,10 +104,10 @@ ul.rb li::before{content:"· ";color:var(--mute)} ul.rb li.ok::before{content:"�
 <div class="gut" style="background:var(--paper)"><footer class="in"><span><a class="fnear" href="https://near.org" target="_blank" rel="noopener"><img src="../../near.png" alt="" width="20" height="20">Built on NEAR</a> · Clear to Pay · built for the NEAR Hackathon · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></span><span>Testnet only. Qingmar Steel Co. is fictional.</span></footer></div>
 <div class="scrim" id="scrim"></div>
 
-<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/">Sign a delivery</a><a href="../../console/setup/">Buyer setup</a><a href="../../console/inbox/">Inbox</a><a href="../../ledger/">Live ledger</a><a href="../../integrate/">For agent builders</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><a href="../../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/">Sign a delivery</a><a href="../../console/setup/">Buyer setup</a><a href="../../console/create/" aria-current="page">Create your own contract</a><a href="../../console/inbox/">Inbox</a><a href="../../ledger/">Live ledger</a><a href="../../integrate/">For agent builders</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><a href="../../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
 
 <script type="module">
-import { $, esc, rpc, view, TX, walletFix, initMenu, isAccount } from "../chain.js";
+import { $, esc, rpc, view, TX, walletFix, initMenu, isAccount, USDC } from "../chain.js";
 import * as K from "../create.js";
 initMenu();
 const S = { me: null, wallet: null, selector: null, name: null };
@@ -112,6 +116,10 @@ const say = (id, text, cls = "") => { const e = $(id); e.textContent = text; e.c
 const on = (id, yes) => $(id).classList.toggle("off", !yes);
 const failed = (r) => { const o = Array.isArray(r) ? r[r.length - 1] : r; return !!(o && o.status && typeof o.status === "object" && "Failure" in o.status); };
 const PENDING = "ctp-create-pending";
+// The contract this browser created for each owner, so coming back to the page shows it again.
+const MINE = (me) => "ctp-created:" + me;
+const remember = (me, name) => { try { localStorage.setItem(MINE(me), name); } catch {} };
+const recall = (me) => { try { const n = localStorage.getItem(MINE(me)); return n && isAccount(n) && n.endsWith("." + K.FACTORY) ? n : null; } catch { return null; } };
 
 // The code this page expects is checked against our Live guard, and against what the factory says it installs, live from NEAR.
 (async () => {
@@ -133,7 +141,11 @@ async function paintName() {
   try {
     const [taken, mine] = await Promise.all([account(name), account(S.me)]);
     if (name !== `${$("label").value.trim()}.${K.FACTORY}`) return; // typed on meanwhile
-    if (taken) { say("st1", `${name} already exists. If it is yours from an earlier try, open it in Buyer setup below; otherwise choose another name.`, "bad"); $("next").href = "../setup/?contract=" + encodeURIComponent(name); on("s4", true); return; }
+    if (taken) {
+      let owner = null; try { owner = await view(name, "get_owner"); } catch {}
+      if (owner && owner === S.me) { await readBack(name); return; } // yours: show it, checked, with the next steps
+      say("st1", `${name} is taken. Choose another name.`, "bad"); return;
+    }
     const bal = BigInt(mine.amount);
     if (bal < NEED) { say("st1", `Your account needs about 3.7 NEAR free; it has ${(Number(bal / (ONE / 1000n)) / 1000).toFixed(3)}. Top it up and reload.`, "bad"); return; }
     S.name = name; $("create").disabled = false; say("st1", "The name is free. Your wallet will show one call to " + K.FACTORY + " with 3.6 NEAR attached.");
@@ -151,7 +163,12 @@ async function readBack(name) {
     let owner = null; try { owner = await view(name, "get_owner"); } catch {}
     const r = K.readBack({ acct, keys, owner, buyer: S.me });
     $("rb").innerHTML = [[r.code, "Runs exactly our Live guard's code"], [r.locked, "Has no access keys: locked"], [r.own, "Its owner is " + esc(S.me || "you")]].map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}">${t}</li>`).join("");
-    if (r.ok) { say("st1", name + " is created and checked.", "ok"); on("s3", true); $("reg").disabled = false; S.name = name; $("next").href = "../setup/?contract=" + encodeURIComponent(name); }
+    if (r.ok) {
+      say("st1", name + " is created and checked.", "ok"); on("s3", true); $("reg").disabled = false; S.name = name; $("next").href = "../setup/?contract=" + encodeURIComponent(name);
+      remember(S.me, name); $("create").disabled = true;
+      // Already registered with USDC (an earlier visit)? Then step 3 is done.
+      try { if (await view(USDC, "storage_balance_of", { account_id: name })) { say("st2", "Registered: your contract can hold testnet USDC.", "ok"); $("reg").disabled = true; on("s4", true); $("next").removeAttribute("aria-disabled"); } } catch {}
+    }
     else say("st1", acct ? "The contract exists but did not pass every check above. Do not use it; tell us on @cleartopay." : "The contract is not on NEAR. If your wallet showed an error, nothing was created.", "bad");
     return r.ok;
   } catch { say("st1", "NEAR did not answer. Reload the page in a moment to check again.", "bad"); return false; }
@@ -217,6 +234,8 @@ async function connectWallet(show) {
       S.me = a ? a.accountId : null; S.wallet = S.me ? walletFix(await S.selector.wallet()) : null;
       $("acct").textContent = S.me || "Not connected"; $("connect").hidden = !!S.me; $("disconnect").hidden = !S.me; on("s2", !!S.me);
       say("st0", "");
+      const mine = S.me && recall(S.me);
+      if (mine && !$("label").value.trim()) $("label").value = mine.slice(0, -(K.FACTORY.length + 1));
       paintName(); paintClaim();
     };
     S.selector.store.observable.subscribe(sync); await sync();
