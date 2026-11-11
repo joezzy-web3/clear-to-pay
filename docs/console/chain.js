@@ -144,8 +144,8 @@ export async function relayGet(net, id) {
   const r = await fetch(`${RELAY}/relay?net=${net}&id=${id}`, { cache: "no-store" }); return r.ok ? r.text() : null;
 }
 
-// ---------------------------------------------------------------- a company's own Clear to Pay contract (README: Run your own)
-// Kept in this browser, or opened once with ?contract=pay.acme.testnet. It joins CONTRACTS as "own", so every page
+// ---------------------------------------------------------------- a company's own Clear to Pay contract (made on the New contract page)
+// Kept in this browser, or opened once with ?contract=acme.factory.cleartopay.testnet; the New contract page sets it too. It joins CONTRACTS as "own", so every page
 // (Buyer setup, Inbox, Sign, ledger) works with it exactly as with ours. Only a contract that answers get_owner is accepted.
 const OWN = "ctp-own-contract";
 export function ownContract() {
@@ -162,8 +162,8 @@ export function ownSwitch(group, makeButton, words = {}) {
   group.appendChild(b);
   const form = document.createElement("div");
   form.className = "ownform"; form.hidden = true;
-  const label = words.label || "Your contract's address", note = words.note || "Deployed with the steps in the README (Run your own). It stays in this browser.";
-  form.innerHTML = `<label>${label}<input placeholder="pay.yourcompany.testnet" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label><button type="button">Use it</button><button type="button" class="x">Cancel</button><small>${note}</small><p class="err" hidden></p>`;
+  const label = words.label || "Your contract's address", note = words.note || 'No contract yet? <a href="' + new URL("create/", SITE).pathname + '">Create one</a> in two wallet approvals, no developer. The address stays in this browser.';
+  form.innerHTML = `<label>${label}<input placeholder="yourcompany.factory.cleartopay.testnet" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label><button type="button">Use it</button><button type="button" class="x">Cancel</button><small>${note}</small><p class="err" hidden></p>`;
   group.insertAdjacentElement("afterend", form);
   const [inp] = form.getElementsByTagName("input"), [use, cancel] = form.getElementsByTagName("button"), err = form.querySelector(".err");
   if (CONTRACTS.own) inp.value = CONTRACTS.own;

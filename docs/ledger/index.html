@@ -902,7 +902,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     return refresh();
   }
 
-  // a company's own Clear to Pay contract (README: Run your own): ?contract=pay.acme.testnet, remembered like the Console does
+  // a company's own Clear to Pay contract (made on the New contract page): ?contract=acme.factory.cleartopay.testnet, remembered like the Console does
   const OWN = (() => { const ok = (v) => typeof v === "string" && /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(v) && v.length <= 64;
     try { const q = new URLSearchParams(location.search).get("contract"); if (ok(q) && !["guard.cleartopay.testnet", "judge.cleartopay.testnet", "cleartopay.testnet"].includes(q)) localStorage.setItem("ctp-own-contract", q); } catch {}
     try { const v = localStorage.getItem("ctp-own-contract"); return ok(v) ? v : null; } catch { return null; } })();

@@ -133,7 +133,9 @@ const failed = (r) => { const o = Array.isArray(r) ? r[r.length - 1] : r; return
 const PENDING = "ctp-create-pending";
 // The contract this browser created for each owner, so coming back to the page shows it again.
 const MINE = (me) => "ctp-created:" + me;
-const remember = (me, name) => { try { localStorage.setItem(MINE(me), name); } catch {} };
+// Also the address every Console page uses for "Your own contract" (chain.js ownContract), so Buyer setup, the Inbox
+// and the ledger open it with no typing.
+const remember = (me, name) => { try { localStorage.setItem(MINE(me), name); localStorage.setItem("ctp-own-contract", name); } catch {} };
 const recall = (me) => { try { const n = localStorage.getItem(MINE(me)); return n && isAccount(n) && n.endsWith("." + K.FACTORY) ? n : null; } catch { return null; } };
 
 // The code this page expects is checked against our Live guard, and against what the factory says it installs, live from NEAR.
