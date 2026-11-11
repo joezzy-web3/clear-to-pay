@@ -32,6 +32,14 @@ jobs:
       - name: Signing tool tests
         working-directory: tools/ctp-sign
         run: cargo test && cargo clippy --all-targets -- -D warnings
+      - name: Factory format, lint and tests
+        working-directory: factory
+        run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      - name: Factory compiles for NEAR (wasm)
+        working-directory: factory
+        run: cargo build --lib --target wasm32-unknown-unknown --release
+        env:
+          RUSTFLAGS: "--cfg near"
 
   reader:
     runs-on: ubuntu-latest
@@ -56,7 +64,7 @@ jobs:
         with:
           tool: cargo-audit
       - name: Known vulnerabilities in dependencies
-        run: cargo audit && (cd tools/ctp-sign && cargo audit)
+        run: cargo audit && (cd tools/ctp-sign && cargo audit) && (cd factory && cargo audit)
 
   secrets:
     runs-on: ubuntu-latest

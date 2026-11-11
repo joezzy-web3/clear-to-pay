@@ -107,6 +107,8 @@ export function walletFix(w) {
     if (a.type === "FunctionCall") return { functionCall: { methodName: p.methodName, args: new TextEncoder().encode(JSON.stringify(p.args)), gas: BigInt(p.gas), deposit: BigInt(p.deposit) } };
     if (a.type === "Transfer") return { transfer: { deposit: BigInt(p.deposit) } };
     if (a.type === "DeleteKey") return { deleteKey: { publicKey: { toString: () => p.publicKey } } };
+    if (a.type === "CreateAccount") return { createAccount: {} };
+    if (a.type === "DeployContract") return { deployContract: { code: p.code } };
     return a;
   };
   return new Proxy(w, { get(t, k) {

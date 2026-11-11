@@ -29,6 +29,9 @@ jobs:
       - name: Build the test token wasm
         working-directory: sandbox/token
         run: cargo near build non-reproducible-wasm --no-abi
+      - name: Build the factory wasm (embeds factory/res/clear_to_pay.wasm)
+        working-directory: factory
+        run: cargo near build non-reproducible-wasm
       - name: Build the signing tool
         run: cargo build --manifest-path tools/ctp-sign/Cargo.toml
       - name: End to end on near-sandbox
