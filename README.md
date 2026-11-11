@@ -30,7 +30,7 @@ Most agent guards check *who* gets paid and *how much*. Clear to Pay also checks
 **Invariant:** only the NEAR contract authorises payment, and it pays only the supplier's registered address, after the order check and a delivery signed by two different roles.
 **Try it:** [Judge mode](https://clear-to-pay.vercel.app/console/), no wallet, no install.
 **Proof:** [first real payment, settled on testnet](https://testnet.nearblocks.io/txns/23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn) · [a fooled agent's submit, SEIZED](https://testnet.nearblocks.io/txns/8HgbsoAvr39cQJnwMnU2eL4ejVpLTmBjhqjmu6o4ufHY) · 127 contract tests, 253 reader tests ([how to run them](#try-it))
-**Status:** running on NEAR testnet, with eight security reviews behind it; a professional audit comes before mainnet.
+**Status:** running on NEAR testnet, with nine security reviews behind it; a professional audit comes before mainnet.
 
 **Why it holds**
 - The AI can be fooled; the payment rules cannot. The contract never asks the document, the AI or the agent where to pay. That is [why the AI is never in charge](#why-the-ai-is-never-in-charge): whatever happens to it, no payment rule depends on it.
@@ -94,7 +94,8 @@ The browser and worker code has its own checks: `cd tools/console-crypto && npm 
 cargo test                        # 127 contract tests, incl. 4 property tests (~2,300 random cases)
 (cd tools/ctp-sign && cargo test) # 5 signing-tool tests, incl. golden vectors shared with the contract
 (cd reader && python3 -m pytest -q) # 253 reader tests, incl. the 19-invoice attack corpus
-(see sandbox/README.md)          # 7 end-to-end tests on a local NEAR node: real wasm, real token, real callbacks, and the wizard's one-transaction batch
+(cd factory && cargo test)        # 12 factory tests: the exact guard code, the keyless batch, refunds paid or owed, reserved names
+(see sandbox/README.md)          # 11 end-to-end tests on a local NEAR node: real wasm, real token, real callbacks, the wizard's one-transaction batch, and the factory
 (cd tools/console-crypto && npm ci && npm test) # 7 groups (golden digests, ctp-sign parity, tx bytes, enclave signature, key files, integer widths, NEP-413) + the New order wizard + the invoice flow (built from the order, the AI reading compared with what the supplier signed, the exact submit call) + the OutLayer proof files + Receive on another chain
 (cd workers/alerts && npm ci && npm test)       # alert rules (9 groups), the worker end to end, the signature relay
 scripts/attack-demo.sh            # a poisoned invoice, a fooled agent, and every "no", logged
@@ -134,6 +135,7 @@ The NEAR AI key cannot live in a web page, so until 7 November live AI readings 
 - **Splitting an invoice to dodge the limit fails.** *Where:* `inspection.rs`. *Proof:* Test `attack_splitting_invoices_to_dodge_the_limit_hits_the_period_limit`.
 - **Payments only move through legal states; nothing is paid twice.** *Where:* `payments.rs` (`set_status`). *Proof:* Tests `a_settled_payment_can_never_be_paid_again`, `a_callback_cannot_settle_the_same_payment_twice`.
 - **The operator has no backdoor: no function sends tokens anywhere but the registered supplier or back to the buyer (recovery of a lost transfer result is covered separately below).** *Where:* `payments.rs` (`withdraw` pays the owner only, never reserved funds). *Proof:* Tests `withdraw_only_pays_the_owner_and_never_touches_reserved_money`, `withdraw_cannot_take_reserved_money`.
+- **A company's own contract is locked from birth, runs exactly our guard's code, and belongs to whoever created it.** *Where:* `factory/src/lib.rs` (one batch, no `AddKey`, owner = caller), `docs/console/create.js` (pinned code hash, read-back). *Proof:* Unit tests `create_builds_one_keyless_batch_then_the_callback`, `owner_is_always_the_caller`, `embedded_code_is_the_deployed_guard`; on a local NEAR node, `buyer_creates_a_locked_contract_they_own` (code byte for byte, no keys, a stranger cannot pause it), `a_taken_name_refunds_the_buyer_in_full`; testnet: `joezzytest.factory.cleartopay.testnet`, code `9b998038…a2d1`, no access keys.
 - **The agent key cannot attach money or call owner actions.** *Where:* NEAR access-key rules + 1-yocto owner methods. *Proof:* Key permissions on chain, tx `2GQ6or4U…` (the v1 key, `8HpViCur…`, was deleted: tx `2i74Uq7P…`); refused attempts are reproducible (see proof log).
 - **The money rules hold for random inputs, not just chosen cases.** *Where:* `src/property_tests.rs` (proptest). *Proof:* 300 random sequences of up to 40 actions (deposit, submit, pay, fail, cancel, retry, resolve, withdraw, wait), checked after every step: a payee not on file never clears; available + reserved + withdrawals in flight always equal the tokens held (the model assumes tokens arrive only through `ft_transfer_call` deposits; tokens sent with a plain `ft_transfer` are not on the books, see Limitations); no invoice is paid twice; nothing clears beyond delivery or order. Plus 1,000 random edits to a signed invoice, its fingerprint or its signature: none clears. Checked against deliberately broken builds, reproducibly: `scripts/mutation-check.sh` removes the payee check, the refund on a failed transfer, and the two-role delivery rule, one at a time in a throwaway copy, and requires a property test to fail each time (3 of 3 caught).
 - **Hidden text in an invoice does not reach the AI, for the tricks in the corpus.** *Where:* `reader/` (intake, normalize). *Proof:* 19-invoice attack corpus in `reader/corpus/`: white, tiny, invisible, off-page, low-contrast and fully or partly painted-over text that mentions payment is dropped and the invoice HELD; zero-width, right-to-left and lookalike-letter tricks HELD; every case decided before any model call. Not covered yet: clipping paths, transparency, text over photos (`reader/README.md`). Tests in `reader/tests/`.
@@ -244,7 +246,7 @@ The rule is the same everywhere: whoever benefits from saying "delivered" is nev
 
 **Flagged addresses (7 Nov):** every invoice SEIZED for `payee_mismatch` records the address it asked to be paid to. The Console reads those receipts from the live and the demo contract and warns, with the receipts, when such an address is typed as a new supplier's payout account or proposed as an address change (the Inbox asks twice before approving it); the ledger lists them. A warning, never a block: anyone can name any address in a fake invoice, so an honest supplier's address could be named on purpose. `docs/console/flags.js`.
 
-**Done since the first plan:** address changes are approved or cancelled in the browser (Inbox); a supplier can prove control of its payout account with its own wallet (NEP-413) when it registers; and [Inspect an invoice](https://clear-to-pay.vercel.app/inspect/) walks five attacks through every check, no wallet.
+**Done since the first plan:** a company creates its own locked contract from the browser in two wallet approvals, no developer ([Run your own](#run-your-own)); address changes are approved or cancelled in the browser (Inbox); a supplier can prove control of its payout account with its own wallet (NEP-413) when it registers; and [Inspect an invoice](https://clear-to-pay.vercel.app/inspect/) walks five attacks through every check, no wallet.
 
 **The AI's reading goes on chain with the payment.** When the buyer submits from the Inbox after the AI check, the attested reading rides along in the same `submit_invoice` transaction (`ai_reading`). The contract ignores it on purpose (it decides on the signed objects only), but the transaction keeps it on chain for good, so anyone can re-check it from the transaction alone: `node tools/console-crypto/recheck.mjs <tx-hash> <buyer-account>` verifies the enclave's signature, that it is a reading of the signed document, NEAR AI's signature and OutLayer's attestation, then compares it with what the supplier signed.
 
@@ -256,14 +258,37 @@ Each of these extends something that already works today:
 - **One flagged list for every buyer on NEAR.** Every seized invoice already flags its address for every buyer of the same deployment (Buyer setup, the Inbox and the ledger warn before anyone approves it). Next, a shared on-chain list, so every Clear to Pay contract on NEAR learns from every seizure: the network gets safer with each attack it stops.
 - **Hardware-backed signer keys for large deployments.** Signer keys are already made on the phone and never leave it, with no wallet needed, which is what keeps signing to one tap. For companies that want more, the same keys can live in a passkey or the phone's secure chip.
 - **Automatic payouts on any chain through NEAR Intents (mainnet).** Suppliers can already receive on another chain with one approval ([above](#receive-on-another-chain)). Next, a cleared invoice pays out on the supplier's chain of choice with no extra step: the contract sends the payout into NEAR Intents, to an account whose owner-signed rules allow withdrawal only to the supplier's own address.
-- **Launching a guard from the browser.** A company already runs its own contract: a developer deploys it with four commands ([Run your own](#run-your-own)) and everything after that is done in the browser. Next, a factory contract turns the deploy into one wallet approval, so no developer is needed at all.
 - **Supplier key rotation in one step.** Replacing a stolen key works today in two steps ([If a supplier is hacked](#if-a-supplier-is-hacked)); next, one buyer-approved key change.
 
 ## Run your own
 
-Each company runs its **own** Clear to Pay contract, and the contract's owner is that company's buyer. No company can ever touch another's money, rules or suppliers. Our two contracts (Live and Demo) are ours; a judge can attack the Demo one in [Judge mode](https://clear-to-pay.vercel.app/console/#judge) with no wallet, and anyone can deploy their own:
+Each company runs its **own** Clear to Pay contract, and the contract's owner is that company's buyer. No company can ever touch another's money, rules or suppliers. Our two contracts (Live and Demo) are ours; a judge can attack the Demo one in [Judge mode](https://clear-to-pay.vercel.app/console/#judge) with no wallet.
 
-**1. A developer deploys it once** (NEAR CLI and `cargo near`; replace `acme.testnet` with the company's account, which becomes the buyer):
+**1. Create it in the browser: two wallet approvals, no developer.** Open [New contract](https://clear-to-pay.vercel.app/console/create/), connect the wallet that will own it (the buyer), and choose a name, for example `acme`:
+
+- **Approval 1, one ordinary call to our factory with 3.6 NEAR attached.** In one all-or-nothing step, the factory creates `acme.factory.cleartopay.testnet`, puts the 3.6 NEAR on it (that is what its code costs to store; it stays on the contract, it is not a fee), installs **exactly** the code our Live guard runs, and makes you its owner. It adds **no access key**: the contract is locked from birth. If anything fails (say someone took the name a second earlier), nothing is created and the 3.6 NEAR comes back.
+- **The page never takes the factory's word for it.** Before the wallet opens, it checks that the factory installs the pinned code (sha-256 `9b998038…a2d1`, the same as `guard.cleartopay.testnet`). After, it reads the new contract back from NEAR itself: that code, no keys, you as owner. The page warns as you type if a name is already taken.
+- **Approval 2: register it with testnet USDC** (0.00125 NEAR), so it can hold your payment pool.
+
+Live: [`joezzytest.factory.cleartopay.testnet`](https://testnet.nearblocks.io/address/joezzytest.factory.cleartopay.testnet), created this way from Meteor on 11 November 2026: NEAR reports its code as `9b998038…a2d1` and "Account is locked (no access keys)".
+
+**2. Do the rest in the browser**, with no terminal: the last step opens [Buyer setup with your contract](https://clear-to-pay.vercel.app/console/setup/?contract=acme.factory.cleartopay.testnet) (the `?contract=` part puts **Your own contract** next to Demo and Live; it is remembered in that browser, and the page only accepts an address that answers as a Clear to Pay contract). Allow USDC (Advanced), create the first order with the wizard (supplier, items, delivery signers, limits, one signature) and top up the pool. Every link it sends (supplier, signers, delivery notes) carries the contract, so the Supplier and Sign pages, the Inbox and the [ledger](https://clear-to-pay.vercel.app/ledger/?contract=acme.factory.cleartopay.testnet) all work with it.
+
+**Locked means locked, for us too.** Nobody, not the buyer, not us, not the factory, can change the contract's code or move its money outside its rules: it pays registered suppliers, and `withdraw` pays only the owner. Two consequences, stated plainly:
+- **No rescue.** If the owner loses access to their account, unreserved money in the pool stays there; payments already authorised still go to suppliers. So:
+  - **Open the owner account in a second wallet** (a second key on the same account, on another device, or a Ledger kept somewhere safe) before you top up. That covers a lost phone or laptop. It does not cover a stolen key: anyone holding a key of the owner account is the owner.
+  - **Keep the owner key on a hardware wallet** (Ledger, supported by Meteor and MyNearWallet). The AI agent's key is separate and can never move money, even if the agent is fully compromised; only the owner's key needs this care.
+  - **Keep the pool lean**: top up for the payments coming, not for months.
+  - For larger companies, the owner can be a multisig account, so one stolen key does nothing.
+- **No upgrades.** A future version means creating a new contract and moving the pool with `withdraw`.
+
+**Storage.** The contract keeps about 0.27 NEAR spare for its records, and stops taking new invoices before it runs short (it always keeps enough to record cancellations, withdrawals and payouts). Even locked, it can receive NEAR: top it up with an ordinary transfer from any wallet.
+
+**Who holds the factory's key: we do.** `factory.cleartopay.testnet` keeps one full-access key, ours. It **cannot touch any contract already created** (they have no keys and fixed code). If it were ever stolen and the factory swapped, the New contract page would refuse before your wallet opens, because the factory would no longer report the pinned code, and every new contract is read back from NEAR anyway. Refunds the factory cannot pay at once are recorded and claimed with **Claim my refund** on the same page (`claim_refund`). Code: [`factory/`](factory/src/lib.rs); 12 unit tests and 4 on a local NEAR node.
+
+<details><summary>Prefer the terminal? Deploy it yourself (the developer route)</summary>
+
+NEAR CLI and `cargo near`; replace `acme.testnet` with the company's account, which becomes the buyer. Unlike the factory route, the contract account keeps its full-access key until you delete it.
 ```bash
 git clone https://github.com/joezzy-web3/clear-to-pay && cd clear-to-pay
 cargo near build non-reproducible-wasm
@@ -275,8 +300,7 @@ near contract call-function as-transaction 3e2210e1184b45b64c8a434c0a7e7b23cc04e
   json-args '{"account_id":"pay.acme.testnet"}' prepaid-gas '30.0 Tgas' attached-deposit '0.00125 NEAR' \
   sign-as acme.testnet network-config testnet sign-with-legacy-keychain send   # so the contract can hold testnet USDC
 ```
-
-**2. The company does the rest in the browser**, with no terminal: open [Buyer setup with its contract](https://clear-to-pay.vercel.app/console/setup/?contract=pay.acme.testnet) (the `?contract=` part puts **Your own contract** next to Demo and Live; it is remembered in that browser, and the page only accepts an address that answers as a Clear to Pay contract), connect the `acme.testnet` wallet, allow USDC (Advanced), create the first order with the wizard (supplier, items, delivery signers, limits, one signature) and top up the pool. Every link it sends (supplier, signers, delivery notes) carries the contract, so the Supplier and Sign pages, the Inbox and the [ledger](https://clear-to-pay.vercel.app/ledger/?contract=pay.acme.testnet) all work with it.
+</details>
 
 Telegram alerts and the signature relay watch the contracts listed in the alerts worker (ours); a company that wants them adds its contract to `CONTRACTS` in `workers/alerts/wrangler.toml` and deploys its own worker. Without them, signatures travel by link and QR code.
 
@@ -291,6 +315,7 @@ Telegram alerts and the signature relay watch the contracts listed in the alerts
 | NEAR Wallet Selector 10.1.4 (MyNearWallet, Meteor): the buyer signs in the browser; the page holds no key | `docs/console/wallet.js`, `docs/console/setup/` |
 | NEAR Intents through the 1Click API: a supplier who has been paid moves the money to another chain with one approval in its own wallet (`storage_deposit` + `ft_transfer` to a fresh implicit account, in one transaction). NEAR Intents runs only on mainnet, so on testnet it runs on Tidepool, which deploys NEAR's own Intents contract unmodified (`defuse` v0.4.5) | `docs/console/receive-as.js`, `docs/console/sign/`; [Base Sepolia payout](https://sepolia.basescan.org/tx/0x740a9409435f23432ca17815a2a113c0f29725144ca7eff4e6f18c0eb17b36c0) |
 | Batched transactions: a whole order (up to five owner calls) in one signed transaction, all or nothing | `docs/console/setup/order.js`; sandbox test |
+| A factory contract: one ordinary call creates a sub-account, funds its storage, deploys the guard code embedded in the factory and runs `new`, as one all-or-nothing batch, with no access key added (a locked account); a callback refunds the caller if the batch fails, or records the refund as owed | `factory/`, `docs/console/create/`; `sandbox/tests/factory.rs`; [`joezzytest.factory.cleartopay.testnet`](https://testnet.nearblocks.io/address/joezzytest.factory.cleartopay.testnet) |
 | NEP-413 signed messages: a supplier proves it controls its payout account; checked in the browser, including that the key is a full-access key of that account (`view_access_key`) | `tools/console-crypto`, `docs/console/sign/`, `docs/console/setup/order.js` |
 | NEAR RPC straight from static pages (no server): the ledger, Judge mode, Console and Inbox read the contracts directly, with a second server as fallback | `docs/` |
 | NEAR RPC `view_access_key`: the MCP server checks the agent key's fence on chain before every send | `reader/ctp_reader/mcp_server.py` |
@@ -449,12 +474,25 @@ The same external reviewer read patches 69 to 79: the one-signature order wizard
 - **CTP8-10 (Low): "this signature proves which code read your invoice" claimed more than the browser checks.** **Fixed:** the page now says the enclave signed the reading and OutLayer's attestation names the code; Intel's quote and the worker's registration are OutLayer's checks, not the browser's.
 - **CTP8-11 (Low): the OutLayer build did not run on pushes to main.** **Fixed.**
 
+### Ninth review (11 November 2026, independent)
+
+An independent reviewer, who had not seen the code being written, read the factory contract, its tests and the New contract page adversarially. No way found to drain the factory or to reach a contract it created. Findings, fixed the same day:
+
+- **CTP9-01 (Medium): a refund could be stranded.** When a create fails, NEAR returns the deposit to the factory in a separate receipt that may arrive after the callback; with several failures at once, the factory could lack the cash to refund at that moment. **Fixed:** the callback refunds at once when the factory can pay, and otherwise records the refund as owed; the caller takes it with `claim_refund` (only their own, only once). Tests `a_refund_the_factory_cannot_pay_yet_is_owed_not_lost`, `nobody_else_can_claim_a_refund`.
+- **CTP9-02 (Medium): the page could report a refund that failed.** NEAR keeps the logs of a failed receipt. **Fixed:** only events from the factory's receipts that succeeded count; an owed refund shows **Claim my refund**.
+- **CTP9-03 (Low): the transaction could carry a different name from the one checked**, if the name was edited in the last moment. **Fixed:** it is built from the checked name.
+- **CTP9-04 (Low): a new account may not be final the moment the wallet returns.** **Fixed:** the read-back looks again for a few seconds before saying the contract is not there; it never reports success early.
+- **CTP9-05 (Low): official-looking names.** **Fixed:** `guard`, `cleartopay`, `support`, `official` and a few others are refused by the factory and the page.
+- **CTP9-06 (Low): a success result longer than 64 bytes would count as a failure.** **Fixed:** the limit is 1 KB; the guard's `new` returns nothing.
+- **CTP9-07: sandbox balance checks could read before refunds landed.** **Fixed:** they wait a few blocks first.
+
 ## Security notes
 
 - Owner actions require exactly 1 yoctoNEAR, so a function-call key can never call them.
 - CI runs formatting, strict lints, all tests, a wasm build, `cargo audit` and a secret scan over the full history on every push. Four advisories in host-side test tooling are documented exceptions in `.cargo/audit.toml`; none is in the deployed contract.
 - Keys made by `ctp-sign` live in `~/.config/clear-to-pay/keys`, outside the repository.
 - Supplier and delivery signers must hold different keys; each delivery signer holds exactly one role.
+- **Contracts created by the factory have no access key at all**, so nobody can deploy new code to them; the factory itself keeps our key (see [Run your own](#run-your-own)).
 - **Upgrades:** made in place only when no transfer or withdrawal is in flight (`scripts/upgrade-in-place.sh` checks `get_in_flight` first). The account that owns the contract can deploy new code, as on any NEAR account with a full-access key. This is the one power above the rules described here, and it is disclosed rather than hidden; the plan is in the first review's last item above.
 
 ## Timeline
