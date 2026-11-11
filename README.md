@@ -93,7 +93,7 @@ cargo test                        # 127 contract tests, incl. 4 property tests (
 (cd tools/ctp-sign && cargo test) # 5 signing-tool tests, incl. golden vectors shared with the contract
 (cd reader && python3 -m pytest -q) # 253 reader tests, incl. the 19-invoice attack corpus
 (see sandbox/README.md)          # 7 end-to-end tests on a local NEAR node: real wasm, real token, real callbacks, and the wizard's one-transaction batch
-(cd tools/console-crypto && npm ci && npm test) # 7 groups (golden digests, ctp-sign parity, tx bytes, enclave signature, key files, integer widths, NEP-413) + the New order wizard + the invoice flow (built from the order, the AI reading compared with what the supplier signed, the exact submit call)
+(cd tools/console-crypto && npm ci && npm test) # 7 groups (golden digests, ctp-sign parity, tx bytes, enclave signature, key files, integer widths, NEP-413) + the New order wizard + the invoice flow (built from the order, the AI reading compared with what the supplier signed, the exact submit call) + the OutLayer proof files + Receive on another chain
 (cd workers/alerts && npm ci && npm test)       # alert rules (9 groups), the worker end to end, the signature relay
 scripts/attack-demo.sh            # a poisoned invoice, a fooled agent, and every "no", logged
 scripts/baseline.sh               # the same attacks against two allowlist guards and against Clear to Pay
@@ -286,10 +286,10 @@ Telegram alerts and the signature relay watch the contracts listed in the alerts
 | Function-call access keys (the agent's fence; Judge mode publishes one fenced to its own demo contract) | `buyer.cleartopay.testnet`, `judge-buyer.cleartopay.testnet`; proof log |
 | NEP-141 token payments (Circle USDC on testnet) with `ft_transfer_call` deposits and checked callbacks | `src/payments.rs` |
 | NEP-297 events for every decision | `emit()` in `src/lib.rs` |
-| NEAR Wallet Selector 10.1.4 (MyNearWallet, Meteor): the buyer signs in the browser; the page holds no key | `docs/console/wallet.js`, `setup/` |
+| NEAR Wallet Selector 10.1.4 (MyNearWallet, Meteor): the buyer signs in the browser; the page holds no key | `docs/console/wallet.js`, `docs/console/setup/` |
 | NEAR Intents through the 1Click API: a supplier who has been paid moves the money to another chain with one approval in its own wallet (`storage_deposit` + `ft_transfer` to a fresh implicit account, in one transaction). NEAR Intents runs only on mainnet, so on testnet it runs on Tidepool, which deploys NEAR's own Intents contract unmodified (`defuse` v0.4.5) | `docs/console/receive-as.js`, `docs/console/sign/`; [Base Sepolia payout](https://sepolia.basescan.org/tx/0x740a9409435f23432ca17815a2a113c0f29725144ca7eff4e6f18c0eb17b36c0) |
 | Batched transactions: a whole order (up to five owner calls) in one signed transaction, all or nothing | `docs/console/setup/order.js`; sandbox test |
-| NEP-413 signed messages: a supplier proves it controls its payout account; checked in the browser, including that the key is a full-access key of that account (`view_access_key`) | `tools/console-crypto`, `docs/console/sign/`, `setup/order.js` |
+| NEP-413 signed messages: a supplier proves it controls its payout account; checked in the browser, including that the key is a full-access key of that account (`view_access_key`) | `tools/console-crypto`, `docs/console/sign/`, `docs/console/setup/order.js` |
 | NEAR RPC straight from static pages (no server): the ledger, Judge mode, Console and Inbox read the contracts directly, with a second server as fallback | `docs/` |
 | NEAR RPC `view_access_key`: the MCP server checks the agent key's fence on chain before every send | `reader/ctp_reader/mcp_server.py` |
 | NEAR AI Cloud: a private model in a TEE, each answer's signature and attestation checked, verified down to Intel and NVIDIA on every reading | `reader/ctp_reader/model.py`, `hardware.py`; proof log |
