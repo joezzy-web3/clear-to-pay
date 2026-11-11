@@ -287,6 +287,7 @@ Telegram alerts and the signature relay watch the contracts listed in the alerts
 | NEP-141 token payments (Circle USDC on testnet) with `ft_transfer_call` deposits and checked callbacks | `src/payments.rs` |
 | NEP-297 events for every decision | `emit()` in `src/lib.rs` |
 | NEAR Wallet Selector 10.1.4 (MyNearWallet, Meteor): the buyer signs in the browser; the page holds no key | `docs/console/wallet.js`, `setup/` |
+| NEAR Intents through the 1Click API: a supplier who has been paid moves the money to another chain with one approval in its own wallet (`storage_deposit` + `ft_transfer` to a fresh implicit account, in one transaction). NEAR Intents runs only on mainnet, so on testnet it runs on Tidepool, which deploys NEAR's own Intents contract unmodified (`defuse` v0.4.5) | `docs/console/receive-as.js`, `docs/console/sign/`; [Base Sepolia payout](https://sepolia.basescan.org/tx/0x740a9409435f23432ca17815a2a113c0f29725144ca7eff4e6f18c0eb17b36c0) |
 | Batched transactions: a whole order (up to five owner calls) in one signed transaction, all or nothing | `docs/console/setup/order.js`; sandbox test |
 | NEP-413 signed messages: a supplier proves it controls its payout account; checked in the browser, including that the key is a full-access key of that account (`view_access_key`) | `tools/console-crypto`, `docs/console/sign/`, `setup/order.js` |
 | NEAR RPC straight from static pages (no server): the ledger, Judge mode, Console and Inbox read the contracts directly, with a second server as fallback | `docs/` |
