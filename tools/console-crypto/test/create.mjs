@@ -66,4 +66,13 @@ assert.equal(C.readBack({ ...good, owner: "evil.testnet" }).own, false);
 assert.equal(C.readBack({ ...good, owner: null, buyer: null }).ok, false);
 assert.equal(C.readBack({ acct: null, keys: null, owner: null, buyer: "acme.testnet" }).ok, false);
 
+// every server must agree: one lying server is not enough
+const bad = { ...good, acct: { code_hash: "11111111111111111111111111111111" } };
+assert.equal(C.readBackAll([good, good]).ok, true);
+assert.equal(C.readBackAll([good, bad]).ok, false);
+assert.equal(C.readBackAll([bad, good]).code, false);
+assert.equal(C.readBackAll([good, { ...good, keys: { keys: [{ public_key: "ed25519:x" }] } }]).locked, false);
+assert.equal(C.readBackAll([good]).ok, false, "one server alone is not enough");
+assert.equal(C.readBackAll(null).ok, false);
+
 console.log("create: names, factory check, the one create call, the factory's verdict, USDC registration and read-back all hold");

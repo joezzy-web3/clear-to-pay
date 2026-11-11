@@ -41,6 +41,54 @@ jobs:
         env:
           RUSTFLAGS: "--cfg near"
 
+  # The factory deploys factory/res/clear_to_pay.wasm into every buyer's locked contract, so
+  # that binary must be exactly the guard built from src/, exactly the code live on testnet,
+  # and exactly the hash pinned in the factory and on the New contract page. The guard was
+  # built with cargo-near 0.22.0 and CARGO_HOME=/home/userjoezzy/.cargo (the only machine
+  # paths inside the wasm are the crate registry's), so CI builds it the same way.
+  guard-binary:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_HOME: /home/userjoezzy/.cargo
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Same cargo home as the machine that built the deployed guard
+        run: |
+          sudo mkdir -p /home/userjoezzy && sudo chown "$USER" /home/userjoezzy
+          cp -r "$HOME/.cargo" "$CARGO_HOME"
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: System libraries cargo-near needs (libudev for its Ledger support)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libudev-dev pkg-config
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: cargo-near@0.22.0
+      - name: Build the guard from src/
+        run: cargo near build non-reproducible-wasm
+      - name: Built = embedded = pinned in the factory = pinned on the page = live on testnet
+        run: |
+          built=$(sha256sum target/near/clear_to_pay.wasm | cut -d' ' -f1)
+          embedded=$(sha256sum factory/res/clear_to_pay.wasm | cut -d' ' -f1)
+          factory_pin=$(grep -A1 'pub const GUARD_CODE_SHA256' factory/src/lib.rs | grep -oE '[0-9a-f]{64}')
+          page_pin=$(grep -oE 'CODE_SHA256 = "[0-9a-f]{64}"' docs/console/create.js | grep -oE '[0-9a-f]{64}')
+          live=$(curl -sS https://rpc.testnet.near.org -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":"ci","method":"query","params":{"request_type":"view_account","finality":"final","account_id":"guard.cleartopay.testnet"}}' \
+            | python3 scripts/b58hex.py)
+          printf 'built from src/   %s\nembedded          %s\nfactory pin       %s\npage pin          %s\nlive on testnet   %s\n' "$built" "$embedded" "$factory_pin" "$page_pin" "$live"
+          test -n "$built" && [ "$built" = "$embedded" ] && [ "$built" = "$factory_pin" ] && [ "$built" = "$page_pin" ] && [ "$built" = "$live" ]
+
+  console:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Browser code tests (crypto, wizard, invoice flow, OutLayer proofs, receive, create)
+        working-directory: tools/console-crypto
+        run: npm ci && npm test
+      - name: Alerts worker and signature relay tests
+        working-directory: workers/alerts
+        run: npm ci && npm test
+
   reader:
     runs-on: ubuntu-latest
     defaults:
@@ -63,8 +111,18 @@ jobs:
       - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
         with:
           tool: cargo-audit
+      - name: Toolchain from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Known vulnerabilities in dependencies
         run: cargo audit && (cd tools/ctp-sign && cargo audit) && (cd factory && cargo audit)
+      - name: The ignored advisory's crate is not in any deployed wasm
+        run: |
+          for d in . factory; do
+            if (cd "$d" && cargo tree -e normal -i crypto-bigint --target wasm32-unknown-unknown 2>/dev/null | grep -q crypto-bigint); then
+              echo "crypto-bigint is in the deployed wasm of $d: the audit exception no longer holds"; exit 1
+            fi
+          done
+          echo "crypto-bigint: not in the guard's or the factory's wasm"
 
   secrets:
     runs-on: ubuntu-latest

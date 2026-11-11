@@ -86,6 +86,15 @@ export function registerTx(name) {
   return { receiverId: USDC, actions: [{ type: "FunctionCall", params: { methodName: "storage_deposit", args: { account_id: name, registration_only: true }, gas: TGAS_30, deposit: "1250000000000000000000" } }] };
 }
 
+/** The same read-back from every NEAR server we use: ready only if each one, on its own, says code, locked and owner.
+ *  One server that lies (or is hijacked) cannot make the page say "created and checked". */
+export function readBackAll(reads) {
+  if (!Array.isArray(reads) || reads.length < 2) return { code: false, locked: false, own: false, ok: false, servers: 0 };
+  const rs = reads.map(readBack);
+  const all = (k) => rs.every((r) => r[k]);
+  return { code: all("code"), locked: all("locked"), own: all("own"), ok: all("ok"), servers: rs.length };
+}
+
 /** Read back from NEAR: the account must now exist, run exactly our code, have no access keys, and name the buyer
  *  as owner. `acct` is RPC view_account, `keys` is view_access_key_list, `owner` is get_owner. */
 export function readBack({ acct, keys, owner, buyer }) {

@@ -30,7 +30,7 @@ Most agent guards check *who* gets paid and *how much*. Clear to Pay also checks
 **Invariant:** only the NEAR contract authorises payment, and it pays only the supplier's registered address, after the order check and a delivery signed by two different roles.
 **Try it:** [Judge mode](https://clear-to-pay.vercel.app/console/), no wallet, no install.
 **Proof:** [first real payment, settled on testnet](https://testnet.nearblocks.io/txns/23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn) · [a fooled agent's submit, SEIZED](https://testnet.nearblocks.io/txns/8HgbsoAvr39cQJnwMnU2eL4ejVpLTmBjhqjmu6o4ufHY) · 127 contract tests, 253 reader tests ([how to run them](#try-it))
-**Status:** running on NEAR testnet, with nine security reviews behind it; a professional audit comes before mainnet.
+**Status:** running on NEAR testnet, with ten security reviews behind it; a professional audit comes before mainnet.
 
 **Why it holds**
 - The AI can be fooled; the payment rules cannot. The contract never asks the document, the AI or the agent where to pay. That is [why the AI is never in charge](#why-the-ai-is-never-in-charge): whatever happens to it, no payment rule depends on it.
@@ -267,7 +267,7 @@ Each company runs its **own** Clear to Pay contract, and the contract's owner is
 **1. Create it in the browser: two wallet approvals, no developer.** Open [New contract](https://clear-to-pay.vercel.app/console/create/), connect the wallet that will own it (the buyer), and choose a name, for example `acme`:
 
 - **Approval 1, one ordinary call to our factory with 3.6 NEAR attached.** In one all-or-nothing step, the factory creates `acme.factory.cleartopay.testnet`, puts the 3.6 NEAR on it (that is what its code costs to store; it stays on the contract, it is not a fee), installs **exactly** the code our Live guard runs, and makes you its owner. It adds **no access key**: the contract is locked from birth. If anything fails (say someone took the name a second earlier), nothing is created and the 3.6 NEAR comes back.
-- **The page never takes the factory's word for it.** Before the wallet opens, it checks that the factory installs the pinned code (sha-256 `9b998038…a2d1`, the same as `guard.cleartopay.testnet`). After, it reads the new contract back from NEAR itself: that code, no keys, you as owner. The page warns as you type if a name is already taken.
+- **The page never takes the factory's word for it.** Before the wallet opens, it checks that the factory installs the pinned code (sha-256 `9b998038…a2d1`, the same as `guard.cleartopay.testnet`). After, it reads the new contract back from NEAR on two separate servers, and both must say the same: that code, no keys, you as owner. CI rebuilds the guard from `src/` and fails unless it matches, byte for byte, the copy inside the factory, both pins and the code live on testnet. The page warns as you type if a name is already taken.
 - **Approval 2: register it with testnet USDC** (0.00125 NEAR), so it can hold your payment pool.
 
 Live: [`joezzytest.factory.cleartopay.testnet`](https://testnet.nearblocks.io/address/joezzytest.factory.cleartopay.testnet), created this way from Meteor on 11 November 2026: NEAR reports its code as `9b998038…a2d1` and "Account is locked (no access keys)".
@@ -284,7 +284,7 @@ Live: [`joezzytest.factory.cleartopay.testnet`](https://testnet.nearblocks.io/ad
 
 **Storage.** The contract keeps about 0.27 NEAR spare for its records, and stops taking new invoices before it runs short (it always keeps enough to record cancellations, withdrawals and payouts). Even locked, it can receive NEAR: top it up with an ordinary transfer from any wallet.
 
-**Who holds the factory's key: we do.** `factory.cleartopay.testnet` keeps one full-access key, ours. It **cannot touch any contract already created** (they have no keys and fixed code). If it were ever stolen and the factory swapped, the New contract page would refuse before your wallet opens, because the factory would no longer report the pinned code, and every new contract is read back from NEAR anyway. Refunds the factory cannot pay at once are recorded and claimed with **Claim my refund** on the same page (`claim_refund`). Code: [`factory/`](factory/src/lib.rs); 12 unit tests and 4 on a local NEAR node.
+**Who holds the factory's key: we do, until code freeze.** `factory.cleartopay.testnet` keeps one full-access key, ours. It **cannot touch any contract already created** (they have no keys and fixed code). It can move the factory's own NEAR, and that NEAR backs refunds: a refund the factory could not pay at once waits there until claimed, so for that short time it is in our custody. If the key were ever stolen and the factory swapped, the New contract page would refuse before your wallet opens, because the factory would no longer report the pinned code, and every new contract is read back from NEAR anyway. We plan to delete this key at code freeze, which makes the factory as locked as the contracts it creates; a later version would be a new factory. Refunds the factory cannot pay at once are recorded and claimed with **Claim my refund** on the same page (`claim_refund`). Code: [`factory/`](factory/src/lib.rs); 12 unit tests and 4 on a local NEAR node.
 
 <details><summary>Prefer the terminal? Deploy it yourself (the developer route)</summary>
 
@@ -473,6 +473,15 @@ The same external reviewer read patches 69 to 79: the one-signature order wizard
 - **CTP8-09 (Low): an old NEP-413 proof stayed valid for ever.** **Fixed:** proofs older than 7 days, or from the future, are refused.
 - **CTP8-10 (Low): "this signature proves which code read your invoice" claimed more than the browser checks.** **Fixed:** the page now says the enclave signed the reading and OutLayer's attestation names the code; Intel's quote and the worker's registration are OutLayer's checks, not the browser's.
 - **CTP8-11 (Low): the OutLayer build did not run on pushes to main.** **Fixed.**
+
+### Tenth review (11 November 2026, external)
+
+An external AI auditor read the same change set after the ninth review's fixes. No critical finding; the callback, the claim, the keyless batch, the label rules and the page's escaping were found sound. Findings:
+
+- **GPT-01 (High): the factory's key holds refunds in custody.** True: whoever holds it can move the factory's NEAR, including a refund waiting to be claimed, so "misuse could only affect contracts created after it" was wrong. **Stated plainly above**, and the key is to be deleted at code freeze.
+- **GPT-02 (High): nothing proved that the guard inside the factory was built from `src/`.** A commit could have swapped the binary and both pins together. **Fixed:** a required CI job rebuilds the guard from `src/` (same cargo-near, same toolchain, same crate paths) and fails unless the built wasm, the factory's copy, the factory's pin, the page's pin and the code live on `guard.cleartopay.testnet` are all the same sha-256.
+- **GPT-03 (Medium): the read-back trusted whichever NEAR server answered first.** **Fixed:** it reads from two servers separately and needs both to agree on code, keys and owner; one lying server makes the check fail. Two servers that both lie would still fool it: the page does not verify NEAR's light-client proofs (stated in THREAT_MODEL).
+- **CI gaps.** The browser and alerts-worker tests now run in CI on every push (job `console`), and the audit job checks that the crate behind the ignored advisory is not in any deployed wasm. The sandbox workflow is still started by hand.
 
 ### Ninth review (11 November 2026, independent)
 

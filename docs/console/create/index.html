@@ -122,7 +122,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/">Sign a delivery</a><a href="../../console/setup/">Buyer setup</a><a href="../../console/create/" aria-current="page">Create your own contract</a><a href="../../console/inbox/">Inbox</a><a href="../../ledger/">Live ledger</a><a href="../../integrate/">For agent builders</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><a href="../../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
 
 <script type="module">
-import { $, esc, rpc, view, TX, walletFix, initMenu, isAccount, USDC } from "../chain.js";
+import { $, esc, rpc, rpcAt, RPCS, view, TX, walletFix, initMenu, isAccount, USDC } from "../chain.js";
 import * as K from "../create.js";
 initMenu();
 const S = { me: null, wallet: null, selector: null, name: null };
@@ -168,15 +168,26 @@ async function paintName() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The read-back asks every NEAR server separately; each must say the same on its own (one server cannot vouch alone).
+async function readOne(url, name) {
+  const q = (p) => rpcAt(url, "query", { finality: "final", account_id: name, ...p });
+  let acct = null;
+  try { acct = await q({ request_type: "view_account" }); }
+  catch (e) { if (!/UNKNOWN_ACCOUNT|does not exist/i.test(String(e?.message || e))) throw e; }
+  if (!acct) return { acct: null, keys: null, owner: null, buyer: S.me };
+  const keys = await q({ request_type: "view_access_key_list" });
+  let owner = null;
+  try { const r = await q({ request_type: "call_function", method_name: "get_owner", args_base64: "e30=" }); owner = JSON.parse(new TextDecoder().decode(Uint8Array.from(r.result))); } catch {}
+  return { acct, keys, owner, buyer: S.me };
+}
 async function readBack(name) {
-  say("st1", "Reading your new contract back from NEAR…");
+  say("st1", "Reading your new contract back from NEAR, on " + RPCS.length + " servers…");
   try {
     // A new account takes a few seconds to become final: look again before saying it is not there.
-    let acct = await account(name);
-    for (let i = 0; !acct && i < 4; i++) { await sleep(1500); acct = await account(name); }
-    const keys = await rpc("query", { request_type: "view_access_key_list", finality: "final", account_id: name });
-    let owner = null; try { owner = await view(name, "get_owner"); } catch {}
-    const r = K.readBack({ acct, keys, owner, buyer: S.me });
+    let reads = await Promise.all(RPCS.map((u) => readOne(u, name)));
+    for (let i = 0; reads.some((x) => !x.acct) && i < 4; i++) { await sleep(1500); reads = await Promise.all(RPCS.map((u) => readOne(u, name))); }
+    const acct = reads.some((x) => x.acct);
+    const r = K.readBackAll(reads);
     $("rb").innerHTML = [[r.code, "Runs exactly our Live guard's code"], [r.locked, "Has no access keys: locked"], [r.own, "Its owner is " + esc(S.me || "you")]].map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}">${t}</li>`).join("");
     if (r.ok) {
       say("st1", name + " is created and checked.", "ok"); on("s3", true); $("reg").disabled = false; S.name = name; $("next").href = "../setup/?contract=" + encodeURIComponent(name);
@@ -186,7 +197,7 @@ async function readBack(name) {
     }
     else say("st1", acct ? "The contract exists but did not pass every check above. Do not use it; tell us on @cleartopay." : "The contract is not on NEAR. If your wallet showed an error, nothing was created.", "bad");
     return r.ok;
-  } catch { say("st1", "NEAR did not answer. Reload the page in a moment to check again.", "bad"); return false; }
+  } catch { say("st1", "Not every NEAR server answered, so this page cannot confirm the contract yet. Reload in a moment to check again.", "bad"); return false; }
 }
 
 $("label").addEventListener("input", () => { clearTimeout(S.t); S.t = setTimeout(paintName, 350); });
