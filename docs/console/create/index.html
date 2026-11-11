@@ -124,7 +124,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 <script type="module">
 import { $, esc, rpc, rpcAt, RPCS, view, TX, walletFix, initMenu, isAccount, USDC } from "../chain.js";
 import * as K from "../create.js";
+import { banner, guide } from "../roles.js";
 initMenu();
+banner("create");
+try { if (!["signer", "supplier"].includes(localStorage.getItem("ctp-role"))) guide("create"); } catch { guide("create"); }
 const S = { me: null, wallet: null, selector: null, name: null };
 const ONE = 10n ** 24n, NEED = BigInt(K.FUND) + ONE / 10n; // the fund plus 0.1 NEAR for gas
 const say = (id, text, cls = "") => { const e = $(id); e.textContent = text; e.className = "msg " + cls; };
