@@ -143,13 +143,15 @@ export function ownContract() {
 { const o = ownContract(); if (o) CONTRACTS.own = o; }
 /** Adds a "Your own contract" button (data key "own") to a page's contract switch, before the page wires its
  *  buttons. Until a real Clear to Pay contract is set, clicking it opens a small form instead of switching;
- *  once set, it switches like Demo and Live. Hold Alt (or click it again while on it) to change the address. */
-export function ownSwitch(group, makeButton) {
+ *  once set, it switches like Demo and Live. Hold Alt (or click it again while on it) to change the address.
+ *  `words` changes the form's label and note for people who use a buyer's contract but do not own one. */
+export function ownSwitch(group, makeButton, words = {}) {
   const b = makeButton(CONTRACTS.own);
   group.appendChild(b);
   const form = document.createElement("div");
   form.className = "ownform"; form.hidden = true;
-  form.innerHTML = `<label>Your contract's address<input placeholder="pay.yourcompany.testnet" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label><button type="button">Use it</button><button type="button" class="x">Cancel</button><small>Deployed with the steps in the README (Run your own). It stays in this browser.</small><p class="err" hidden></p>`;
+  const label = words.label || "Your contract's address", note = words.note || "Deployed with the steps in the README (Run your own). It stays in this browser.";
+  form.innerHTML = `<label>${label}<input placeholder="pay.yourcompany.testnet" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label><button type="button">Use it</button><button type="button" class="x">Cancel</button><small>${note}</small><p class="err" hidden></p>`;
   group.insertAdjacentElement("afterend", form);
   const [inp] = form.getElementsByTagName("input"), [use, cancel] = form.getElementsByTagName("button"), err = form.querySelector(".err");
   if (CONTRACTS.own) inp.value = CONTRACTS.own;
