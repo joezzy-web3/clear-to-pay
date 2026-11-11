@@ -95,6 +95,15 @@ export function readBackAll(reads) {
   return { code: all("code"), locked: all("locked"), own: all("own"), ok: all("ok"), servers: rs.length };
 }
 
+/** How many full-access keys protect an account (RPC view_access_key_list). Function-call keys, like the agent's,
+ *  cannot recover anything, so they do not count. Two or more: losing one recovery phrase never locks the owner out. */
+export function recovery(keys) {
+  const list = keys && Array.isArray(keys.keys) ? keys.keys : null;
+  if (!list) return { known: false, full: 0, ok: false };
+  const full = list.filter((k) => k && k.access_key && k.access_key.permission === "FullAccess").length;
+  return { known: true, full, ok: full >= 2 };
+}
+
 /** Read back from NEAR: the account must now exist, run exactly our code, have no access keys, and name the buyer
  *  as owner. `acct` is RPC view_account, `keys` is view_access_key_list, `owner` is get_owner. */
 export function readBack({ acct, keys, owner, buyer }) {

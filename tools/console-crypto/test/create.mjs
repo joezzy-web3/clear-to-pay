@@ -75,4 +75,14 @@ assert.equal(C.readBackAll([good, { ...good, keys: { keys: [{ public_key: "ed255
 assert.equal(C.readBackAll([good]).ok, false, "one server alone is not enough");
 assert.equal(C.readBackAll(null).ok, false);
 
+// recovery: only full-access keys count; two or more is safe
+const fa = { access_key: { nonce: 1, permission: "FullAccess" } };
+const fc = { access_key: { nonce: 1, permission: { FunctionCall: { receiver_id: "x.testnet", method_names: ["submit_invoice"] } } } };
+assert.deepEqual(C.recovery({ keys: [fa] }), { known: true, full: 1, ok: false });
+assert.deepEqual(C.recovery({ keys: [fa, fc, fc] }), { known: true, full: 1, ok: false }, "the agent's key is not a recovery key");
+assert.deepEqual(C.recovery({ keys: [fa, fa] }), { known: true, full: 2, ok: true });
+assert.deepEqual(C.recovery({ keys: [] }), { known: true, full: 0, ok: false });
+assert.deepEqual(C.recovery(null), { known: false, full: 0, ok: false });
+assert.deepEqual(C.recovery({ keys: [null, {}, { access_key: {} }] }), { known: true, full: 0, ok: false });
+
 console.log("create: names, factory check, the one create call, the factory's verdict, USDC registration and read-back all hold");

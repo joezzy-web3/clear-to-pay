@@ -9,7 +9,7 @@ const ROLES = {
 };
 const GUIDES = {
   create: [
-    ["Connect the wallet that will own it", "That account becomes the contract's owner and pays 3.6 NEAR, which stays on the contract as its storage. Tip: open the same account in a second wallet too, in case you lose a device."],
+    ["Connect the wallet that will own it", "That account becomes the contract's owner and pays 3.6 NEAR, which stays on the contract as its storage. Tip: after it is created, the page shows whether a backup key protects this account, so a lost recovery phrase never locks you out."],
     ["Choose a name", "Your contract becomes <i>name</i>.factory.cleartopay.testnet. The page tells you as you type whether it is free."],
     ["Approve once: create", "One ordinary call to our factory. It creates the contract, installs exactly our Live guard's code and makes you its owner, with no keys: nobody, us included, can change it. If anything fails, your 3.6 NEAR comes back."],
     ["The page checks it on NEAR", "Two NEAR servers must agree: our exact code, no keys, you as the owner. Only then does it say ready."],

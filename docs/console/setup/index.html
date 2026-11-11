@@ -584,7 +584,7 @@ async function makeLink(id) {
 // ---------------------------------------------------------------- the checklist, read from the contract
 const ORDERS_API = (c) => `https://api-testnet.nearblocks.io/v1/account/${encodeURIComponent(c)}/txns?method=create_order&per_page=25`;
 async function checklist() {
-  const c = contract(), rows = [];
+  const c = contract(), rows = [], extra = [];
   const go = (id) => (["supplier", "order", "limits", "signer"].includes(id) ? "#wiz" : `#f-${id}`); // what the wizard covers goes there
   try {
     const [ids, limits, signers, tokens, funds] = await Promise.all([view(c, "get_supplier_ids"), view(c, "get_limits"), view(c, "get_delivery_signers"),
@@ -612,12 +612,19 @@ async function checklist() {
       const owner = await view(c, "get_owner"), k = await rpc("query", { request_type: "view_access_key_list", finality: "final", account_id: owner });
       agent = k.keys.find((x) => x.access_key.permission?.FunctionCall?.receiver_id === c && x.access_key.permission.FunctionCall.method_names.includes("submit_invoice"));
     } catch {}
+    try {
+      const owner = await view(c, "get_owner"), k = await rpc("query", { request_type: "view_access_key_list", finality: "final", account_id: owner });
+      const full = k.keys.filter((x) => x.access_key.permission === "FullAccess").length;
+      extra.push(full >= 2 ? ["ok", null, "Backup key in place", `${full} keys protect ${owner}; losing one phrase never locks you out`]
+        : ["wait", null, "Optional: add a backup key", `one key protects ${owner} today. A second (a Ledger, or a new phrase in your wallet) means a lost phrase never locks you out`]);
+    } catch {}
     rows.push(agent ? ["ok", "agent", "Agent key fenced", `may call ${agent.access_key.permission.FunctionCall.method_names.join(", ")} only`]
       : ["todo", "agent", "Give the agent a fenced key", "made here, fenced by your wallet: this contract, two methods, a gas allowance"]);
   } catch { rows.push(["todo", null, "Could not read the contract", "NEAR's RPC is not reachable; try again"]); }
   const done = rows.filter((r) => r[0] === "ok").length;
   $("h-ready").textContent = done === rows.length ? "Ready. The agent can submit." : "What this contract still needs.";
   $("ready-n").innerHTML = `${done}<span style="color:var(--mute)">/${rows.length}</span><small>ready</small>`;
+  rows.push(...extra); // advice about the owner's account, not counted toward "Ready"
   setTimeout(() => $("rlist").querySelectorAll('a[href^="#f-"]').forEach((a) => (a.onclick = (e) => { e.preventDefault(); openAdvanced(a.getAttribute("href").slice(3)); })), 0);
   $("rlist").innerHTML = rows.map(([st, id, t, d]) => `<li class="${st}">${id ? `<a href="${go(id)}">` : "<div>"}<i aria-hidden="true"></i><span><b>${esc(t)}</b><small>${esc(d)}</small></span>${id ? "</a>" : "</div>"}</li>`).join("");
 }

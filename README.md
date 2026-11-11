@@ -277,7 +277,7 @@ Live: [`joezzytest.factory.cleartopay.testnet`](https://testnet.nearblocks.io/ad
 
 **Locked means locked, for us too.** Nobody, not the buyer, not us, not the factory, can change the contract's code or move its money outside its rules: it pays registered suppliers, and `withdraw` pays only the owner. Two consequences, stated plainly:
 - **No rescue.** If the owner loses access to their account, unreserved money in the pool stays there; payments already authorised still go to suppliers. So:
-  - **Open the owner account in a second wallet** (a second key on the same account, on another device, or a Ledger kept somewhere safe) before you top up. That covers a lost phone or laptop. It does not cover a stolen key: anyone holding a key of the owner account is the owner.
+  - **Add a second key to the owner account before you top up**: a Ledger, or a new recovery phrase made in your wallet, on the **same** account (a different account can never become the owner). Each key has its own phrase, so losing one phrase never locks you out. The New contract page and Buyer setup read the owner account's keys and suggest a backup key while only one protects it (a tip, never a block). A second key covers loss, not theft: anyone holding a key of the owner account is the owner.
   - **Keep the owner key on a hardware wallet** (Ledger, supported by Meteor and MyNearWallet). The AI agent's key is separate and can never move money, even if the agent is fully compromised; only the owner's key needs this care.
   - **Keep the pool lean**: top up for the payments coming, not for months.
   - For larger companies, the owner can be a multisig account, so one stolen key does nothing.

@@ -25,6 +25,9 @@ input:focus{outline:2px solid var(--signal);outline-offset:0}
 .mono{font:400 14px var(--mono);word-break:break-all}
 .msg{font:400 14px/1.5 var(--body);color:var(--mute);margin:0;max-width:none;width:auto}
 .msg.bad{color:var(--seize)} .msg.ok{color:var(--clear)}
+.rec{padding:14px 16px;border-left:4px solid var(--signal);background:#FBF6E6;display:grid;gap:10px}
+.rec.ok{border-left-color:var(--clear);background:#EEF6F0}
+.rec p{margin:0;font:400 14px/1.5 var(--body);color:var(--navy)}
 ul.rb{list-style:none;padding:0;margin:0;display:grid;gap:6px;font:400 14px var(--body)}
 ul.rb li::before{content:"· ";color:var(--mute)} ul.rb li.ok::before{content:"✓ ";color:var(--clear);font-weight:700} ul.rb li.bad::before{content:"✕ ";color:var(--seize);font-weight:700}
 .step.off{opacity:.5}
@@ -99,6 +102,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <div class="row"><button class="btn y" id="create" type="button" disabled>Create my contract</button><button class="btn ghost" id="claim" type="button" hidden>Claim my refund</button></div>
     <p class="msg" id="st1"></p>
     <ul class="rb" id="rb"></ul>
+    <div class="rec" id="rec" hidden><p id="rec-t"></p><div class="row"><button class="btn ghost" id="rec-again" type="button">Check again</button></div></div>
   </div>
 </section>
 
@@ -196,7 +200,7 @@ async function readBack(name) {
     $("rb").innerHTML = [[r.code, "Runs exactly our Live guard's code"], [r.locked, "Has no access keys: locked"], [r.own, "Its owner is " + esc(S.me || "you")]].map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}">${t}</li>`).join("");
     if (r.ok) {
       say("st1", name + " is created and checked.", "ok"); on("s3", true); $("reg").disabled = false; S.name = name; $("next").href = "../setup/?contract=" + encodeURIComponent(name);
-      remember(S.me, name); $("create").disabled = true;
+      remember(S.me, name); $("create").disabled = true; paintRecovery();
       // Already registered with USDC (an earlier visit)? Then step 3 is done.
       try { if (await view(USDC, "storage_balance_of", { account_id: name })) { say("st2", "Registered: your contract can hold testnet USDC.", "ok"); $("reg").disabled = true; on("s4", true); $("next").removeAttribute("aria-disabled"); } } catch {}
     }
@@ -204,6 +208,18 @@ async function readBack(name) {
     return r.ok;
   } catch { say("st1", "Not every NEAR server answered, so this page cannot confirm the contract yet. Reload in a moment to check again.", "bad"); return false; }
 }
+
+// Recovery: how many full-access keys protect the owner account. Read only; keys are added in the wallet itself.
+async function paintRecovery() {
+  if (!S.me) return;
+  let r = { known: false };
+  try { r = K.recovery(await rpc("query", { request_type: "view_access_key_list", finality: "final", account_id: S.me })); } catch {}
+  const box = $("rec"); box.hidden = false; box.classList.toggle("ok", !!r.ok);
+  $("rec-t").innerHTML = !r.known ? "Could not read your account's keys. Press Check again in a moment."
+    : r.ok ? `<b>✓ Backup key in place.</b> ${r.full} keys protect ${esc(S.me)}, so losing one recovery phrase never locks you out.`
+    : `<b>Tip: add a backup key.</b> You can carry on without one. Today a single key protects ${esc(S.me)}, so if its recovery phrase were ever lost, nobody could restore the account, not even us. A second key on this same account (a Ledger, or a new recovery phrase in your wallet) takes a minute and removes that risk. Add it whenever suits you, then press Check again.`;
+}
+$("rec-again").onclick = paintRecovery;
 
 $("label").addEventListener("input", () => { clearTimeout(S.t); S.t = setTimeout(paintName, 350); });
 
