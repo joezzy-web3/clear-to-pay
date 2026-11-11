@@ -118,6 +118,8 @@ h2 mark{--hl:var(--signal);background:linear-gradient(transparent 14%,var(--hl) 
 .why code{color:var(--mute);font-size:12px;margin-left:4px}
 .raw{margin-top:12px}
 .raw summary{cursor:pointer;font:400 12.5px var(--mono);color:var(--mute)}
+.rawkey{margin:8px 0 0;font-size:13.5px;line-height:1.55;color:var(--mute)}
+.rawkey code{font:12.5px var(--mono)}
 .raw pre{margin:8px 0 0;background:var(--cell);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;max-height:300px;font:12px/1.45 var(--mono)}
 .seal{width:118px;transform:rotate(-10deg)}
 .seal svg{display:block;width:100%}
@@ -669,6 +671,15 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     el.querySelectorAll("a[href^='#r']").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); revealReceipt(Number(a.getAttribute("href").slice(2))); }));
   }
 
+  // One line that makes the raw record readable: amounts, times and the token, in plain words.
+  function rawKey(r) {
+    const parts = [`<code>amount</code> ${esc(String(r.amount))} means ${usdc(r.amount)} USDC (USDC is counted in millionths)`];
+    try { if (r.decided_at) parts.push(`<code>decided_at</code> is ${esc(fmt(when(r.decided_at)))}, in nanoseconds`); } catch {}
+    parts.push(r.token === USDC ? "<code>token</code> is Circle's testnet USDC" : `<code>token</code> is the token contract ${esc(short(r.token))}`);
+    if (r.document_hash) parts.push("<code>document_hash</code> is the PDF's fingerprint");
+    return "How to read it: " + parts.join(" · ") + ".";
+  }
+
   // The newest few as full certificates; everything older as one-line rows that open into theirs.
   const FULL = 3, ROWS = 20;
   function cert(r, withId = true) {
@@ -693,7 +704,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
             ${nextSteps(r)}
             ${pay}
             <p class="src">${mode === "sample" ? "Sample copy of this receipt, recorded on 30 October. The hosted ledger reads it live." : rpcHost ? `Reported by ${esc(rpcHost)}, a public NEAR RPC server.` : "Shown from this browser's last read while it refreshes from a public NEAR RPC server."} <a data-ts="${esc(r.decided_at)}" data-rid="${r.id}" href="${txHref(r)}" target="_blank" rel="noopener">${KNOWN_TX[contract + "#" + r.id] ? "View the transaction on NearBlocks" : "Check it on NearBlocks"}</a></p>
-            <details class="raw"><summary>${r.document_hash ? "fingerprint " + esc(short(r.document_hash)) + " · " : ""}raw receipt from the contract</summary><pre>${esc(JSON.stringify(p ? { receipt: r, payment: p } : r, null, 2))}</pre></details>
+            <details class="raw"><summary>Exact record stored on NEAR, for technical readers${r.document_hash ? " · fingerprint " + esc(short(r.document_hash)) : ""}</summary><p class="rawkey">${rawKey(r)}</p><pre>${esc(JSON.stringify(p ? { receipt: r, payment: p } : r, null, 2))}</pre></details>
           </div>
         </div>
         <aside class="h-stub"><div class="seal ${r.verdict}">${seal(r.verdict, r.id)}</div><div class="stubno">receipt #${r.id}</div></aside>
