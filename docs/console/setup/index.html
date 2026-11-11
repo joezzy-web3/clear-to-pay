@@ -448,6 +448,16 @@ deposit   none (a function-call key can never attach money)` };
     },
     async readBack() { return this.now(); },
     async now() { const f = await view(contract(), "get_funds", { token: USDC }, "optimistic"); $("f-pool").textContent = fromUnits(f.available) + " USDC"; return `Pool: ${fromUnits(f.available)} USDC available · ${fromUnits(f.reserved || 0)} reserved`; } },
+
+  { id: "withdraw", kicker: "Payments", title: "Withdraw from the pool",
+    help: "Sends USDC from the pool back to the contract's owner (withdraw). Only the owner can do it, it can pay no one else, and money already reserved for authorised payments stays in the pool.",
+    fields: `<label>Amount<span>USDC, at most what is available</span><input id="w-amt" inputmode="decimal" placeholder="5"></label>`,
+    build() {
+      const a = toUnits($("w-amt").value); if (!a || a === "0") fail("Type an amount in USDC above 0, like 5 or 2.50. No $ sign or commas.");
+      return { method: "withdraw", gas: 100, args: { token: USDC, amount: a }, note: `${fromUnits(a)} USDC from the pool of ${contract()} back to its owner` };
+    },
+    async readBack() { return this.now(); },
+    async now() { const f = await view(contract(), "get_funds", { token: USDC }, "optimistic"); $("f-pool").textContent = fromUnits(f.available) + " USDC"; return `Pool: ${fromUnits(f.available)} USDC available to withdraw · ${fromUnits(f.reserved || 0)} reserved for payments`; } },
 ];
 
 // ---------------------------------------------------------------- the agent's key (made here, handed over, never stored)

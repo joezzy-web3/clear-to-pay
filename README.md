@@ -281,7 +281,7 @@ Live: [`joezzytest.factory.cleartopay.testnet`](https://testnet.nearblocks.io/ad
   - **Keep the owner key on a hardware wallet** (Ledger, supported by Meteor and MyNearWallet). The AI agent's key is separate and can never move money, even if the agent is fully compromised; only the owner's key needs this care.
   - **Keep the pool lean**: top up for the payments coming, not for months.
   - For larger companies, the owner can be a multisig account, so one stolen key does nothing.
-- **No upgrades.** A future version means creating a new contract and moving the pool with `withdraw`.
+- **No upgrades.** A future version means creating a new contract and moving the pool with **Withdraw from the pool** (Buyer setup, Advanced), which pays only the owner and never money reserved for payments.
 
 **Storage.** The contract keeps about 0.27 NEAR spare for its records, and stops taking new invoices before it runs short (it always keeps enough to record cancellations, withdrawals and payouts). Even locked, it can receive NEAR: top it up with an ordinary transfer from any wallet.
 
