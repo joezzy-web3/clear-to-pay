@@ -56,7 +56,7 @@ This file is for AI reviewers. Each claim points to where it is proven. Run the 
 - The browser checks the AI reading's signatures and bindings; the full Intel TDX and NVIDIA certificate chains are checked by the CLI reader on every reading, not in the browser.
 - Proof of control of a payout account (NEP-413) is offered at registration, not required by the contract.
 - Two colluding insiders in different roles can still confirm a false delivery (the rule counts keys in roles).
-- A contract created by the factory is locked: no rescue if its owner loses every key to the owner account (a second wallet on the same account covers a lost device, not a stolen key), and no upgrades (a new version is a new contract). The factory's own full-access key is ours until code freeze (then deleted): it cannot touch contracts already created, but it can move the factory's NEAR, including refunds not yet claimed. The page's read-back needs two NEAR servers to agree; it does not verify light-client proofs.
+- A contract created by the factory is locked: no rescue if its owner loses every key to the owner account (a second wallet on the same account covers a lost device, not a stolen key), and no upgrades (a new version is a new contract). The factory itself has no access key since 11 Nov 2026 (https://testnet.nearblocks.io/txns/3ZQosp8mp1CjM4m3P6arD759NAX2fToQ8n6ZrdKAuSur): nobody can change its code or move its NEAR, which backs refunds. The page's read-back needs two NEAR servers to agree; it does not verify light-client proofs.
 - Receive on another chain trusts Tidepool, a community testnet sandbox: it holds the money mid-swap and reports the status; the page says so and shows Tidepool's status as Tidepool's.
 
 ## Where it goes next
