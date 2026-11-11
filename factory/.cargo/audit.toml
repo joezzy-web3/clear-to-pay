@@ -1,0 +1,12 @@
+# cargo-audit configuration for the factory (cargo audit only reads .cargo/audit.toml from
+# the folder it runs in, so the root file does not cover this crate).
+#
+# Same advisory, same reason as the root .cargo/audit.toml: crypto-bigint is not in the
+# deployed factory. `cargo tree -e normal -i crypto-bigint --target wasm32-unknown-unknown`
+# returns nothing. It arrives only through near-sdk's host-side unit-testing, and the patched
+# version is not yet compatible with near-sdk 5.29. Re-check whenever near-sdk is upgraded.
+# Anything not listed here still fails CI.
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0387", # crypto-bigint 0.5.5, timing variability; test-only (p256 via near-sdk unit-testing)
+]

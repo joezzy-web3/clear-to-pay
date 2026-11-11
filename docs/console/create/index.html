@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Clear to Pay · Create your contract</title>
+<meta name="description" content="Create your company's own Clear to Pay contract on NEAR testnet in two wallet approvals: the same code as our Live guard, locked, and owned by your account. No developer, no terminal.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../console.css">
+<link rel="stylesheet" href="../wallet.css">
+<style>
+/* Create your contract: one card per step; each step shows what will be signed, then reads the result back from NEAR. */
+.steps{padding-block:clamp(30px,5vw,56px) clamp(56px,8vw,96px);display:grid;gap:clamp(16px,2.4vw,22px)}
+.step{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:clamp(16px,3vw,32px)}
+.step h3{font:800 clamp(28px,3vw,38px)/1 var(--display);margin:0}
+.step h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.step p{margin:10px 0 0;line-height:1.55;color:var(--mute)}
+.step .do{display:grid;gap:12px;align-content:start}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+label.f{display:grid;gap:6px;font:500 13.5px var(--body)}
+label.f span{font:400 12.5px var(--mono);color:var(--mute)}
+input{font:400 15px var(--mono);padding:11px 12px;border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:0;width:100%;min-width:0}
+input:focus{outline:2px solid var(--signal);outline-offset:0}
+.mono{font:400 14px var(--mono);word-break:break-all}
+.msg{font:400 14px/1.5 var(--body);color:var(--mute);margin:0;max-width:none;width:auto}
+.msg.bad{color:var(--seize)} .msg.ok{color:var(--clear)}
+ul.rb{list-style:none;padding:0;margin:0;display:grid;gap:6px;font:400 14px var(--body)}
+ul.rb li::before{content:"· ";color:var(--mute)} ul.rb li.ok::before{content:"✓ ";color:var(--clear);font-weight:700} ul.rb li.bad::before{content:"✕ ";color:var(--seize);font-weight:700}
+.step.off{opacity:.5}
+.facts2{display:grid;gap:10px;background:#13284A;padding:18px 20px;color:var(--paper);font:400 14px var(--body)}
+.facts2 div{display:flex;justify-content:space-between;gap:14px;border-bottom:1px solid #24406B;padding-bottom:8px}
+.facts2 div:last-child{border:0;padding:0}
+.facts2 span{color:var(--nmute);font:400 12.5px var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.facts2 b{font-weight:600;text-align:right} .facts2 b.ok{color:#3DDC84} .facts2 b.wait{color:var(--signal)} .facts2 b.bad{color:#FF8A7A}
+@media (max-width:900px){.step{grid-template-columns:1fr}}
+@media (max-width:1180px) and (min-width:901px){.crumb{display:none}}
+a.crumb{text-decoration:none;padding:6px 8px;border-radius:8px;white-space:nowrap}
+a.crumb:hover{color:var(--paper);background:#13284A}
+.nav{flex-wrap:nowrap}
+.links{flex-wrap:nowrap!important;align-items:center}
+.links a{white-space:nowrap}
+.clinks a{position:relative}
+.clinks a[aria-current]{color:var(--navy)!important;background:var(--paper)!important}
+.brand .logo{white-space:nowrap}
+.navlive{display:inline-flex;align-items:center;gap:8px;font:600 14.5px/1 "Instrument Sans",Arial,sans-serif;text-decoration:none;padding:11px 16px;border-radius:10px;white-space:nowrap;background:#13284A;color:#F3E7C2;box-shadow:inset 0 0 0 1px rgba(230,190,79,.55)}
+.navlive:hover{background:#1B3560;color:#fff}
+.navlive i{width:8px;height:8px;border-radius:50%;background:#127A4A;box-shadow:0 0 0 3px rgba(18,122,74,.2)}
+@media (max-width:900px){.navlive{display:none}}
+.brand{display:flex;align-items:center;gap:6px;min-width:0}
+.homelink{font:500 14.5px var(--body);color:var(--nmute);text-decoration:none;padding:8px 10px;border-radius:8px;white-space:nowrap}
+.homelink:hover{color:var(--paper);background:#13284A}
+@media (max-width:900px){.homelink{display:none}}
+.fnear{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-weight:600;color:inherit}
+.fnear img{border-radius:5px;display:block}
+</style>
+<link rel="stylesheet" href="../polish.css">
+</head>
+<body>
+<div class="rband" id="rband" data-r="buyer"></div>
+<header class="top gut"><div class="in">
+  <nav class="nav">
+    <span class="brand"><a class="logo" href="../../" title="Clear to Pay home"><svg width="24" height="28" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="currentColor"/><circle cx="15" cy="9" r="8" fill="currentColor"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/><path d="M38 50l15 15 31-34" fill="none" stroke="#10264A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>Clear to Pay</a><a class="crumb" href="./" title="Top of this page">/ New contract</a></span>
+    <div class="links clinks"><a href="../../console/" data-page="judge">Judge mode</a><a href="../../console/sign/" data-page="sign">Sign</a><a href="../../console/setup/" data-page="setup">Buyer setup</a><a href="../../console/create/" data-page="create" aria-current="page">New contract</a><a href="../../console/inbox/" data-page="inbox">Inbox</a></div>
+    <span class="navr"><a class="homelink" href="../../">&larr; Home</a><a class="navlive" href="../../ledger/"><i aria-hidden="true"></i>Live ledger</a><button type="button" class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="drawer"><span></span></button></span>
+
+  </nav>
+  <div class="hero">
+    <div>
+      <span class="live"><i></i><span><b>NEAR testnet</b> · two wallet approvals</span></span>
+      <h1>Your own contract. <span>No developer.</span></h1>
+      <p class="sub">Create a Clear to Pay contract that belongs to your company. It runs the same code as our Live guard, checked before your wallet opens, and it is locked: no one can change its code or move its money except by its rules.</p>
+    </div>
+    <div class="facts2" aria-label="What you get">
+      <div><span>Code</span><b id="f-code" class="wait">checking…</b></div>
+      <div><span>Factory installs</span><b id="f-fac" class="wait">checking…</b></div>
+      <div><span>Cost</span><b>3.6 NEAR, kept as the contract's storage</b></div>
+      <div><span>Keys on the contract</span><b>none: locked</b></div>
+      <div><span>Owner</span><b>your account</b></div>
+    </div>
+  </div>
+</div></header>
+
+<main class="gut"><div class="in steps">
+
+<section class="card step" id="s1">
+  <div><h3><small>Step 1</small>Connect the buyer's wallet</h3>
+  <p>The account you connect becomes the contract's owner and pays the 3.6 NEAR. Any NEAR testnet account works. After that, use any wallet you like for everything else.</p></div>
+  <div class="do"><div class="row"><span class="mono" id="acct">Not connected</span><button class="btn y" id="connect" type="button">Connect wallet</button><button class="btn ghost" id="disconnect" type="button" hidden>Disconnect</button></div>
+  <p class="msg" id="st0"></p></div>
+</section>
+
+<section class="card step off" id="s2">
+  <div><h3><small>Step 2 · approval 1</small>Create the contract</h3>
+  <p>One ordinary call to our factory with 3.6 NEAR attached. In one all-or-nothing step it creates your contract's account, puts your 3.6 NEAR on it for storage, installs the contract and makes you its owner. No access key is added, so the account is locked. If anything fails, nothing is created and your 3.6 NEAR comes back. Then this page reads the contract back from NEAR itself.</p></div>
+  <div class="do">
+    <label class="f">Name<span>lowercase letters and digits, like your company name</span><input id="label" value="" placeholder="acme" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label>
+    <p class="mono" id="name">–</p>
+    <div class="row"><button class="btn y" id="create" type="button" disabled>Create my contract</button><button class="btn ghost" id="claim" type="button" hidden>Claim my refund</button></div>
+    <p class="msg" id="st1"></p>
+    <ul class="rb" id="rb"></ul>
+  </div>
+</section>
+
+<section class="card step off" id="s3">
+  <div><h3><small>Step 3 · approval 2</small>Let it hold USDC</h3>
+  <p>Register the new contract with testnet USDC, so it can hold your payment pool. 0.00125 NEAR.</p></div>
+  <div class="do"><div class="row"><button class="btn y" id="reg" type="button" disabled>Register with USDC</button></div><p class="msg" id="st2"></p></div>
+</section>
+
+<section class="card step off" id="s4">
+  <div><h3><small>Step 4</small>Set it up in the browser</h3>
+  <p>Register your suppliers, delivery signers, orders and limits, and top up the pool, in Buyer setup. Everything there works with your own contract exactly as with ours.</p></div>
+  <div class="do"><div class="row"><a class="btn y" id="next" href="../setup/" aria-disabled="true">Open Buyer setup with my contract</a></div></div>
+</section>
+
+</div></main>
+
+<div class="gut" style="background:var(--paper)"><footer class="in"><span><a class="fnear" href="https://near.org" target="_blank" rel="noopener"><img src="../../near.png" alt="" width="20" height="20">Built on NEAR</a> · Clear to Pay · built for the NEAR Hackathon · <a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a></span><span>Testnet only. Qingmar Steel Co. is fictional.</span></footer></div>
+<div class="scrim" id="scrim"></div>
+
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true"><div class="drawer-top"><b>Clear to Pay</b><button type="button" class="drawer-x" id="drawer-x" aria-label="Close the menu">&times;</button></div><nav><a href="../../console/" class="hot">Judge mode: try to fool it</a><a href="../../inspect/">Inspect an invoice</a><a href="../../console/sign/">Sign a delivery</a><a href="../../console/setup/">Buyer setup</a><a href="../../console/create/" aria-current="page">Create your own contract</a><a href="../../console/inbox/">Inbox</a><a href="../../ledger/">Live ledger</a><a href="../../integrate/">For agent builders</a><a href="../../#how">How it works</a><a href="../../#checks">The checks</a><a href="../../#proof">Proof</a><a href="../../">Home</a></nav><div class="drawer-foot"><a href="https://near.org" target="_blank" rel="noopener">Built on NEAR</a><a href="https://x.com/cleartopay" target="_blank" rel="noopener">@cleartopay</a><a href="https://github.com/joezzy-web3/clear-to-pay" target="_blank" rel="noopener">GitHub</a></div></aside>
+
+<script type="module">
+import { $, esc, rpc, rpcAt, RPCS, view, TX, walletFix, initMenu, isAccount, USDC } from "../chain.js";
+import * as K from "../create.js";
+initMenu();
+const S = { me: null, wallet: null, selector: null, name: null };
+const ONE = 10n ** 24n, NEED = BigInt(K.FUND) + ONE / 10n; // the fund plus 0.1 NEAR for gas
+const say = (id, text, cls = "") => { const e = $(id); e.textContent = text; e.className = "msg " + cls; };
+const on = (id, yes) => $(id).classList.toggle("off", !yes);
+const failed = (r) => { const o = Array.isArray(r) ? r[r.length - 1] : r; return !!(o && o.status && typeof o.status === "object" && "Failure" in o.status); };
+const PENDING = "ctp-create-pending";
+// The contract this browser created for each owner, so coming back to the page shows it again.
+const MINE = (me) => "ctp-created:" + me;
+const remember = (me, name) => { try { localStorage.setItem(MINE(me), name); } catch {} };
+const recall = (me) => { try { const n = localStorage.getItem(MINE(me)); return n && isAccount(n) && n.endsWith("." + K.FACTORY) ? n : null; } catch { return null; } };
+
+// The code this page expects is checked against our Live guard, and against what the factory says it installs, live from NEAR.
+(async () => {
+  try { const a = await rpc("query", { request_type: "view_account", finality: "final", account_id: "guard.cleartopay.testnet" });
+    const same = a.code_hash === K.CODE_HASH_B58; $("f-code").textContent = same ? "same as our Live guard" : "differs from the Live guard"; $("f-code").className = same ? "ok" : "bad";
+  } catch { $("f-code").textContent = "could not read the Live guard"; }
+  try { const h = await view(K.FACTORY, "code_hash"); const same = h === K.CODE_SHA256; $("f-fac").textContent = same ? "that same code" : "different code: do not use"; $("f-fac").className = same ? "ok" : "bad"; }
+  catch { $("f-fac").textContent = "could not read the factory"; }
+})();
+
+async function account(id) { try { return await rpc("query", { request_type: "view_account", finality: "final", account_id: id }); } catch (e) { return /UNKNOWN_ACCOUNT|does not exist/i.test(String(e?.message || e)) ? null : Promise.reject(e); } }
+
+async function paintName() {
+  $("create").disabled = true; S.name = null;
+  if (!S.me) return;
+  if (!$("label").value.trim()) { $("name").textContent = "–"; say("st1", "Type a name for your contract."); return; }
+  let name; try { name = K.contractName($("label").value.trim()); } catch (e) { $("name").textContent = "–"; say("st1", e.message, "bad"); return; }
+  $("name").textContent = name; say("st1", "Checking the name is free…");
+  try {
+    const [taken, mine] = await Promise.all([account(name), account(S.me)]);
+    if (name !== `${$("label").value.trim()}.${K.FACTORY}`) return; // typed on meanwhile
+    if (taken) {
+      let owner = null; try { owner = await view(name, "get_owner"); } catch {}
+      if (owner && owner === S.me) { await readBack(name); return; } // yours: show it, checked, with the next steps
+      say("st1", `${name} is taken. Choose another name.`, "bad"); return;
+    }
+    const bal = BigInt(mine.amount);
+    if (bal < NEED) { say("st1", `Your account needs about 3.7 NEAR free; it has ${(Number(bal / (ONE / 1000n)) / 1000).toFixed(3)}. Top it up and reload.`, "bad"); return; }
+    S.name = name; $("create").disabled = false; say("st1", "The name is free. Your wallet will show one call to " + K.FACTORY + " with 3.6 NEAR attached.");
+  } catch { say("st1", "NEAR did not answer. Try again in a moment.", "bad"); }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The read-back asks every NEAR server separately; each must say the same on its own (one server cannot vouch alone).
+async function readOne(url, name) {
+  const q = (p) => rpcAt(url, "query", { finality: "final", account_id: name, ...p });
+  let acct = null;
+  try { acct = await q({ request_type: "view_account" }); }
+  catch (e) { if (!/UNKNOWN_ACCOUNT|does not exist/i.test(String(e?.message || e))) throw e; }
+  if (!acct) return { acct: null, keys: null, owner: null, buyer: S.me };
+  const keys = await q({ request_type: "view_access_key_list" });
+  let owner = null;
+  try { const r = await q({ request_type: "call_function", method_name: "get_owner", args_base64: "e30=" }); owner = JSON.parse(new TextDecoder().decode(Uint8Array.from(r.result))); } catch {}
+  return { acct, keys, owner, buyer: S.me };
+}
+async function readBack(name) {
+  say("st1", "Reading your new contract back from NEAR, on " + RPCS.length + " servers…");
+  try {
+    // A new account takes a few seconds to become final: look again before saying it is not there.
+    let reads = await Promise.all(RPCS.map((u) => readOne(u, name)));
+    for (let i = 0; reads.some((x) => !x.acct) && i < 4; i++) { await sleep(1500); reads = await Promise.all(RPCS.map((u) => readOne(u, name))); }
+    const acct = reads.some((x) => x.acct);
+    const r = K.readBackAll(reads);
+    $("rb").innerHTML = [[r.code, "Runs exactly our Live guard's code"], [r.locked, "Has no access keys: locked"], [r.own, "Its owner is " + esc(S.me || "you")]].map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}">${t}</li>`).join("");
+    if (r.ok) {
+      say("st1", name + " is created and checked.", "ok"); on("s3", true); $("reg").disabled = false; S.name = name; $("next").href = "../setup/?contract=" + encodeURIComponent(name);
+      remember(S.me, name); $("create").disabled = true;
+      // Already registered with USDC (an earlier visit)? Then step 3 is done.
+      try { if (await view(USDC, "storage_balance_of", { account_id: name })) { say("st2", "Registered: your contract can hold testnet USDC.", "ok"); $("reg").disabled = true; on("s4", true); $("next").removeAttribute("aria-disabled"); } } catch {}
+    }
+    else say("st1", acct ? "The contract exists but did not pass every check above. Do not use it; tell us on @cleartopay." : "The contract is not on NEAR. If your wallet showed an error, nothing was created.", "bad");
+    return r.ok;
+  } catch { say("st1", "Not every NEAR server answered, so this page cannot confirm the contract yet. Reload in a moment to check again.", "bad"); return false; }
+}
+
+$("label").addEventListener("input", () => { clearTimeout(S.t); S.t = setTimeout(paintName, 350); });
+
+$("create").onclick = async () => {
+  const name = S.name; if (!name) return;
+  $("create").disabled = true;
+  try {
+    say("st1", "Checking which code the factory installs…");
+    let h = null; try { h = await view(K.FACTORY, "code_hash"); } catch { throw new Error("NEAR did not answer, so nothing was sent. Try again in a moment."); }
+    K.checkFactory(h); // throws, before the wallet opens, if the factory does not install our code
+    const tx = K.createTx({ buyer: S.me, label: name.slice(0, -(K.FACTORY.length + 1)) }); // exactly the name that was checked
+    say("st1", "Approve the transaction in your wallet…");
+    try { sessionStorage.setItem(PENDING, name); } catch {}
+    const r = await S.wallet.signAndSendTransaction(tx);
+    if (failed(r)) { say("st1", "NEAR refused the transaction, so nothing was created; NEAR returns what you attached. Check your balance and try again.", "bad"); $("create").disabled = false; return; }
+    const v = K.createOutcome(r);
+    if (v === "refunded") { say("st1", `Nothing was created: ${name} was taken a moment before yours. Your 3.6 NEAR was sent back. Choose another name.`, "bad"); $("create").disabled = false; return; }
+    if (v === "owed") { say("st1", `Nothing was created: ${name} was taken a moment before yours. Your 3.6 NEAR is held for you; press Claim my refund in a minute.`, "bad"); $("claim").hidden = false; $("create").disabled = false; return; }
+    await readBack(name);
+  } catch (e) {
+    const m = String(e?.message || e || "");
+    say("st1", /reject|cancel|denied|closed/i.test(m) ? "You did not approve in the wallet, so nothing was created." : m.slice(0, 220), "bad");
+    $("create").disabled = false;
+  }
+};
+
+// A refund the factory could not pay at once: shown whenever one is owed to the connected account.
+async function paintClaim() {
+  if (!S.me) { $("claim").hidden = true; return; }
+  try { const o = BigInt(await view(K.FACTORY, "refund_owed", { account_id: S.me })); $("claim").hidden = o === 0n; if (o > 0n) $("claim").textContent = `Claim my refund (${(Number(o / (ONE / 1000n)) / 1000).toFixed(3)} NEAR)`; } catch {}
+}
+$("claim").onclick = async () => {
+  $("claim").disabled = true; say("st1", "Approve the refund in your wallet…");
+  try {
+    const r = await S.wallet.signAndSendTransaction(K.claimTx());
+    if (failed(r)) throw new Error("The refund is not back with the factory yet. Try again in a minute.");
+    say("st1", "Your refund was sent to " + S.me + ".", "ok"); $("claim").hidden = true;
+  } catch (e) { const m = String(e?.message || e || ""); say("st1", /reject|cancel|denied|closed/i.test(m) ? "You did not approve, so nothing changed." : m.slice(0, 200), "bad"); }
+  $("claim").disabled = false; paintClaim();
+};
+
+$("reg").onclick = async () => {
+  $("reg").disabled = true; say("st2", "Approve the transaction in your wallet…");
+  try {
+    const r = await S.wallet.signAndSendTransaction(K.registerTx(S.name));
+    if (failed(r)) throw new Error("NEAR refused it.");
+    say("st2", "Registered: your contract can now hold testnet USDC.", "ok");
+    on("s4", true); $("next").removeAttribute("aria-disabled");
+  } catch (e) { const m = String(e?.message || e || ""); say("st2", /reject|cancel|denied|closed/i.test(m) ? "You did not approve, so nothing changed." : "That did not go through: " + m.slice(0, 160), "bad"); $("reg").disabled = false; }
+};
+
+// Wallet: the same selector as Buyer setup.
+async function connectWallet(show) {
+  try {
+    const W = await import("../wallet.js");
+    if (!S.selector) S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet(), W.setupMyNearWallet()] });
+    const sync = async () => {
+      const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
+      S.me = a ? a.accountId : null; S.wallet = S.me ? walletFix(await S.selector.wallet()) : null;
+      $("acct").textContent = S.me || "Not connected"; $("connect").hidden = !!S.me; $("disconnect").hidden = !S.me; on("s2", !!S.me);
+      say("st0", "");
+      const mine = S.me && recall(S.me);
+      if (mine && !$("label").value.trim()) $("label").value = mine.slice(0, -(K.FACTORY.length + 1));
+      paintName(); paintClaim();
+    };
+    S.selector.store.observable.subscribe(sync); await sync();
+    if (show && !S.me) W.setupModal(S.selector, { description: "Connect the buyer's account. It becomes the owner of the new contract." }).show();
+  } catch { say("st0", "The wallet could not load. Check your connection and try again.", "bad"); }
+}
+$("connect").onclick = () => connectWallet(true);
+$("disconnect").onclick = async () => { try { await (await S.selector.wallet()).signOut(); } catch {} };
+
+// Back from a redirect wallet: read the pending contract back from NEAR, whatever the address bar says.
+(async () => {
+  await connectWallet(false);
+  const q = new URLSearchParams(location.search);
+  if (q.has("transactionHashes") || q.has("errorCode")) {
+    history.replaceState(null, "", location.pathname);
+    let p = null; try { p = sessionStorage.getItem(PENDING); } catch {}
+    if (p && isAccount(p) && S.me) { $("label").value = p.split(".")[0]; $("name").textContent = p; if (!(await readBack(p)) && q.has("errorCode")) say("st1", "You did not approve in the wallet, so nothing was created.", "bad"); }
+  }
+})();
+</script>
+<script type="module" src="../polish.js"></script>
+</body>
+</html>

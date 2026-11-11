@@ -56,6 +56,16 @@ export async function rpc(method, params, ms = 15000) {
   }
   throw last;
 }
+/** One query to one named server, no fallback: for checks that must hear the same answer from every server. */
+export async function rpcAt(url, method, params, ms = 15000) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method, params }) });
+    const j = await r.json();
+    if (j.error) { const e = new Error(j.error.data ? JSON.stringify(j.error.data) : j.error.message || "RPC error"); e.rpc = j.error; throw e; }
+    return j.result;
+  } finally { clearTimeout(t); }
+}
 const b64json = (o) => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(o))));
 export async function view(contract, method, args = {}, finality = "final") {
   const r = await rpc("query", { request_type: "call_function", finality, account_id: contract, method_name: method, args_base64: b64json(args) });
@@ -107,6 +117,8 @@ export function walletFix(w) {
     if (a.type === "FunctionCall") return { functionCall: { methodName: p.methodName, args: new TextEncoder().encode(JSON.stringify(p.args)), gas: BigInt(p.gas), deposit: BigInt(p.deposit) } };
     if (a.type === "Transfer") return { transfer: { deposit: BigInt(p.deposit) } };
     if (a.type === "DeleteKey") return { deleteKey: { publicKey: { toString: () => p.publicKey } } };
+    if (a.type === "CreateAccount") return { createAccount: {} };
+    if (a.type === "DeployContract") return { deployContract: { code: p.code } };
     return a;
   };
   return new Proxy(w, { get(t, k) {
