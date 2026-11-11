@@ -24,6 +24,8 @@ Every step runs in the browser today; details in [How a company would use it](#h
 
 ## Judge summary
 
+Most agent guards check *who* gets paid and *how much*. Clear to Pay also checks *what was ordered*, *what was delivered* and *who signed for it*, and a fooled agent still cannot pay the wrong address.
+
 **Threat:** a poisoned invoice convinces an AI agent to pay an attacker.
 **Invariant:** only the NEAR contract authorises payment, and it pays only the supplier's registered address, after the order check and a delivery signed by two different roles.
 **Try it:** [Judge mode](https://clear-to-pay.vercel.app/console/), no wallet, no install.
