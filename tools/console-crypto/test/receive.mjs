@@ -62,7 +62,9 @@ bad((a) => { a.quote.amountIn = "5000000"; }, /amount to send changed/);
 bad((a) => { a.quote.minAmountOut = "100"; }, /less than 90%/);                  // a ruinous price
 bad((a) => { a.quote.minAmountOut = "0"; }, /makes no sense/);
 bad((a) => { a.quote.minAmountOut = "999999"; }, /makes no sense/);              // "at least" above the estimate
-bad((a) => { a.quote.amountOut = "1500000"; a.quote.minAmountOut = "1400000"; }, /more than you send/);
+bad((a) => { a.quote.amountOut = "1500000"; a.quote.minAmountOut = "1400000"; }, /far more than you send/);
+// a stablecoin may be worth a little more than USDC: up to 5% above is accepted
+{ const a = answer(); a.quote.amountOut = "1003000"; a.quote.minAmountOut = "993000"; assert.ok(R.checkQuote(a, req, NOW)); }
 bad((a) => { a.quote.amountOut = "-1"; }, /not numbers/);
 bad((a) => { a.quote.deadline = "2026-11-10T19:00:00.000Z"; }, /already expired/);
 bad((a) => { a.quote.deadline = "2027-01-01T00:00:00.000Z"; }, /lives too long/);
@@ -94,5 +96,42 @@ assert.ok(R.readStatus({ status: "REFUNDED" }).final && R.readStatus({ status: "
 assert.equal(R.readStatus({ status: "SUCCESS", swapDetails: { destinationChainTxHashes: [{ explorerUrl: "javascript:alert(1)" }, { explorerUrl: "http://sepolia.basescan.org/tx/0x1" }, { explorerUrl: 'https://x.io/"><script>' }] } }).link, null);
 for (const junk of [null, undefined, {}, { status: 5 }, { status: "NEW_THING" }, { status: "SUCCESS", swapDetails: { destinationChainTxHashes: "x" } }])
   assert.ok(["wait", "done"].includes(R.readStatus(junk).state));
+
+// ---- RA-03: every field sent must come back unchanged, the deadline and slippage too
+bad((a) => { a.quoteRequest.slippageTolerance = 999999; }, /slippageTolerance changed/);
+bad((a) => { a.quoteRequest.deadline = "2026-11-10T20:30:00.000Z"; }, /deadline changed/);
+
+// ---- RA-05: only a transaction page on the three explorers is ever called "the payout"
+const hop = (u) => R.readStatus({ status: "SUCCESS", swapDetails: { destinationChainTxHashes: [{ explorerUrl: u }] } });
+const TXH = "0x" + "ab".repeat(32);
+for (const host of ["sepolia.basescan.org", "sepolia.arbiscan.io", "sepolia.etherscan.io"]) assert.equal(hop(`https://${host}/tx/${TXH}`).link, `https://${host}/tx/${TXH}`);
+for (const u of [`https://evil.example/tx/${TXH}`, `https://sepolia.basescan.org.evil.io/tx/${TXH}`, `https://sepolia.basescan.org/address/${TXH}`, "https://sepolia.basescan.org/tx/0x62f4", `https://sepolia.basescan.org/tx/${TXH}?x=1`, `https://testnet.nearblocks.io/txns/abc`])
+  assert.equal(hop(u).link, null, u);
+// ---- RA-04: the page says who reports what; with no recognised link it says to check
+assert.match(done.text, /^Tidepool reports it delivered/);
+assert.match(hop("https://evil.example/x").text, /no payout link we recognise/);
+assert.match(R.readStatus({ status: "REFUNDED" }).text, /^Tidepool reports/);
+
+// ---- RA-02: what the wallet's answer says
+assert.deepEqual(R.walletOutcome({ status: { SuccessValue: "" }, transaction: { hash: "H1" } }), { state: "ok", hash: "H1" });
+assert.deepEqual(R.walletOutcome({ status: { Failure: { ActionError: {} } }, transaction_outcome: { id: "H2" } }), { state: "failed", hash: "H2" });
+assert.deepEqual(R.walletOutcome([{ status: { SuccessValue: "" } }, { status: { Failure: {} }, transaction: { hash: "H3" } }]), { state: "failed", hash: "H3" }); // the last one counts
+for (const r of [undefined, null, "x", {}, { transaction: { hash: "H4" } }]) assert.equal(R.walletOutcome(r).state, "unknown");
+
+// ---- RA-01: a transaction read back from NEAR belongs to exactly one swap, or to none
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64");
+const swaps = [{ id: "a1", dep: DEP, amount: "1000000" }, { id: "b2", dep: "f".repeat(64), amount: "2000000" }];
+const txOf = (over = {}, args = { receiver_id: DEP, amount: "1000000" }, status = { SuccessValue: "" }) => ({ status, transaction: { signer_id: ME, receiver_id: "usdc.tidepool-sandbox.testnet", actions: [
+  { FunctionCall: { method_name: "storage_deposit", args: b64({ account_id: args.receiver_id, registration_only: true }) } },
+  { FunctionCall: { method_name: "ft_transfer", args: b64(args) } }], ...over } });
+assert.deepEqual(R.matchSwapTx(txOf(), ME, swaps), { id: "a1", failed: false });
+assert.deepEqual(R.matchSwapTx(txOf({}, { receiver_id: "f".repeat(64), amount: "2000000" }), ME, swaps), { id: "b2", failed: false });
+assert.deepEqual(R.matchSwapTx(txOf({}, undefined, { Failure: {} }), ME, swaps), { id: "a1", failed: true });
+assert.equal(R.matchSwapTx(txOf({ signer_id: "someone.testnet" }), ME, swaps), null);       // another account's transaction
+assert.equal(R.matchSwapTx(txOf({ receiver_id: "evil.testnet" }), ME, swaps), null);         // not the token
+assert.equal(R.matchSwapTx(txOf({}, { receiver_id: DEP, amount: "5" }), ME, swaps), null);   // right address, wrong amount
+assert.equal(R.matchSwapTx(txOf({}, { receiver_id: "e".repeat(64), amount: "1000000" }), ME, swaps), null); // no such swap
+for (const junk of [null, {}, { transaction: {} }, { transaction: { signer_id: ME, receiver_id: "usdc.tidepool-sandbox.testnet", actions: [{ FunctionCall: { method_name: "ft_transfer", args: "!!" } }] } }])
+  assert.equal(R.matchSwapTx(junk, ME, swaps), null);
 
 console.log("receive-as: request, answer check, wallet transaction and status all hold");

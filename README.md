@@ -8,12 +8,12 @@
 
 ## In plain words
 
-Companies lose money when a fake invoice, or an email saying "we changed our bank details", gets paid. More and more of those bills will be paid by AI agents, which can be fooled the same way. Clear to Pay pays a supplier only when the invoice matches the order, two different people have confirmed the delivery, and the money goes to the account the supplier registered days earlier. Anything else is held or stopped, and every decision is on a public ledger.
+Companies lose money when a fake invoice, or an email saying "we changed our bank details", gets paid. More and more of those bills will be paid by AI agents, which can be fooled the same way. Clear to Pay pays a supplier only when the invoice matches the order, people in two different roles (by default) have confirmed the delivery, and the money goes to the account the supplier registered days earlier. Anything else is held or stopped, and every decision is on a public ledger.
 
 **How a company uses it** (the demo: a fabrication yard in Lagos buying steel plate)
 
 1. **Once:** finance registers the supplier, with its signing key and the account it is paid to, after checking that account by phone on a number already on file. A new account cannot be paid for 72 hours, and any later change needs the supplier's signature, finance's approval and another 72 hours.
-2. **Delivery day:** two people in different roles, here the storekeeper and the weighbridge operator, each confirm on their phone what actually arrived. Neither can do it alone.
+2. **Delivery day:** by default two people in different roles, here the storekeeper and the weighbridge operator, each confirm on their phone what actually arrived. Neither can do it alone.
 3. **Invoice day:** the supplier sends the PDF as usual and signs the invoice on their phone. The items, prices and payee come from the order, so nothing typed can change them.
 4. **Minutes later:** an AI reads the PDF inside a secure enclave, with hidden text removed, and checks it against what the supplier signed. It decides nothing.
 5. **Instantly:** the contract pays the registered account if everything matches (**CLEARED**), says what to fix (**HELD**), or pays nothing and flags the attempt (**SEIZED**). On testnet, the supplier can then receive the payment on another chain.

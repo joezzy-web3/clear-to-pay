@@ -60,7 +60,7 @@ export function checkQuote(res, req, now = Date.now()) {
   const q = res && res.quoteRequest, o = res && res.quote;
   if (!q || !o || typeof q !== "object" || typeof o !== "object") throw bad("no quote in the answer");
   if (q.dry !== false) throw bad("it is only a preview");
-  for (const k of ["swapType", "originAsset", "depositType", "destinationAsset", "amount", "recipientType", "refundTo", "refundType"])
+  for (const k of ["swapType", "slippageTolerance", "originAsset", "depositType", "destinationAsset", "amount", "recipientType", "refundTo", "refundType", "deadline"])
     if (q[k] !== req[k]) throw bad(k + " changed");
   if (typeof q.recipient !== "string" || q.recipient.toLowerCase() !== req.recipient.toLowerCase()) throw bad("the receiving address changed");
   if (!isImplicit(o.depositAddress)) throw bad("the swap address is not a NEAR account");
@@ -71,7 +71,7 @@ export function checkQuote(res, req, now = Date.now()) {
   if (min > out || min === 0n) throw bad("the least you would receive makes no sense");
   // test dollars for test dollars, both with 6 decimals: refuse to lose more than a tenth, or to "gain"
   if (min * 10n < inn * 9n) throw new Error("This quote pays out less than 90% of what you send. Nothing was sent. Try again later.");
-  if (out > inn) throw bad("it pays out more than you send");
+  if (out * 100n > inn * 105n) throw bad("it pays out far more than you send");
   const end = Date.parse(o.deadline);
   if (!Number.isFinite(end) || end <= now + 60_000) throw bad("the swap address has already expired");
   if (end > now + 24 * 3_600_000 + 60_000) throw bad("the swap address lives too long");
@@ -95,19 +95,49 @@ export function depositTx({ depositAddress, amount }) {
   };
 }
 
-const httpsUrl = (u) => (typeof u === "string" && /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9._~\/?=&%#:-]*$/.test(u) ? u : null);
+/** Only a transaction page on one of the three explorers we pay out to: anything else is never shown as "the payout". */
+const EXPLORERS = ["sepolia.basescan.org", "sepolia.arbiscan.io", "sepolia.etherscan.io"];
+const payoutUrl = (u) => { const m = typeof u === "string" && /^https:\/\/([a-z.]+)\/tx\/(0x[0-9a-fA-F]{64})$/.exec(u); return m && EXPLORERS.includes(m[1]) ? `https://${m[1]}/tx/${m[2]}` : null; };
 /** What the sandbox says about a swap, in plain words.
  *  state: "wait" (no money seen yet) | "work" | "done" | "back" (refunded) | "fail"; `final` stops the polling.
  *  link: the payout on the destination chain's explorer, once there is one. */
 export function readStatus(j) {
   const s = j && typeof j.status === "string" ? j.status : "";
   const hops = (j && j.swapDetails && Array.isArray(j.swapDetails.destinationChainTxHashes)) ? j.swapDetails.destinationChainTxHashes : [];
-  const link = hops.map((h) => httpsUrl(h && h.explorerUrl)).find((u) => u && !/nearblocks\.io/.test(u)) || null;
-  if (s === "SUCCESS") return { state: "done", final: true, link, text: "Delivered. The money is at your address on the other chain." };
-  if (s === "REFUNDED") return { state: "back", final: true, link: null, text: "The swap did not go through, and the money was returned to your NEAR payout account." };
-  if (s === "FAILED") return { state: "fail", final: true, link: null, text: "The swap failed. The service returns the money to your NEAR payout account; check its balance in a few minutes." };
-  if (s === "INCOMPLETE_DEPOSIT") return { state: "work", final: false, link: null, text: "Less arrived than the quote asked for. It is returned to your NEAR payout account when the swap address expires." };
+  const link = hops.map((h) => payoutUrl(h && h.explorerUrl)).find(Boolean) || null;
+  if (s === "SUCCESS") return { state: "done", final: true, link, text: link ? "Tidepool reports it delivered. Open the payout to confirm it arrived at your address." : "Tidepool reports it delivered, but gave no payout link we recognise. Check your address on the explorer before relying on it." };
+  if (s === "REFUNDED") return { state: "back", final: true, link: null, text: "Tidepool reports the swap did not go through and returned the money to your NEAR payout account. Check the balance above." };
+  if (s === "FAILED") return { state: "fail", final: true, link: null, text: "Tidepool reports the swap failed and that it returns the money to your NEAR payout account. Check the balance above in a few minutes." };
+  if (s === "INCOMPLETE_DEPOSIT") return { state: "work", final: false, link: null, text: "Tidepool reports less arrived than the quote asked for, and that it returns it to your NEAR payout account when the swap address expires." };
   if (s === "PROCESSING" || s === "KNOWN_DEPOSIT_TX") return { state: "work", final: false, link, text: "Your money arrived at the swap address and is being moved. This usually takes about a minute." };
   if (s === "PENDING_DEPOSIT") return { state: "wait", final: false, link: null, text: "Waiting for your money to arrive at the swap address." };
   return { state: "wait", final: false, link: null, text: "No answer from the swap service yet." };
+}
+
+/** What a wallet's answer says about the transaction: "failed" (NEAR refused it: nothing was sent),
+ *  "ok" (it ran), or "unknown" (no outcome given, as some wallets do). Returns { state, hash }. */
+export function walletOutcome(r) {
+  const o = Array.isArray(r) ? r[r.length - 1] : r;
+  const hash = o && typeof o === "object" ? (o.transaction && o.transaction.hash) || (o.transaction_outcome && o.transaction_outcome.id) || null : null;
+  const st = o && typeof o === "object" ? o.status : null;
+  if (st && typeof st === "object" && "Failure" in st) return { state: "failed", hash };
+  if (st && typeof st === "object" && ("SuccessValue" in st || "SuccessReceiptId" in st)) return { state: "ok", hash };
+  return { state: "unknown", hash };
+}
+
+const b64json = (s) => { try { return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(s), (c) => c.charCodeAt(0)))); } catch { return null; } };
+/** A transaction read back from NEAR (RPC "tx"), checked against the swaps this page started.
+ *  It must be signed by `me`, sent to the token, and transfer exactly one swap's amount to that swap's address.
+ *  Returns { id, failed } for the swap it belongs to, or null if it belongs to none of them. */
+export function matchSwapTx(t, me, swaps) {
+  const tx = t && t.transaction;
+  if (!tx || tx.signer_id !== me || tx.receiver_id !== SWAP_TOKEN || !Array.isArray(tx.actions)) return null;
+  for (const a of tx.actions) {
+    const f = a && a.FunctionCall;
+    if (!f || f.method_name !== "ft_transfer") continue;
+    const args = b64json(f.args);
+    const s = args && swaps.find((x) => x.dep === args.receiver_id && x.amount === args.amount);
+    if (s) return { id: s.id, failed: !!(t.status && typeof t.status === "object" && "Failure" in t.status) };
+  }
+  return null;
 }
