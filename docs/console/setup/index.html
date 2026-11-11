@@ -14,10 +14,12 @@
 .hero{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);align-items:end}
 .hero .facts::before{content:"Contract · read live"}
 .who{display:grid;gap:10px;margin-top:22px}
-.switch{display:flex;gap:8px;flex-wrap:wrap}
+.switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:640px){.switch{grid-template-columns:1fr}}
 .switch button{font:600 15px var(--body);border:0;padding:11px 16px;cursor:pointer;color:var(--paper);background:#13284A;box-shadow:inset 0 0 0 2px #24406B;text-align:left}
 .switch button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
-.switch small{display:block;font:400 12px var(--mono);opacity:.75;margin-top:2px}
+.switch small{display:block;font:400 12px var(--mono);opacity:.75;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.switch button{min-width:0}
 .acct{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font:500 14px var(--mono);color:var(--nmute)}
 .acct b{color:var(--paper);font-weight:500}
 .forms{padding-block:clamp(30px,5vw,56px) clamp(56px,8vw,96px);display:grid;gap:clamp(16px,2.4vw,22px)}
@@ -689,7 +691,7 @@ function paintWho() {
   n.hidden = !(S.me && S.owner && S.me !== S.owner);
   n.textContent = `Only the buyer account can do this. ${S.me} is signed in; ${contract()} belongs to ${S.owner}. You can still fill the forms and review them.`;
 }
-ownSwitch(document.querySelector(".switch"), (addr) => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.setAttribute("aria-pressed", "false"); x.innerHTML = `Your own contract<small>${addr ? esc(addr) : "your company's guard"}</small>`; return x; });
+ownSwitch(document.querySelector(".switch"), (addr) => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.setAttribute("aria-pressed", "false"); x.innerHTML = `Your own contract<small>${addr ? esc(addr) : "your company's guard"}</small>`; if (addr) x.title = addr; return x; });
 document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => {
   S.c = b.dataset.c; sessionStorage.setItem("ctp-setup-contract", S.c);
   document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));

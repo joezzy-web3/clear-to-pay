@@ -51,10 +51,13 @@ code{font-family:var(--mono);font-size:.9em}
 h1{font:800 clamp(56px,9vw,128px)/.92 var(--display);color:var(--paper);margin:20px 0 0;letter-spacing:.005em}
 h1 span{color:var(--signal)}
 .sub{font:400 clamp(16px,1.3vw,18px)/1.5 var(--body);color:var(--nmute);max-width:54ch;margin:16px 0 0}
-.switch{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+/* three contracts in one row; with "Your own contract" added, two rows of two */
+.switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:22px}
+.switch:has(> button:nth-child(4)){grid-template-columns:repeat(2,minmax(0,1fr))}
 .switch button{font:600 15px var(--body);border:0;border-radius:0;padding:11px 16px;cursor:pointer;color:var(--paper);background:#13284A;box-shadow:inset 0 0 0 2px #24406B;text-align:left}
 .switch button[aria-pressed="true"]{background:var(--signal);color:var(--navy);box-shadow:none}
-.switch small{display:block;font:400 12px var(--mono);opacity:.75;margin-top:2px}
+.switch small{display:block;font:400 12px var(--mono);opacity:.75;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.switch button{min-width:0}
 
 /* night band: stats as in the "Live from testnet" template */
 .night{background:var(--deep);color:var(--paper)}
@@ -214,7 +217,7 @@ footer{border-top:1px solid var(--line);padding-block:26px;color:var(--mute);fon
   .tile{padding:18px 16px}
   .tile b{font-size:40px}
   .tile b small{display:block;margin:6px 0 0;font-size:13px}
-  .switch button{flex:1 1 100%}
+  .switch,.switch:has(> button:nth-child(4)){grid-template-columns:1fr}
   .tiles{gap:10px}.tile{padding:16px}
   .near span{display:none}
   .hcard{grid-template-columns:1fr}
@@ -906,7 +909,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   const OWN = (() => { const ok = (v) => typeof v === "string" && /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(v) && v.length <= 64;
     try { const q = new URLSearchParams(location.search).get("contract"); if (ok(q) && !["guard.cleartopay.testnet", "judge.cleartopay.testnet", "cleartopay.testnet"].includes(q)) localStorage.setItem("ctp-own-contract", q); } catch {}
     try { const v = localStorage.getItem("ctp-own-contract"); return ok(v) ? v : null; } catch { return null; } })();
-  if (OWN) { const b = document.createElement("button"); b.type = "button"; b.dataset.net = OWN; b.setAttribute("aria-pressed", "false"); b.innerHTML = "Your own contract<small></small>"; b.querySelector("small").textContent = OWN; document.querySelector(".switch").appendChild(b); }
+  if (OWN) { const b = document.createElement("button"); b.type = "button"; b.dataset.net = OWN; b.setAttribute("aria-pressed", "false"); b.innerHTML = "Your own contract<small></small>"; b.querySelector("small").textContent = OWN; b.title = OWN; document.querySelector(".switch").appendChild(b); }
   document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => select(b.dataset.net)));
   { let t; $("lsearch").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { shownRows = ROWS; renderList(); }, 150); }); }
   document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
