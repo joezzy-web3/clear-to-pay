@@ -5,6 +5,7 @@ const P = {
   setup: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01"/>',
   create: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M9 15h6M12 18v-6"/>',
   inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  overview: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h3M7 11h7M7 6h11"/>',
   ledger: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11"/>',
   inspect: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
   buyer: '<path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/>',
@@ -18,6 +19,7 @@ const kindOf = (href) => {
   if (/\/console\/setup\/$/.test(p)) return "setup";
   if (/\/console\/create\/$/.test(p)) return "create";
   if (/\/console\/inbox\/$/.test(p)) return "inbox";
+  if (/\/console\/overview\/$/.test(p)) return "overview";
   if (/\/console\/$/.test(p)) return "judge";
   if (/\/ledger\/$/.test(p)) return "ledger";
   if (/\/inspect\/$/.test(p)) return "inspect";

@@ -4,6 +4,7 @@ const ROLES = {
   buyer: { name: "BUYER PAGE", line: "Orders, limits and payments. Only the buyer's wallet can sign here." },
   supplier: { name: "SUPPLIER PAGE", line: "Your payout address, your invoices and payments. No wallet needed." },
   signer: { name: "DELIVERY SIGNER PAGE", line: "Confirm what arrived. Your signing key stays on this phone." },
+  overview: { name: "BUYER PAGE", line: "What the agent can spend, read live. Nothing here can be signed.", color: "buyer" },
   create: { name: "NEW CONTRACT", line: "Your company's own Clear to Pay contract, in two wallet approvals.", color: "buyer" },
   pick: { name: "SIGN PAGE", line: "For delivery signers and suppliers. Choose who you are below." },
 };

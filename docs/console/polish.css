@@ -55,3 +55,6 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,su
 .wrap > #home{order:-1}
 .pick button{transition:box-shadow .15s,background-color .15s}
 .pick button:hover{box-shadow:inset 0 0 0 2px var(--navy)!important}
+
+/* Six console tabs: on narrow desktops drop the Home link and the tab icons so the bar fits on one line */
+@media (max-width:1120px) and (min-width:901px){.homelink{display:none!important}.clinks .ico{display:none!important}.clinks a{padding-left:9px!important;padding-right:9px!important}.brand .logo{white-space:nowrap}}
