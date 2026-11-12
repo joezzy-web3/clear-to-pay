@@ -232,7 +232,7 @@ label.confirm.big{padding-left:48px!important}
         <div class="acct"><span id="acct">Not connected</span><button class="btn y" id="connect" type="button">Connect wallet</button><button class="btn ghost" id="disconnect" type="button" hidden style="color:var(--paper);box-shadow:inset 0 0 0 2px #24406B">Disconnect</button></div>
         <div class="whelp" id="whelp" hidden><b>Nothing opened?</b>
           <span><b>Meteor extension:</b> click the Meteor icon in your browser's toolbar; the request waits there. Make sure Meteor is unlocked and set to <b>Testnet</b>, with the buyer account imported.</span>
-          <span><b>No extension:</b> choose Meteor or MyNearWallet again and allow pop-ups for this site (the icon at the right of the address bar).</span>
+          <span><b>No extension:</b> choose Meteor again; it opens Meteor's web wallet in a pop-up, so allow pop-ups for this site (the icon at the right of the address bar).</span>
           <span>Only the buyer account can sign here: <code id="whelp-owner">the contract's owner</code>.</span></div>
       </div>
     </div>
@@ -730,7 +730,7 @@ function initWallet() {
   walletLoading = (async () => {
     try {
       const W = await import("../wallet.js");
-      S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMyNearWallet(), W.setupMeteorWallet()] });
+      S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet()] /* MyNearWallet stopped accepting app connections (Nov 2026) */ });
       S.modal = W.setupModal(S.selector, { description: "Sign in with the buyer's account to change Clear to Pay settings." });
       S.modal.on("onHide", () => { if (!S.me) $("whelp").hidden = false; });
       const sync = async () => {

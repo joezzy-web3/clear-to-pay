@@ -171,7 +171,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     <label class="field" id="join-addr-l" hidden>Your payout account on NEAR<span>where you want to be paid; the buyer will confirm it with you by phone</span><input id="join-addr" placeholder="yourcompany.near" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label>
     <div class="proof" id="proof" hidden>
       <b>Optional: prove this address is yours</b>
-      <p class="plain">If you can sign in to <b id="proof-addr">this account</b> with a NEAR wallet (Meteor or MyNearWallet), sign one short message with it. No money moves and nothing is sent on chain. The buyer's page checks it and shows "proved by the account itself" next to their phone call. The call is still needed.</p>
+      <p class="plain">If you can sign in to <b id="proof-addr">this account</b> with a NEAR wallet (Meteor), sign one short message with it. No money moves and nothing is sent on chain. The buyer's page checks it and shows "proved by the account itself" next to their phone call. The call is still needed.</p>
       <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="proof-go" disabled>Prove with my NEAR wallet</button></div>
       <p class="note" id="proof-st" aria-live="polite"></p>
     </div>
@@ -531,7 +531,7 @@ async function tidepool(path, body) {
 async function raWallet(me, tx, st, beforeSend) {
   st.textContent = "Loading the wallet…";
   const W = await import("../wallet.js");
-  const selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet(), W.setupMyNearWallet()] });
+  const selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet()] /* MyNearWallet stopped accepting app connections (Nov 2026) */ });
   const active = () => selector.store.getState().accounts.find((a) => a.active)?.accountId;
   if (active() !== me) {
     const modal = W.setupModal(selector, { description: `Sign in with ${me}, the account you were paid to.` });
@@ -740,7 +740,7 @@ async function proveAddress() {
   st.textContent = "Loading the wallet…";
   try {
     const W = await import("../wallet.js");
-    const selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet(), W.setupMyNearWallet()] });
+    const selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet()] /* MyNearWallet stopped accepting app connections (Nov 2026) */ });
     const modal = W.setupModal(selector, { description: `Sign in with ${addr}, the account you want to be paid to.` });
     const run = async () => {
       const acc = selector.store.getState().accounts.find((a) => a.active)?.accountId;

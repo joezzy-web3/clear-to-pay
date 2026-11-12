@@ -275,7 +275,7 @@ $("reg").onclick = async () => {
 async function connectWallet(show) {
   try {
     const W = await import("../wallet.js");
-    if (!S.selector) S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet(), W.setupMyNearWallet()] });
+    if (!S.selector) S.selector = await W.setupWalletSelector({ network: "testnet", modules: [W.setupMeteorWallet()] /* MyNearWallet stopped accepting app connections (Nov 2026) */ });
     const sync = async () => {
       const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
       S.me = a ? a.accountId : null; S.wallet = S.me ? walletFix(await S.selector.wallet()) : null;
