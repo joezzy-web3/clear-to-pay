@@ -22,6 +22,7 @@
 .switch button{min-width:0}
 .acct{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font:500 14px var(--mono);color:var(--nmute)}
 .acct b{color:var(--paper);font-weight:500}
+.dnote{flex-basis:100%;font:400 13px/1.45 var(--body);color:var(--signal)}
 .forms{padding-block:clamp(30px,5vw,56px) clamp(56px,8vw,96px);display:grid;gap:clamp(16px,2.4vw,22px)}
 .f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(16px,3vw,32px)}
 .f h3 small{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
@@ -739,9 +740,10 @@ function initWallet() {
       const sync = async () => {
         const st = S.selector.store.getState(), a = st.accounts.find((x) => x.active) || st.accounts[0];
         S.me = a ? a.accountId : null; S.wallet = S.me ? walletFix(await S.selector.wallet()) : null;
-        if (S.me) $("whelp").hidden = true;
+        if (S.me) { $("whelp").hidden = true; try { S.modal.hide(); } catch {} }
         paintWho();
       };
+      S.sync = sync;
       S.selector.store.observable.subscribe(sync); await sync();
       btn.disabled = false; btn.textContent = "Connect wallet";
     } catch (e) {
@@ -753,10 +755,16 @@ function initWallet() {
 }
 $("connect").onclick = async () => {
   await initWallet(); if (!S.modal) return;
+  // Still signed in to this site (for example after a disconnect Meteor did not complete): use that account instead of a dialog that changes nothing.
+  if (S.selector.store.getState().accounts.length) { await S.sync(); if (S.me) return; }
   S.modal.show();
   clearTimeout(S.helpTimer); S.helpTimer = setTimeout(() => { if (!S.me) $("whelp").hidden = false; }, 9000);
 };
-$("disconnect").onclick = async () => { try { await S.wallet.signOut(); } catch {} S.me = null; S.wallet = null; paintWho(); };
+$("disconnect").onclick = async () => {
+  try { await (await S.selector.wallet()).signOut(); } catch {}
+  await S.sync(); // show what the wallet really says, never a disconnect that did not happen
+  if (S.me) $("acct").innerHTML += ' <span class="dnote">Meteor kept this site connected. To disconnect fully, remove clear-to-pay.vercel.app under Connected sites in Meteor, then reload.</span>';
+};
 
 // Back from a redirect wallet: ?transactionHashes=… or ?errorCode=…
 /** CTP8-04: what NEAR says about a transaction: ok, failed, or unknown (never "ok" just because a hash came back). */

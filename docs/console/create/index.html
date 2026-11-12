@@ -290,7 +290,11 @@ async function connectWallet(show) {
   } catch { say("st0", "The wallet could not load. Check your connection and try again.", "bad"); }
 }
 $("connect").onclick = () => connectWallet(true);
-$("disconnect").onclick = async () => { try { await (await S.selector.wallet()).signOut(); } catch {} };
+$("disconnect").onclick = async () => {
+  try { await (await S.selector.wallet()).signOut(); } catch {}
+  const st = S.selector.store.getState();
+  if (st.accounts.length) say("st0", "Meteor kept this site connected. To disconnect fully, remove clear-to-pay.vercel.app under Connected sites in Meteor, then reload.", "bad");
+};
 
 // Back from a redirect wallet: read the pending contract back from NEAR, whatever the address bar says.
 (async () => {
