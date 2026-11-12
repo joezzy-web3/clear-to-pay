@@ -456,7 +456,7 @@ deposit   none (a function-call key can never attach money)` };
     fields: `<label>Amount<span>USDC, at most what is available</span><input id="w-amt" inputmode="decimal" placeholder="5"></label>`,
     build() {
       const a = toUnits($("w-amt").value); if (!a || a === "0") fail("Type an amount in USDC above 0, like 5 or 2.50. No $ sign or commas.");
-      return { method: "withdraw", gas: 100, args: { token: USDC, amount: a }, note: `${fromUnits(a)} USDC from the pool of ${contract()} back to its owner` };
+      return { method: "withdraw", gas: 100, args: { token: USDC, amount: a }, note: `Money goes to: the contract's owner, ${S.owner || "the owner's account"} (your wallet, if you own it). ${fromUnits(a)} USDC leaves the pool of ${contract()}; nothing reserved for payments can.` };
     },
     async readBack() { return this.now(); },
     async now() { const f = await view(contract(), "get_funds", { token: USDC }, "optimistic"); $("f-pool").textContent = fromUnits(f.available) + " USDC"; return `Pool: ${fromUnits(f.available)} USDC available to withdraw · ${fromUnits(f.reserved || 0)} reserved for payments`; } },
@@ -556,7 +556,7 @@ function review(id) {
   out.innerHTML = "";
   try {
     const c = call(f); PENDING[id] = c;
-    $("pv-" + id).innerHTML = c.preview ? `<b>Your wallet will sign</b>\n${esc(c.preview)}` : `<b>Your wallet will sign</b>\nfrom      ${esc(S.me || "(connect your wallet)")}\nto        ${esc(c.receiver)}\nmethod    ${esc(c.method)}\ndeposit   1 yoctoNEAR (proves it is you)\ngas       ${esc(c.gas.slice(0, -12))} Tgas\nargs      ${esc(JSON.stringify(c.args, null, 2))}${c.note ? "\n\n" + esc(c.note) : ""}`;
+    $("pv-" + id).innerHTML = c.preview ? `<b>Your wallet will sign</b>\n${esc(c.preview)}` : `<b>Your wallet will sign</b>\nfrom      ${esc(S.me || "(connect your wallet)")}\ncontract  ${esc(c.receiver)}  (the contract this calls)\nmethod    ${esc(c.method)}\ndeposit   1 yoctoNEAR (proves it is you)\ngas       ${esc(c.gas.slice(0, -12))} Tgas\nargs      ${esc(JSON.stringify(c.args, null, 2))}${c.note ? "\n\n" + esc(c.note) : ""}`;
     const sb = document.querySelector(`[data-sign="${id}"]`);
     sb.disabled = !(S.me && S.owner && S.me === S.owner);
     if (!S.me) out.innerHTML = `<p class="err">Connect the buyer's wallet to sign.</p>`;
