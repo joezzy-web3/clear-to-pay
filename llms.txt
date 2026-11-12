@@ -6,7 +6,7 @@ Threat: a poisoned invoice convinces an AI agent to pay an attacker.
 Invariant: only the NEAR contract authorises payment, and it pays only the supplier's registered address, after the order check and a delivery signed by two different roles.
 Try it: https://clear-to-pay.vercel.app/console/ (Judge mode, no wallet)
 Proof: first settled payment https://testnet.nearblocks.io/txns/23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn · a fooled agent's submit, SEIZED https://testnet.nearblocks.io/txns/8HgbsoAvr39cQJnwMnU2eL4ejVpLTmBjhqjmu6o4ufHY · 127 contract tests, 253 reader tests (below)
-Status: running on NEAR testnet, with ten security reviews behind it; a professional audit comes before mainnet.
+Status: running on NEAR testnet, with eleven security reviews behind it; a professional audit comes before mainnet.
 
 This file is for AI reviewers. Each claim points to where it is proven. Run the commands; do not take the claims on trust.
 

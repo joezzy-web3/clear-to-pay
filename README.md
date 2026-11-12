@@ -8,12 +8,12 @@
 
 ## In plain words
 
-Companies lose money when a fake invoice, or an email saying "we changed our bank details", gets paid. More and more of those bills will be paid by AI agents, which can be fooled the same way. Clear to Pay pays a supplier only when the invoice matches the order, people in two different roles (by default) have confirmed the delivery, and the money goes to the account the supplier registered days earlier. Anything else is held or stopped, and every decision is on a public ledger.
+Companies lose money when a fake invoice, or an email saying "we changed our bank details", gets paid. More and more of those bills will be paid by AI agents, which can be fooled the same way. Clear to Pay pays a supplier only when the invoice matches the order, signers in two different roles (by default) have confirmed the delivery, and the money goes to the account the supplier registered days earlier. Anything else is held or stopped, and every decision is on a public ledger.
 
 **How a company uses it** (the demo: a fabrication yard in Lagos buying steel plate)
 
 1. **Once:** the company creates its own locked Clear to Pay contract in two wallet approvals, with no developer. Then finance registers the supplier, with its signing key and the account it is paid to, after checking that account by phone on a number already on file. A new account cannot be paid for 72 hours, and any later change needs the supplier's signature, finance's approval and another 72 hours.
-2. **Delivery day:** the storekeeper and the weighbridge operator each confirm on their phone what actually arrived. The contract won't pay until people in two different roles have signed; that is the default, and the buyer can set the number.
+2. **Delivery day:** the storekeeper and the weighbridge operator each confirm on their phone what actually arrived. The contract won't pay until registered signers in two different roles have signed; that is the default, and the buyer can set the number.
 3. **Invoice day:** the supplier sends the PDF as usual and signs the invoice on their phone. The items, prices and payee come from the order, so nothing typed can change them.
 4. **Minutes later:** an AI reads the PDF inside a secure enclave, with hidden text removed, and checks it against what the supplier signed. It decides nothing.
 5. **Instantly:** the contract pays the registered account if everything matches (**CLEARED**), says what to fix (**HELD**), or pays nothing and flags the attempt (**SEIZED**). The supplier can then receive the payment on another chain through **NEAR Intents** (on testnet today, via Tidepool).
@@ -30,7 +30,7 @@ Most agent guards check *who* gets paid and *how much*. Clear to Pay also checks
 **Invariant:** only the NEAR contract authorises payment, and it pays only the supplier's registered address, after the order check and a delivery signed by two different roles.
 **Try it:** [Judge mode](https://clear-to-pay.vercel.app/console/), no wallet, no install.
 **Proof:** [first real payment, settled on testnet](https://testnet.nearblocks.io/txns/23MoTFoVaA7GdzJRxKakDBS8iQv8YjV8U15Uznf3ZtCn) · [a fooled agent's submit, SEIZED](https://testnet.nearblocks.io/txns/8HgbsoAvr39cQJnwMnU2eL4ejVpLTmBjhqjmu6o4ufHY) · 127 contract tests, 253 reader tests ([how to run them](#try-it))
-**Status:** running on NEAR testnet, with ten security reviews behind it; a professional audit comes before mainnet.
+**Status:** running on NEAR testnet, with eleven security reviews behind it; a professional audit comes before mainnet.
 
 **Why it holds**
 - The AI can be fooled; the payment rules cannot. The contract never asks the document, the AI or the agent where to pay. That is [why the AI is never in charge](#why-the-ai-is-never-in-charge): whatever happens to it, no payment rule depends on it.
@@ -274,7 +274,7 @@ Each company runs its **own** Clear to Pay contract, and the contract's owner is
 
 Live: [`joezzytest.factory.cleartopay.testnet`](https://testnet.nearblocks.io/address/joezzytest.factory.cleartopay.testnet), created this way from Meteor on 11 November 2026: NEAR reports its code as `9b998038…a2d1` and "Account is locked (no access keys)".
 
-**2. Do the rest in the browser**, with no terminal: the last step opens [Buyer setup with your contract](https://clear-to-pay.vercel.app/console/setup/?contract=acme.factory.cleartopay.testnet) (the `?contract=` part puts **Your own contract** next to Demo and Live; it is remembered in that browser, and the page only accepts an address that answers as a Clear to Pay contract). Allow USDC (Advanced), create the first order with the wizard (supplier, items, delivery signers, limits, one signature) and top up the pool. Every link it sends (supplier, signers, delivery notes) carries the contract, so the Supplier and Sign pages, the Inbox and the [ledger](https://clear-to-pay.vercel.app/ledger/?contract=acme.factory.cleartopay.testnet) all work with it.
+**2. Do the rest in the browser**, with no terminal: the last step opens [Buyer setup with your contract](https://clear-to-pay.vercel.app/console/setup/?contract=acme.factory.cleartopay.testnet) (the `?contract=` part puts **Your own contract** next to Demo and Live; it is remembered in that browser, and a page uses it only once two NEAR servers both report the pinned code and no access keys, so a link to any other contract is ignored). Allow USDC (Advanced), create the first order with the wizard (supplier, items, delivery signers, limits, one signature) and top up the pool. Every link it sends (supplier, signers, delivery notes) carries the contract, so the Supplier and Sign pages, the Inbox and the [ledger](https://clear-to-pay.vercel.app/ledger/?contract=acme.factory.cleartopay.testnet) all work with it.
 
 **Locked means locked, for us too.** Nobody, not the buyer, not us, not the factory, can change the contract's code or move its money outside its rules: it pays registered suppliers, and `withdraw` pays only the owner. Two consequences, stated plainly:
 - **No rescue.** If the owner loses access to their account, unreserved money in the pool stays there; payments already authorised still go to suppliers. So:
@@ -290,17 +290,19 @@ Live: [`joezzytest.factory.cleartopay.testnet`](https://testnet.nearblocks.io/ad
 
 <details><summary>Prefer the terminal? Deploy it yourself (the developer route)</summary>
 
-NEAR CLI and `cargo near`; replace `acme.testnet` with the company's account, which becomes the buyer. Unlike the factory route, the contract account keeps its full-access key until you delete it.
+NEAR CLI; replace `acme.testnet` with the company's account, which becomes the buyer. Deploy the exact binary CI checks (`factory/res/clear_to_pay.wasm`, sha-256 `9b998038…a2d1`), then delete the contract account's key: the Console and the ledger use a contract only when it runs that code and has no access keys, the same state the factory route starts in.
 ```bash
 git clone https://github.com/joezzy-web3/clear-to-pay && cd clear-to-pay
-cargo near build non-reproducible-wasm
+sha256sum factory/res/clear_to_pay.wasm   # 9b998038ac549a37c871c431e28b125437f4c7f046799d8e4e5c139dbea0a2d1
 near account create-account fund-myself pay.acme.testnet '5 NEAR' autogenerate-new-keypair save-to-legacy-keychain \
   sign-as acme.testnet network-config testnet sign-with-legacy-keychain send
-near contract deploy pay.acme.testnet use-file target/near/clear_to_pay.wasm with-init-call new \
+near contract deploy pay.acme.testnet use-file factory/res/clear_to_pay.wasm with-init-call new \
   json-args '{"owner":"acme.testnet"}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config testnet sign-with-legacy-keychain send
 near contract call-function as-transaction 3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af storage_deposit \
   json-args '{"account_id":"pay.acme.testnet"}' prepaid-gas '30.0 Tgas' attached-deposit '0.00125 NEAR' \
   sign-as acme.testnet network-config testnet sign-with-legacy-keychain send   # so the contract can hold testnet USDC
+near account list-keys pay.acme.testnet network-config testnet now          # the key created above
+near account delete-keys pay.acme.testnet public-keys ed25519:<that key> network-config testnet sign-with-legacy-keychain send   # lock it
 ```
 </details>
 
@@ -356,7 +358,7 @@ What Clear to Pay deliberately leaves to people or to other systems, and what st
 - **The AI's hardware check** (Intel's signature chain, NVIDIA's signed verdict) runs on every new reading and relies on Intel's and NVIDIA's attestation services, like every enclave system; a reading that cannot be checked is HELD. The model weights are as provable as the deployment file we pin (by sha256); either way, the AI never decides money.
 - **Out of scope:** tax withholding, national e-invoicing systems and local rules on stablecoin payments.
 - **Top-ups go through `ft_transfer_call`**, which every path we ship uses (Buyer setup, `topup`, the scripts); tokens sent with a plain `ft_transfer` are not counted in the pool and stay in the contract's token balance; any other sender is refunded automatically.
-- **Hackathon code on testnet**, with ten security reviews behind it; a professional audit comes before mainnet, which starts with small amounts.
+- **Hackathon code on testnet**, with eleven security reviews behind it; a professional audit comes before mainnet, which starts with small amounts.
 
 ## Security review
 
@@ -476,6 +478,16 @@ The same external reviewer read patches 69 to 79: the one-signature order wizard
 - **CTP8-09 (Low): an old NEP-413 proof stayed valid for ever.** **Fixed:** proofs older than 7 days, or from the future, are refused.
 - **CTP8-10 (Low): "this signature proves which code read your invoice" claimed more than the browser checks.** **Fixed:** the page now says the enclave signed the reading and OutLayer's attestation names the code; Intel's quote and the worker's registration are OutLayer's checks, not the browser's.
 - **CTP8-11 (Low): the OutLayer build did not run on pushes to main.** **Fixed.**
+
+### Eleventh review (12 November 2026, external)
+
+A final external AI review of the whole repository before submission (commit `227d5b5`, all CI jobs green). **No Critical or High finding**; the factory's create, callback and claim, auto-pay on clearance, cancel only before payment starts, owner-only withdraw of unreserved money, append-only receipts and the supply-chain check were all confirmed in the code. Findings:
+
+- **CTP11-01 (Medium): a link could make the Console treat another contract as "Your own contract".** `?contract=` was remembered before it was checked, and any contract answering `get_owner` was accepted, so a crafted link could point a buyer's top-up at someone else's code. **Fixed:** the Console and the ledger now use an address, from a link, the form or the browser's memory, only once **both** NEAR servers report the pinned guard code and no access keys; nothing else is saved or shown. Tests in `tools/console-crypto/test/create.mjs` (other code, a key, servers that disagree, a server down: all refused; the three pins must match).
+- **CTP11-02 (Low): the alerts worker takes its snapshot from one server.** *Scope:* alerts are a notice layer and never decide or move money; the contract enforces every rule whatever the alerts do. *Covered by:* the worker already asks a second server about the two things an attacker most wants to hide (payout address records and delivery signers) and raises an alarm if they differ; the ledger, the Inbox and NearBlocks read the chain directly.
+- **CTP11-03 (Low): the signature relay is open, so it can be filled with junk.** *Scope:* the relay only saves carrying links by hand and decides nothing. *Covered by:* the Inbox checks every item against the chain before keeping it, and every signer's page also gives the send-back link to pass on directly.
+- **CTP11-04 (Info): `claim_refund` clears the debt before the transfer.** The transfer goes to the account making the claim, which exists at that moment, so it lands; the wording now says exactly that a refund is always either paid or recorded. The factory is locked, so its code stays as audited.
+- **CTP11-05 (Info): "people in two roles".** The contract counts registered keys in distinct roles, not people; the README now says signers, as THREAT_MODEL and llms.txt already did.
 
 ### Tenth review (11 November 2026, external)
 

@@ -944,11 +944,29 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     return refresh();
   }
 
-  // a company's own Clear to Pay contract (made on the New contract page): ?contract=acme.factory.cleartopay.testnet, remembered like the Console does
-  const OWN = (() => { const ok = (v) => typeof v === "string" && /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(v) && v.length <= 64;
-    try { const q = new URLSearchParams(location.search).get("contract"); if (ok(q) && !["guard.cleartopay.testnet", "judge.cleartopay.testnet", "cleartopay.testnet"].includes(q)) localStorage.setItem("ctp-own-contract", q); } catch {}
-    try { const v = localStorage.getItem("ctp-own-contract"); return ok(v) ? v : null; } catch { return null; } })();
-  if (OWN) { const b = document.createElement("button"); b.type = "button"; b.dataset.net = OWN; b.setAttribute("aria-pressed", "false"); b.innerHTML = "Your own contract<small></small>"; b.querySelector("small").textContent = OWN; b.title = OWN; document.querySelector(".switch").appendChild(b); }
+  // a company's own Clear to Pay contract (made on the New contract page): ?contract=acme.factory.cleartopay.testnet, remembered like the Console does.
+  // Shown only once both NEAR servers report our guard's exact code and no access keys, so this page never presents another contract's records as Clear to Pay receipts.
+  const GUARD_CODE_B58 = "BUPx787xeoyTt73KmLNRfN5CQRzhfpZsgKT26HmmqWoJ"; // base58 of the pinned sha-256 in console/create.js (test/create.mjs checks they match)
+  const okName = (v) => typeof v === "string" && /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(v) && v.length <= 64;
+  const CAND = (() => {
+    let q = null, kept = null;
+    try { q = new URLSearchParams(location.search).get("contract"); } catch {}
+    try { kept = localStorage.getItem("ctp-own-contract"); } catch {}
+    if (["guard.cleartopay.testnet", "judge.cleartopay.testnet", "cleartopay.testnet"].includes(q)) q = null;
+    return okName(q) ? q : okName(kept) ? kept : null; })();
+  async function isClearToPay(name) {
+    const at = async (url) => {
+      const q = async (request_type) => { const r = await fetch(url, { method: "POST", signal: AbortSignal.timeout(8000), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type, finality: "final", account_id: name } }) }); const j = await r.json(); if (j.error) throw new Error("rpc"); return j.result; };
+      const [acct, keys] = await Promise.all([q("view_account"), q("view_access_key_list")]);
+      return !!acct && acct.code_hash === GUARD_CODE_B58 && !!keys && Array.isArray(keys.keys) && keys.keys.length === 0;
+    };
+    try { return (await Promise.all(["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org"].map(at))).every(Boolean); } catch { return false; }
+  }
+  let OWN = null;
+  function addOwn() {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.net = OWN; b.setAttribute("aria-pressed", "false"); b.innerHTML = "Your own contract<small></small>"; b.querySelector("small").textContent = OWN; b.title = OWN;
+    b.addEventListener("click", () => select(OWN)); document.querySelector(".switch").appendChild(b);
+  }
   document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => select(b.dataset.net)));
   { let t; $("lsearch").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { shownRows = ROWS; renderList(); }, 150); }); }
   document.querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => {
@@ -961,7 +979,10 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   $("file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) verify(f); });
 
   drawDoc(null);
-  select(location.hash === "#v1" ? "cleartopay.testnet" : location.hash === "#judge" ? "judge.cleartopay.testnet" : OWN && new URLSearchParams(location.search).get("contract") === OWN ? OWN : "guard.cleartopay.testnet");
+  (async () => {
+    if (CAND && await isClearToPay(CAND)) { OWN = CAND; try { localStorage.setItem("ctp-own-contract", OWN); } catch {} addOwn(); }
+    select(location.hash === "#v1" ? "cleartopay.testnet" : location.hash === "#judge" ? "judge.cleartopay.testnet" : OWN && new URLSearchParams(location.search).get("contract") === OWN ? OWN : "guard.cleartopay.testnet");
+  })();
   setInterval(() => { if (mode === "live") refresh(); }, 30000);
 })();
 </script>

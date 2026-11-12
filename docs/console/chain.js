@@ -146,13 +146,35 @@ export async function relayGet(net, id) {
 
 // ---------------------------------------------------------------- a company's own Clear to Pay contract (made on the New contract page)
 // Kept in this browser, or opened once with ?contract=acme.factory.cleartopay.testnet; the New contract page sets it too. It joins CONTRACTS as "own", so every page
-// (Buyer setup, Inbox, Sign, ledger) works with it exactly as with ours. Only a contract that answers get_owner is accepted.
+// (Buyer setup, Inbox, Sign, ledger) works with it exactly as with ours. Only a real Clear to Pay contract is accepted: both NEAR servers must
+// report our guard's exact code and no access keys (so nobody can ever swap that code). A link to anything else is never saved or used.
 const OWN = "ctp-own-contract";
-export function ownContract() {
-  try { const q = new URLSearchParams(location.search).get("contract"); if (q && isAccount(q) && !["guard.cleartopay.testnet", "judge.cleartopay.testnet"].includes(q)) localStorage.setItem(OWN, q); } catch {}
-  try { const v = localStorage.getItem(OWN); return v && isAccount(v) ? v : null; } catch { return null; }
+/** The guard's code as NEAR reports it: base58 of CODE_SHA256 in create.js (test/create.mjs checks the two match). */
+export const GUARD_CODE_B58 = "BUPx787xeoyTt73KmLNRfN5CQRzhfpZsgKT26HmmqWoJ";
+/** Is `name` a real Clear to Pay contract? Both servers must say: our guard's exact code, and no access keys. */
+export async function isClearToPay(name) {
+  if (!isAccount(name)) return false;
+  const at = async (url) => {
+    const q = (request_type) => rpcAt(url, "query", { request_type, finality: "final", account_id: name }, 8000);
+    const [acct, keys] = await Promise.all([q("view_account"), q("view_access_key_list")]);
+    return !!acct && acct.code_hash === GUARD_CODE_B58 && !!keys && Array.isArray(keys.keys) && keys.keys.length === 0;
+  };
+  try { return (await Promise.all(RPCS.map(at))).every(Boolean); } catch { return false; }
 }
-{ const o = ownContract(); if (o) CONTRACTS.own = o; }
+/** An address offered by a link or kept in this browser but not (yet) confirmed as a Clear to Pay contract. */
+export let ownRefused = null;
+export async function ownContract() {
+  let q = null, kept = null;
+  try { q = new URLSearchParams(location.search).get("contract"); } catch {}
+  try { kept = localStorage.getItem(OWN); } catch {}
+  if (["guard.cleartopay.testnet", "judge.cleartopay.testnet"].includes(q)) q = null;
+  const v = isAccount(q) ? q : isAccount(kept) ? kept : null;
+  if (!v) return null;
+  if (!(await isClearToPay(v))) { ownRefused = v; return null; }
+  if (v !== kept) try { localStorage.setItem(OWN, v); } catch {}
+  return v;
+}
+{ const o = await ownContract(); if (o) CONTRACTS.own = o; }
 /** Adds a "Your own contract" button (data key "own") to a page's contract switch, before the page wires its
  *  buttons. Until a real Clear to Pay contract is set, clicking it opens a small form instead of switching;
  *  once set, it switches like Demo and Live. Hold Alt (or click it again while on it) to change the address.
@@ -166,7 +188,8 @@ export function ownSwitch(group, makeButton, words = {}) {
   form.innerHTML = `<label>${label}<input placeholder="yourcompany.factory.cleartopay.testnet" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off"></label><button type="button">Use it</button><button type="button" class="x">Cancel</button><small>${note}</small><p class="err" hidden></p>`;
   group.insertAdjacentElement("afterend", form);
   const [inp] = form.getElementsByTagName("input"), [use, cancel] = form.getElementsByTagName("button"), err = form.querySelector(".err");
-  if (CONTRACTS.own) inp.value = CONTRACTS.own;
+  if (CONTRACTS.own || ownRefused) inp.value = CONTRACTS.own || ownRefused;
+  const refusedNote = () => { if (ownRefused && !CONTRACTS.own && inp.value.trim() === ownRefused) { err.hidden = false; err.textContent = `${ownRefused} was not confirmed as a Clear to Pay contract (our exact code and no access keys, on two NEAR servers), so it is not used. Check the address, or try again if NEAR was slow.`; } };
   // A saved address can be changed (this form) or forgotten in this browser. Forgetting touches nothing on NEAR.
   const hint = document.createElement("p");
   hint.className = "ownhint"; hint.hidden = !CONTRACTS.own;
@@ -193,7 +216,7 @@ export function ownSwitch(group, makeButton, words = {}) {
   const restoreCard = () => { if (!card) return; for (const id in card) { const el = document.getElementById(id); if (el) [el.textContent, el.className] = card[id]; } card = null; };
   const open = () => {
     if (!was) { was = [...group.querySelectorAll('button[aria-pressed="true"]')].filter((x) => x !== b); was.forEach((x) => x.setAttribute("aria-pressed", "false")); }
-    b.setAttribute("aria-pressed", "true"); form.hidden = false; err.hidden = true; blankCard(); inp.focus();
+    b.setAttribute("aria-pressed", "true"); form.hidden = false; err.hidden = true; refusedNote(); blankCard(); inp.focus();
   };
   const close = (restore) => {
     form.hidden = true;
@@ -213,8 +236,8 @@ export function ownSwitch(group, makeButton, words = {}) {
   use.onclick = async () => {
     const v = inp.value.trim().toLowerCase(); err.hidden = true;
     if (!isAccount(v)) { err.hidden = false; err.textContent = "That is not a NEAR account name."; return; }
-    let owner = null; try { owner = await view(v, "get_owner"); } catch {}
-    if (!owner) { err.hidden = false; err.textContent = `No Clear to Pay contract answers at ${v}. Check the address, and that it is deployed and initialised.`; return; }
+    use.disabled = true; const real = await isClearToPay(v); use.disabled = false;
+    if (!real) { err.hidden = false; err.textContent = `${v} is not a Clear to Pay contract this page can use: both NEAR servers must report our guard's exact code and no access keys. Check the address, or try again if NEAR was slow.`; return; }
     try { localStorage.setItem(OWN, v); } catch {}
     CONTRACTS.own = v; form.hidden = true; const sm = b.querySelector("small"); if (sm) sm.textContent = v;
     b.click();

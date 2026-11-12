@@ -86,3 +86,25 @@ assert.deepEqual(C.recovery(null), { known: false, full: 0, ok: false });
 assert.deepEqual(C.recovery({ keys: [null, {}, { access_key: {} }] }), { known: true, full: 0, ok: false });
 
 console.log("create: names, factory check, the one create call, the factory's verdict, USDC registration and read-back all hold");
+
+// "Your own contract" (chain.js, ledger): an address from a link or this browser is used only if both NEAR servers
+// report our guard's exact code and no access keys (eleventh review, CTP11-01). The pins must match create.js.
+{
+  const fs = await import("node:fs");
+  const ch = await import("../../../docs/console/chain.js");
+  assert.equal(ch.GUARD_CODE_B58, C.CODE_HASH_B58, "chain.js pin = create.js pin");
+  const ledger = fs.readFileSync(new URL("../../../docs/ledger/index.html", import.meta.url), "utf8");
+  assert.equal(ledger.match(/GUARD_CODE_B58 = "([1-9A-HJ-NP-Za-km-z]+)"/)[1], C.CODE_HASH_B58, "ledger pin = create.js pin");
+  const real = { acct: { code_hash: C.CODE_HASH_B58 }, keys: { keys: [] } };
+  const stub = (per) => { globalThis.fetch = async (url, o) => { const b = JSON.parse(o.body), s = per(url), t = b.params.request_type;
+    if (s === "down") throw new Error("offline");
+    return { json: async () => ({ result: t === "view_account" ? s.acct : s.keys }) }; }; };
+  stub(() => real); assert.equal(await ch.isClearToPay("acme.factory.cleartopay.testnet"), true);
+  stub(() => ({ ...real, acct: { code_hash: "11111111111111111111111111111111" } })); assert.equal(await ch.isClearToPay("evil.testnet"), false, "other code");
+  stub(() => ({ ...real, keys: { keys: [{ public_key: "ed25519:x", access_key: { permission: "FullAccess" } }] } })); assert.equal(await ch.isClearToPay("keyed.testnet"), false, "has a key");
+  stub((u) => (u.includes("fastnear") ? real : { ...real, acct: { code_hash: "x" } })); assert.equal(await ch.isClearToPay("split.testnet"), false, "servers disagree");
+  stub((u) => (u.includes("fastnear") ? real : "down")); assert.equal(await ch.isClearToPay("acme.factory.cleartopay.testnet"), false, "one server down");
+  assert.equal(await ch.isClearToPay("Not An Account"), false);
+  delete globalThis.fetch;
+}
+console.log("own contract: verified on two servers before use");
