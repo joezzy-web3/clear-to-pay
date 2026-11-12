@@ -191,6 +191,7 @@ const KEY = "ctp-overview-contract";
 const S = { c: (() => { try { const q = new URLSearchParams(location.search).get("contract"), k = localStorage.getItem(KEY); return q && CONTRACTS.own === q ? "own" : k && CONTRACTS[k] ? k : "demo"; } catch { return "demo"; } })(), gen: 0, waits: [], resetAt: null };
 const contract = () => CONTRACTS[S.c];
 function setContract(k) {
+  $("err").hidden = true; // a different contract: its own notice, if any
   S.c = k; try { localStorage.setItem(KEY, k); } catch {}
   document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === k)));
   load();
@@ -229,7 +230,7 @@ async function receiptsSince(c, count, since) {
 }
 async function load() {
   const g = ++S.gen, c = contract();
-  $("err").hidden = true;
+  // The notice stays put until a read succeeds, so a retry never makes the page jump.
   $("liveText").innerHTML = `<b>Reading</b> · ${esc(c)}`;
   $("l-led").href = "../../ledger/" + (S.c === "own" ? "?contract=" + encodeURIComponent(c) : S.c === "demo" ? "#judge" : "");
   for (const [id, go] of [["l-top", "pool"], ["l-wd", "withdraw"], ["l-lim", "limits"]]) $(id).href = "../setup/" + (S.c === "own" ? "?contract=" + encodeURIComponent(c) : "") + "#go=" + go;
@@ -242,6 +243,7 @@ async function load() {
     const [rs, sups] = await Promise.all([receiptsSince(c, count, since), Promise.all(ids.slice(0, 40).map((id) => view(c, "get_supplier", { supplier_id: id }).catch(() => null)))]);
     if (g !== S.gen) return;
     paint({ limits, funds, count, rs, sups: sups.filter(Boolean), paused, now, periodNs, period });
+    $("err").hidden = true;
     $("liveText").innerHTML = `<b>Live</b> · ${esc(c)}`;
     $("stamp").textContent = `Read from NEAR testnet at final finality, ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Refreshes every 30 s. Spend per supplier is summed from this period's cleared receipts, the same sum the contract checks.`;
   } catch (e) {
