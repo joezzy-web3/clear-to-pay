@@ -114,6 +114,7 @@ export function changes(old, now) {
     if (p.status === "Settled") out.push(A("INFO", `PAID: ${amt} for ${inv} reached ${p.to}.`, to));
     else if (p.status === "Failed" || p.status === "Expired") out.push(A("ALARM", `Payment ${p.status.toUpperCase()} for ${inv} (${amt}); the money is back in the pool. The buyer can reauthorise it once, to the current registered address.`, to));
     else if (p.status === "Submitted") out.push(A("INFO", `Payment sent for ${inv}: ${amt} to ${p.to}.`, to));
+    else if (p.status === "Cancelled") out.push(A("ALARM", `Payment CANCELLED by the buyer for ${inv} (${amt}). The CLEARED receipt stays on NEAR as proof that the invoice matched the order and the delivery was signed: ${LEDGER}`, to));
   }
   const a0 = BigInt(old.funds?.available ?? now.funds.available), a1 = BigInt(now.funds.available);
   const r0 = BigInt(old.funds?.reserved ?? now.funds.reserved), r1 = BigInt(now.funds.reserved);

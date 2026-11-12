@@ -339,6 +339,24 @@ a.crumb:hover{color:var(--paper);background:#13284A}
 .flagged ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
 .flagged li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}.flagged code{font:500 14px var(--mono);overflow-wrap:anywhere}
 .flagged small{font:400 12.5px var(--mono);color:var(--mute)}.flagged a{color:inherit}
+.stmt-act{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 0;font-size:13px;color:var(--mute)}
+.stmt-btn{font:600 13px var(--body);padding:8px 12px;border-radius:8px;border:1px solid var(--navy);background:transparent;color:var(--navy);cursor:pointer}
+.stmt-btn:hover{background:var(--navy);color:var(--paper)}
+.stmt-head{display:none}
+#stmt-print{display:none}
+@media print{
+  body.stmt{background:#fff!important}
+  body.stmt > *:not(#stmt-print){display:none!important}
+  body.stmt #stmt-print{display:block;color:#000}
+  #stmt-print .stmt-head{display:block;font:400 11px/1.55 Arial,sans-serif;color:#000;margin:0 0 14px;padding:0 0 10px;border-bottom:2px solid #000}
+  #stmt-print .stmt-head h1{font:700 19px/1.2 Arial,sans-serif;color:#000;margin:0 0 6px;letter-spacing:0}
+  #stmt-print .stmt-head div{margin:2px 0}
+  #stmt-print .hcard{box-shadow:none!important}
+  #stmt-print .stmt-act{display:none}
+  #stmt-print pre{white-space:pre-wrap;word-break:break-all;max-height:none!important;overflow:visible!important}
+  #stmt-print .hcard,#stmt-print .h-main,#stmt-print .h-body{max-height:none!important;overflow:visible!important}
+  @page{margin:14mm}
+}
 </style>
 
 </head>
@@ -550,6 +568,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const usdc = (u) => { const n = BigInt(u || 0); const w = n / 1000000n; let f = (n % 1000000n).toString().padStart(6, "0").replace(/0+$/, ""); if (f.length < 2) f = (f + "00").slice(0, 2); return w.toLocaleString("en-US") + "." + f; };
   const when = (ns) => new Date(Number(BigInt(ns) / 1000000n));
+  const fmtFull = (d) => d.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
   const fmt = (d) => d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const short = (s, a = 10, b = 6) => (s && s.length > a + b + 1 ? s.slice(0, a) + "…" + s.slice(-b) : s);
   const b64 = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
@@ -692,7 +711,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
         : `<li><i aria-hidden="true"></i><span>Every check passed: supplier signature, registered address, order, delivery note, duplicates and limits.</span></li>`;
       const p = payments[r.id];
       const pay = r.verdict === "Cleared"
-        ? `<div class="pay"><span class="st ${p ? (p.status === "Settled" ? "" : ["Failed", "Expired", "Cancelled"].includes(p.status) ? "off" : "wait") : "wait"}">${esc(p ? p.status : "Authorized")}</span><span>${p ? `attempt ${p.attempt} · to <code>${esc(p.recipient.address)}</code>` : "payment record not found"}</span></div>` : "";
+        ? `<div class="pay"><span class="st ${p ? (p.status === "Settled" ? "" : ["Failed", "Expired", "Cancelled"].includes(p.status) ? "off" : "wait") : "wait"}">${esc(p ? p.status : "Authorized")}</span><span>${p ? `attempt ${p.attempt} · to <code>${esc(p.recipient.address)}</code>${p.updated_at ? ` · since ${esc(fmtFull(when(p.updated_at)))}` : ""}` : "payment record not found"}</span></div>` : "";
       return `<article class="hcard"${withId ? ` id="r${r.id}"` : ""} data-v="${r.verdict}">
         <div class="h-main">
           <header class="h-head"><span><svg width="14" height="16" viewBox="0 0 120 136" aria-hidden="true"><rect x="10" y="14" width="10" height="118" rx="5" fill="#EEF1EC"/><circle cx="15" cy="9" r="8" fill="#EEF1EC"/><path d="M20 14h92l-18 36 18 36H20z" fill="#E6BE4F"/></svg>${r.verdict === "Cleared" ? "Clearance certificate" : "Inspection"}</span><span>decided ${esc(fmt(when(r.decided_at)))}</span></header>
@@ -706,6 +725,7 @@ a.crumb:hover{color:var(--paper);background:#13284A}
             <ul class="why">${reasons}</ul>
             ${nextSteps(r)}
             ${pay}
+            ${mode === "sample" ? "" : `<p class="stmt-act"><button class="stmt-btn" type="button" data-rid="${r.id}">Print or save as PDF</button><span>A one-page statement of this receipt that anyone can check on NEAR.</span></p>`}
             <p class="src">${mode === "sample" ? "Sample copy of this receipt, recorded on 30 October. The hosted ledger reads it live." : rpcHost ? `Reported by ${esc(rpcHost)}, a public NEAR RPC server.` : "Shown from this browser's last read while it refreshes from a public NEAR RPC server."} <a data-ts="${esc(r.decided_at)}" data-rid="${r.id}" href="${txHref(r)}" target="_blank" rel="noopener">${KNOWN_TX[contract + "#" + r.id] ? "View the transaction on NearBlocks" : "Check it on NearBlocks"}</a></p>
             <details class="raw"><summary>Exact record stored on NEAR, for technical readers${r.document_hash ? " · fingerprint " + esc(short(r.document_hash)) : ""}</summary><p class="rawkey">${rawKey(r)}</p><pre>${esc(JSON.stringify(p ? { receipt: r, payment: p } : r, null, 2))}</pre></details>
           </div>
@@ -819,6 +839,25 @@ a.crumb:hover{color:var(--paper);background:#13284A}
       if (h) { a.href = "https://testnet.nearblocks.io/txns/" + h; a.textContent = "View the transaction on NearBlocks"; }
     });
   }
+
+  // A one-page statement: only this receipt is printed, under a header that says what it is and how to check it.
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest(".stmt-btn"); if (!b) return;
+    const id = Number(b.dataset.rid), r = receipts.find((x) => x.id === id), card = b.closest(".hcard");
+    if (!r || !card) return;
+    const tx = card.querySelector("a[data-ts]"), page = `https://clear-to-pay.vercel.app/ledger/?contract=${encodeURIComponent(contract)}#r${id}`;
+    let box = $("stmt-print"); if (!box) { box = document.createElement("div"); box.id = "stmt-print"; document.body.appendChild(box); }
+    const head = `<div class="stmt-head"><h1>Clear to Pay · Statement of receipt #${id}</h1>
+      <div>Contract <b>${esc(contract)}</b> on NEAR testnet · read ${esc(fmtFull(new Date()))}${rpcHost ? " from " + esc(rpcHost) : ""}.</div>
+      <div>The receipt below was written by the contract itself when it decided the invoice; nobody, including the buyer, can edit or delete it.</div>
+      <div>Check it yourself: ${esc(page)}${tx && /nearblocks\.io\/txns\//.test(tx.href) ? " · transaction " + esc(tx.href) : ""} · or call <code>get_receipt</code> and <code>get_payment</code> with <code>{"receipt_id": ${id}}</code> on ${esc(contract)}.</div></div>`;
+    const copy = card.cloneNode(true); copy.removeAttribute("id"); copy.querySelectorAll("details").forEach((d) => (d.open = true));
+    box.innerHTML = head; box.appendChild(copy);
+    document.body.classList.add("stmt");
+    const done = () => { document.body.classList.remove("stmt"); box.innerHTML = ""; window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    window.print();
+  });
 
   // The demo documents, embedded exactly as submitted (their receipts are on the v1 contract).
   const SAMPLES = { "INV-2210": "U0FNUExFIERPQ1VNRU5UIC0gRklDVElPTkFMIENPTVBBTlkgLSBOT1QgQSBSRUFMIElOVk9JQ0UKClFpbmdtYXIgU3RlZWwgQ28uIChmaWN0aW9uYWwpLCBpbnZvaWNlIElOVi0yMjEwCk9yZGVyIFBPLTExODQsIEFIMzYgc3RlZWwgcGxhdGUgMTIgbW0KUXVhbnRpdHkgYmlsbGVkOiAxMCB0IGF0IDAuNzggVVNEQyBwZXIgdApUb3RhbDogNy44MCBVU0RDClBheSB0bzogcWluZ21hci1wYXltZW50cy50ZXN0bmV0IChORUFSIHRlc3RuZXQgVVNEQykKCk5ldyBiYW5rIGRldGFpbHM6IHNhbWUgc3VwcGxpZXIsIHBheWVlIGNoYW5nZWQgdG8gYW4gYWRkcmVzcyB0aGF0IGlzIG5vdCBvbiBmaWxlLiBFeHBlY3RlZDogU0VJWkVEIChwYXllZV9taXNtYXRjaCkuCg==", "INV-2209": "U0FNUExFIERPQ1VNRU5UIC0gRklDVElPTkFMIENPTVBBTlkgLSBOT1QgQSBSRUFMIElOVk9JQ0UKClFpbmdtYXIgU3RlZWwgQ28uIChmaWN0aW9uYWwpLCBpbnZvaWNlIElOVi0yMjA5Ck9yZGVyIFBPLTExODQsIEFIMzYgc3RlZWwgcGxhdGUgMTIgbW0KUXVhbnRpdHkgYmlsbGVkOiAxMiB0IGF0IDAuNzggVVNEQyBwZXIgdApUb3RhbDogOS4zNiBVU0RDClBheSB0bzogcWluZ21hci5jbGVhcnRvcGF5LnRlc3RuZXQgKE5FQVIgdGVzdG5ldCBVU0RDKQoKT3ZlcmJpbGxlZDogd2VpZ2hicmlkZ2Ugc2F5cyAxMCB0LCBpbnZvaWNlIHNheXMgMTIgdC4gRXhwZWN0ZWQ6IEhFTEQgKHF1YW50aXR5X2V4Y2VlZHNfZGVsaXZlcnkpLgo=" };

@@ -38,6 +38,14 @@ a = changes(base(), now);
 assert.match(a.find((x) => /HELD/.test(x.text)).text, /missing signer/);
 assert.deepEqual(a.find((x) => /PAID/.test(x.text)).to, ["buyer", "supplier:qingmar-steel"]);
 assert.deepEqual(a.find((x) => /Deposit/.test(x.text)).to, ["buyer"]);
+// 5b. A cancelled payment is an ALARM for the buyer and that supplier, and points to the proof
+now = clone(base()); now.receipts["3"] = { verdict: "Cleared", reasons: [], invoice_number: "INV-2301", supplier_id: "qingmar-steel", amount: "7800000" };
+let then = clone(now); then.payments["3"] = { status: "Authorized", amount: "7800000", attempt: 1, to: "qingmar.cleartopay.testnet" };
+now.payments["3"] = { status: "Cancelled", amount: "7800000", attempt: 1, to: "qingmar.cleartopay.testnet" };
+a = changes(then, now).filter((x) => /CANCELLED/.test(x.text));
+assert.equal(a.length, 1); assert.equal(a[0].level, "ALARM");
+assert.match(a[0].text, /INV-2301.*7\.80 USDC.*CLEARED receipt stays on NEAR/);
+assert.deepEqual(a[0].to, ["buyer", "supplier:qingmar-steel"]);
 // 6. Money out that no payment explains is an ALARM
 now = clone(base()); now.funds = { available: "5000000", reserved: "0" };
 a = changes(base(), now); assert.equal(a[0].level, "ALARM"); assert.match(a[0].text, /Pool down 10\.00/);
