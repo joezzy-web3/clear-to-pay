@@ -167,6 +167,21 @@ export function ownSwitch(group, makeButton, words = {}) {
   group.insertAdjacentElement("afterend", form);
   const [inp] = form.getElementsByTagName("input"), [use, cancel] = form.getElementsByTagName("button"), err = form.querySelector(".err");
   if (CONTRACTS.own) inp.value = CONTRACTS.own;
+  // A saved address can be changed (this form) or forgotten in this browser. Forgetting touches nothing on NEAR.
+  const hint = document.createElement("p");
+  hint.className = "ownhint"; hint.hidden = !CONTRACTS.own;
+  hint.innerHTML = `<button type="button" class="link">Change or forget your own contract</button>`;
+  form.insertAdjacentElement("beforebegin", hint);
+  const forget = document.createElement("button");
+  forget.type = "button"; forget.className = "x"; forget.textContent = "Forget it in this browser"; forget.hidden = !CONTRACTS.own;
+  form.insertBefore(forget, form.querySelector("small"));
+  forget.onclick = () => {
+    try {
+      const v = localStorage.getItem(OWN); localStorage.removeItem(OWN);
+      for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith("ctp-created:") && localStorage.getItem(k) === v) localStorage.removeItem(k); }
+    } catch {}
+    location.href = location.pathname; // back to this page with Demo selected; the contract itself is untouched
+  };
   // While the form is open the button shows as chosen; Cancel, Esc or another choice puts things back.
   let was = null, card = null;
   // The page's contract card must not keep showing the previous contract while the address is being typed.
@@ -191,6 +206,7 @@ export function ownSwitch(group, makeButton, words = {}) {
     if (CONTRACTS.own && !e.altKey && b.getAttribute("aria-pressed") !== "true") return;
     e.stopImmediatePropagation(); open();
   }, true);
+  hint.querySelector("button").onclick = () => open();
   group.addEventListener("click", (e) => { const t = e.target.closest("button"); if (t && t !== b && !form.hidden) close(false); }, true);
   form.addEventListener("keydown", (e) => { if (e.key === "Escape") { close(true); b.focus(); } if (e.key === "Enter" && e.target === inp) use.click(); });
   cancel.onclick = () => close(true);

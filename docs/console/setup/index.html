@@ -204,6 +204,8 @@ label.confirm.big{padding-left:48px!important}
 .clinks a.dim{opacity:.4}
 .cbar .roles{margin-left:0}
 .wz-recent{margin:10px 0 16px;padding:12px 14px;background:var(--cell,#F4F6F2);border-left:3px solid var(--signal,#E6BE4F)}.wz-recent b{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}.wz-recent .row{margin-top:8px;gap:8px;flex-wrap:wrap}.wz-recent .on{background:var(--navy,#10264A);color:#fff}
+.factgo{font:600 11px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--signal);margin-left:8px;text-decoration:underline;text-underline-offset:3px}
+.factgo:hover{color:var(--paper)}
 </style>
 <link rel="stylesheet" href="../polish.css">
 </head>
@@ -238,7 +240,7 @@ label.confirm.big{padding-left:48px!important}
       <div><span>Contract</span><b id="f-c">–</b></div>
       <div><span>Owner (the buyer)</span><b id="f-owner">–</b></div>
       <div><span>You</span><b id="f-you">–</b></div>
-      <div><span>Pool</span><b id="f-pool">–</b></div>
+      <div><span>Pool <a class="factgo" href="#f-pool" data-go="pool">top up</a> <a class="factgo" href="#f-withdraw" data-go="withdraw">withdraw</a></span><b id="f-pool">–</b></div>
     </div></div>
   </div>
 </div></header>
@@ -672,8 +674,10 @@ function openAdvanced(id, pre) {
     setTimeout(() => { const sel = $("k-role"); if (sel) sel.value = "*"; }, 600);
     $("out-link").innerHTML = `<p class="warn">Fill in what actually arrived, line by line, then make the links: one for each role (${esc(pre.roles.join(", "))}), all at once.</p>`;
   }
-  document.getElementById("f-" + id)?.scrollIntoView({ block: "start", behavior: "smooth" });
+  // The facts panel has its own #f-pool, so look for the card inside Advanced first.
+  (document.querySelector("#adv-body #f-" + id) || document.getElementById("f-" + id))?.scrollIntoView({ block: "start", behavior: "smooth" });
 }
+document.querySelectorAll(".factgo").forEach((a) => (a.onclick = (e) => { e.preventDefault(); openAdvanced(a.dataset.go); }));
 
 async function alertsCard() {
   const c = contract(), rows = [["buyer", "You, the buyer", "everything on " + c]];
