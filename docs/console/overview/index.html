@@ -236,8 +236,9 @@ async function load() {
   try {
     const [limits, funds, count, ids, paused] = await Promise.all([view(c, "get_limits"), view(c, "get_funds", { token: USDC }), view(c, "receipt_count"), view(c, "get_supplier_ids"), view(c, "is_paused").catch(() => false)]);
     if (g !== S.gen) return;
-    const now = nowNs(), periodNs = BigInt(limits.period_hours || 24) * NS_H, period = now / periodNs;
-    const since = [period * periodNs, now - 7n * DAY, (now / DAY) * DAY].reduce((a, b) => (b < a ? b : a));
+    // A new contract has no limits yet (period_hours 0): then there is no spending period to sum, only the last 7 days.
+    const now = nowNs(), periodNs = BigInt(limits.period_hours || 0) * NS_H, period = periodNs > 0n ? now / periodNs : 0n;
+    const since = [periodNs > 0n ? period * periodNs : now, now - 7n * DAY, (now / DAY) * DAY].reduce((a, b) => (b < a ? b : a));
     const [rs, sups] = await Promise.all([receiptsSince(c, count, since), Promise.all(ids.slice(0, 40).map((id) => view(c, "get_supplier", { supplier_id: id }).catch(() => null)))]);
     if (g !== S.gen) return;
     paint({ limits, funds, count, rs, sups: sups.filter(Boolean), paused, now, periodNs, period });
@@ -273,16 +274,17 @@ function paint(d) {
   [["wcl", ncl], ["whe", nhe], ["wse", nse]].forEach(([id, v]) => { $(id).textContent = v || ""; $(id).style.flexGrow = "0"; requestAnimationFrame(() => ($(id).style.flexGrow = String(v))); });
   // limits
   const per = BigInt(limits.per_supplier_per_period), hours = Number(limits.period_hours);
-  $("limh").textContent = `Spend against limit · this ${hours} h period`;
-  $("caps").innerHTML = BigInt(limits.per_invoice) > 0n
+  const set = BigInt(limits.per_invoice) > 0n && periodNs > 0n;
+  $("limh").textContent = set ? `Spend against limit · this ${hours} h period` : "Spend against limit";
+  $("caps").innerHTML = set
     ? `<span class="chip">${esc(money(limits.per_invoice))} USDC per invoice</span><span class="chip">${esc(money(per))} USDC per supplier per ${hours} h</span><span class="chip">${cap} submissions a day</span>`
     : `<span class="chip">No limits set yet: nothing can clear until they are</span>`;
-  S.resetAt = (period + 1n) * periodNs;
-  const spent = {}; for (const r of rs) if (r.verdict === "Cleared" && BigInt(r.decided_at) / periodNs === period) spent[r.supplier_id] = (spent[r.supplier_id] || 0n) + BigInt(r.amount);
+  S.resetAt = set ? (period + 1n) * periodNs : null;
+  const spent = {}; if (set) for (const r of rs) if (r.verdict === "Cleared" && BigInt(r.decided_at) / periodNs === period) spent[r.supplier_id] = (spent[r.supplier_id] || 0n) + BigInt(r.amount);
   const list = sups.map((s) => ({ id: s.supplier_id, addr: (s.payable_route || s.route_on_file || {}).address || "", v: spent[s.supplier_id] || 0n })).sort((a, b) => (b.v > a.v ? 1 : b.v < a.v ? -1 : a.id.localeCompare(b.id)));
   $("lim").innerHTML = list.length ? list.map((s) => {
     const p = per > 0n ? Math.min(100, Number(s.v * 10000n / per) / 100) : 0;
-    return `<div class="lr"><div><b>${esc(s.id)}</b><span class="ad">${esc(s.addr)}</span></div><div class="bar${p >= 80 ? " hot" : ""}"><b data-w="${p}"></b></div><div class="amt">${esc(money(s.v))} / ${esc(money(per))}<small>${s.v > 0n ? 'resets in <span class="cd" data-at="reset"></span>' : "none this period"}</small></div></div>`;
+    return `<div class="lr"><div><b>${esc(s.id)}</b><span class="ad">${esc(s.addr)}</span></div><div class="bar${p >= 80 ? " hot" : ""}"><b data-w="${p}"></b></div><div class="amt">${set ? `${esc(money(s.v))} / ${esc(money(per))}` : "no limit set"}<small>${!set ? "nothing can clear yet" : s.v > 0n ? 'resets in <span class="cd" data-at="reset"></span>' : "none this period"}</small></div></div>`;
   }).join("") : `<p class="empty">No suppliers registered on this contract yet. Register one in <a href="../setup/">Buyer setup</a>.</p>`;
   requestAnimationFrame(() => document.querySelectorAll("#lim [data-w]").forEach((b) => (b.style.width = b.dataset.w + "%")));
   // payee waits
