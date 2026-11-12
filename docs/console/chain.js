@@ -154,12 +154,19 @@ export const GUARD_CODE_B58 = "BUPx787xeoyTt73KmLNRfN5CQRzhfpZsgKT26HmmqWoJ";
 /** Is `name` a real Clear to Pay contract? Both servers must say: our guard's exact code, and no access keys. */
 export async function isClearToPay(name) {
   if (!isAccount(name)) return false;
+  // A slow phone connection must not make a real contract look fake: each server gets 12 s, and one more try if the
+  // connection dropped quickly. A clear answer (other code, a key) is final at once. The page waits for this, so it is capped.
   const at = async (url) => {
-    const q = (request_type) => rpcAt(url, "query", { request_type, finality: "final", account_id: name }, 8000);
-    const [acct, keys] = await Promise.all([q("view_account"), q("view_access_key_list")]);
-    return !!acct && acct.code_hash === GUARD_CODE_B58 && !!keys && Array.isArray(keys.keys) && keys.keys.length === 0;
+    const q = (request_type) => rpcAt(url, "query", { request_type, finality: "final", account_id: name }, 12000);
+    for (let n = 0; ; n++) {
+      const t0 = Date.now();
+      try {
+        const [acct, keys] = await Promise.all([q("view_account"), q("view_access_key_list")]);
+        return !!acct && acct.code_hash === GUARD_CODE_B58 && !!keys && Array.isArray(keys.keys) && keys.keys.length === 0;
+      } catch (e) { if (e.rpc || n >= 1 || Date.now() - t0 > 5000) return false; }
+    }
   };
-  try { return (await Promise.all(RPCS.map(at))).every(Boolean); } catch { return false; }
+  return (await Promise.all(RPCS.map(at))).every(Boolean);
 }
 /** An address offered by a link or kept in this browser but not (yet) confirmed as a Clear to Pay contract. */
 export let ownRefused = null;

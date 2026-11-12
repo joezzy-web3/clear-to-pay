@@ -104,6 +104,8 @@ console.log("create: names, factory check, the one create call, the factory's ve
   stub(() => ({ ...real, keys: { keys: [{ public_key: "ed25519:x", access_key: { permission: "FullAccess" } }] } })); assert.equal(await ch.isClearToPay("keyed.testnet"), false, "has a key");
   stub((u) => (u.includes("fastnear") ? real : { ...real, acct: { code_hash: "x" } })); assert.equal(await ch.isClearToPay("split.testnet"), false, "servers disagree");
   stub((u) => (u.includes("fastnear") ? real : "down")); assert.equal(await ch.isClearToPay("acme.factory.cleartopay.testnet"), false, "one server down");
+  { let n = 0; stub((u) => (u.includes("fastnear") && n++ < 2 ? "down" : real)); assert.equal(await ch.isClearToPay("acme.factory.cleartopay.testnet"), true, "a dropped connection is tried once more"); }
+  { let n = 0; stub((u) => (u.includes("fastnear") && n++ < 4 ? "down" : real)); assert.equal(await ch.isClearToPay("acme.factory.cleartopay.testnet"), false, "but only once"); }
   assert.equal(await ch.isClearToPay("Not An Account"), false);
   delete globalThis.fetch;
 }

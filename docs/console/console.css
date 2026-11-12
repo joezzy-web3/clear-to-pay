@@ -249,3 +249,5 @@ body.not-buyer #main.inbox > :not(#rolecard){display:none!important}
 .ownform button.x{background:transparent;color:inherit;box-shadow:inset 0 0 0 1px currentColor}
 .ownhint{margin:8px 0 0;font:500 13px var(--body)}.ownhint .link{background:none;border:0;padding:0;color:inherit;opacity:.8;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}.ownhint .link:hover{opacity:1}
 .ownform small{flex:1 1 100%;opacity:.8}.ownform small a{color:inherit;text-decoration:underline;font-weight:600}.ownform .err{flex:1 1 100%;margin:0}
+/* Phones: a long account name drops below its label instead of breaking mid-word beside it */
+@media (max-width:560px){.facts div{flex-wrap:wrap;row-gap:2px}.facts b{margin-left:auto;font-size:12.5px;overflow-wrap:anywhere}}

@@ -956,11 +956,15 @@ a.crumb:hover{color:var(--paper);background:#13284A}
     return okName(q) ? q : okName(kept) ? kept : null; })();
   async function isClearToPay(name) {
     const at = async (url) => {
-      const q = async (request_type) => { const r = await fetch(url, { method: "POST", signal: AbortSignal.timeout(8000), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type, finality: "final", account_id: name } }) }); const j = await r.json(); if (j.error) throw new Error("rpc"); return j.result; };
-      const [acct, keys] = await Promise.all([q("view_account"), q("view_access_key_list")]);
-      return !!acct && acct.code_hash === GUARD_CODE_B58 && !!keys && Array.isArray(keys.keys) && keys.keys.length === 0;
+      const q = async (request_type) => { const r = await fetch(url, { method: "POST", signal: AbortSignal.timeout(12000), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type, finality: "final", account_id: name } }) }); const j = await r.json(); if (j.error) { const e = new Error("rpc"); e.rpc = true; throw e; } return j.result; };
+      for (let n = 0; ; n++) { // 12 s per server and one more try if the connection dropped quickly, so a slow phone connection does not hide a real contract
+        const t0 = Date.now();
+        try { const [acct, keys] = await Promise.all([q("view_account"), q("view_access_key_list")]);
+              return !!acct && acct.code_hash === GUARD_CODE_B58 && !!keys && Array.isArray(keys.keys) && keys.keys.length === 0; }
+        catch (e) { if (e.rpc || n >= 1 || Date.now() - t0 > 5000) return false; }
+      }
     };
-    try { return (await Promise.all(["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org"].map(at))).every(Boolean); } catch { return false; }
+    return (await Promise.all(["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org"].map(at))).every(Boolean);
   }
   let OWN = null;
   function addOwn() {
