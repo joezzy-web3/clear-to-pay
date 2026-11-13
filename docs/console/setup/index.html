@@ -33,6 +33,14 @@ input,select{font:400 15px var(--mono);padding:11px 12px;border:1px solid var(--
 input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
 .linegrid{display:grid;gap:8px}
 .lrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.7fr) minmax(0,.9fr) 40px;gap:6px}
+/* Column headings sit above each column of a line grid, aligned with the boxes under them */
+.lhead{display:grid;gap:6px;font:500 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-bottom:-2px}
+.lhead.c4{grid-template-columns:minmax(0,1.4fr) minmax(0,.7fr) minmax(0,.9fr) 40px}.lhead.c3{grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) 40px}
+#k-lines.blind .lhead.c3{grid-template-columns:minmax(0,1fr) 40px}#k-lines.blind .lhead.c3 span:nth-child(2){display:none}
+#k-lines.blind .lhead.c3 span:first-child::after{content:" · each signer types their count"}
+.lhead.w3{grid-template-columns:minmax(0,1.4fr) minmax(0,.6fr) minmax(0,.8fr) 40px}.lhead.w2{grid-template-columns:minmax(0,1.8fr) minmax(0,.8fr) 40px}
+@media (max-width:900px){.lhead.c4{grid-template-columns:minmax(0,1fr) minmax(0,.6fr) minmax(0,.8fr) 36px}}
+@media (max-width:520px){.lhead.w3{grid-template-columns:minmax(0,1fr) minmax(0,.6fr) minmax(0,.8fr) 34px}}
 .lrow.dn{grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) 40px}
 #k-lines.blind .lrow.dn{grid-template-columns:minmax(0,1fr) 40px}#k-lines.blind .lrow.dn input:nth-of-type(2){display:none}
 label.chk{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:start;font-weight:600}label.chk input{margin-top:3px;width:18px;height:18px;accent-color:var(--navy)}label.chk span{grid-column:2;font:400 13px/1.45 var(--body);color:var(--mute)}
@@ -340,7 +348,7 @@ const FORMS = [
     help: "Invoices are checked line by line against it: the item, the price, and how much is left to bill.",
     fields: `<label>Order id<input id="o-id" placeholder="PO-1185" autocomplete="off"></label>
       <label>Supplier<select id="o-sup"></select></label>
-      <div class="linegrid" id="o-lines"><span class="muted" style="font:400 12.5px var(--mono)">Item · quantity · unit price in USDC</span></div>
+      <div class="linegrid" id="o-lines"><div class="lhead c4"><span>Item</span><span>Quantity</span><span>Unit price (USDC)</span><span></span></div></div>
       <div><button class="btn ghost" type="button" data-add="o-lines">Add a line</button></div>`,
     build() {
       const id = $("o-id").value.trim(), sup = $("o-sup").value, ls = lines("o-lines");
@@ -408,7 +416,7 @@ const FORMS = [
     fields: `<label>Order<input id="k-order" placeholder="PO-1185" autocomplete="off"></label>
       <label>Delivery note id<input id="k-note" placeholder="DN-553" autocomplete="off"></label>
       <label class="chk"><input type="checkbox" id="k-blind" checked> Signers count it themselves<span>recommended: the link carries no quantities. Each signer types what they counted, and if their counts differ the note cannot complete, so nothing is paid on it.</span></label>
-      <div class="linegrid blind" id="k-lines"><span class="muted" id="k-lhead" style="font:400 12.5px var(--mono)">Item · counted by each signer</span></div>
+      <div class="linegrid blind" id="k-lines"><div class="lhead c3"><span>Item</span><span>Quantity received</span><span></span></div></div>
       <div><button class="btn ghost" type="button" data-add="k-lines" data-dn="1">Add a line</button></div>
       <label>Role that signs<select id="k-role"></select></label>
       <label>Unit shown to the signer<span>optional, e.g. t</span><input id="k-unit" placeholder="t" autocomplete="off"></label>`,
@@ -702,7 +710,7 @@ function openAdvanced(id, pre) {
 }
 document.querySelectorAll(".factgo").forEach((a) => (a.onclick = (e) => { e.preventDefault(); openAdvanced(a.dataset.go); }));
 // Blind receiving on the delivery-link card: with it on, no quantity goes in the link; each signer counts and types it.
-{ const b = $("k-blind"); if (b) { const f = () => { $("k-lines").classList.toggle("blind", b.checked); $("k-lhead").textContent = b.checked ? "Item · counted by each signer" : "Item · quantity received"; }; b.addEventListener("change", f); f(); } }
+document.addEventListener("change", (e) => { if (e.target && e.target.id === "k-blind") $("k-lines").classList.toggle("blind", e.target.checked); }); // the card is drawn later, so listen on the page
 // From the Overview or the Inbox: #go=pool, #go=withdraw or #go=limits opens that card; #go=link=PO-7 opens the delivery-link
 // builder filled with that order's lines from the contract (nothing is signed: the buyer still makes and sends the links).
 { let h = ""; try { h = decodeURIComponent(location.hash); } catch {} const go = h.match(/^#go=(pool|withdraw|limits|link=([A-Za-z0-9._\/-]{1,64}))$/);

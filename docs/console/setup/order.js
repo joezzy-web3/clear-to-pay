@@ -236,7 +236,7 @@ function paintLines(b) {
       <small>${u ? `${esc(fromUnits(u))} USDC = <code>${esc(u)}</code> units` : "&nbsp;"}</small></div>`;
   }).join("");
   b.innerHTML = `<div class="fields">${field("wz-po", "Order number", "your purchase order reference", p.id)}
-    <div class="linegrid"><span class="muted" style="font:400 12.5px var(--mono)">Item · quantity · unit price in USDC</span>${rows}</div>
+    <div class="linegrid"><div class="lhead w3"><span>Item</span><span>Quantity</span><span>Unit price (USDC)</span><span></span></div>${rows}</div>
     <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-add">Add a line</button><span class="tot">Total <b id="wz-tot">${esc(fromUnits(total))} USDC</b></span></div></div>`;
   $("wz-po").oninput = (e) => { p.id = e.target.value; save(); };
   b.querySelectorAll("[data-l]").forEach((inp) => (inp.oninput = (e) => { p.lines[+inp.dataset.l][inp.dataset.f] = e.target.value; save(); const sm = inp.parentElement.querySelector("small"), l = p.lines[+inp.dataset.l], u = toUnits(l.price); sm.innerHTML = u ? `${esc(fromUnits(u))} USDC = <code>${esc(u)}</code> units` : "&nbsp;"; let t = 0n; for (const x of p.lines) { const v = toUnits(x.price); if (v && /^[1-9]\d{0,19}$/.test(x.qty.trim())) t += BigInt(x.qty.trim()) * BigInt(v); } $("wz-tot").textContent = fromUnits(t) + " USDC"; }));
@@ -252,7 +252,7 @@ function paintSigners(b) {
       ${X.signers.length ? `<div class="picks"><span class="muted" style="font:400 12.5px var(--mono)">Registered signers: tick who confirms this order's deliveries</span>${list}</div>` : `<p class="muted">No delivery signers registered yet. Add two below, in two different roles.</p>`}
       <label>Paste a signer's reply<span>the link a storekeeper or weighbridge sent back</span><textarea id="wz-greply" rows="2" placeholder="https://…/console/setup/#a=…"></textarea></label>
       <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-guse">Use this reply</button><button class="btn ghost" type="button" id="wz-gadd">Add a key by hand</button></div>
-      ${adds ? `<div class="linegrid"><span class="muted" style="font:400 12.5px var(--mono)">New signers (registered by this order's transaction) · key · role</span>${adds}</div>` : ""}
+      ${adds ? `<div class="linegrid"><span class="muted" style="font:400 12.5px var(--body)">New signers, registered by this order's transaction</span><div class="lhead w2"><span>Public key</span><span>Role</span><span></span></div>${adds}</div>` : ""}
       <p class="note" id="wz-roles">${roles.length >= 2 ? `Delivery needs 2 signatures, from 2 of these roles: <b>${esc(roles.join(", "))}</b>.` : `Roles so far: ${esc(roles.join(", ") || "none")}. Two different roles are needed.`}</p></div>
     <div class="invbox"><b>Invite a signer</b><p class="muted">Their phone makes the key. Register a key only if you sent that person the invitation.</p>
       <div class="fields" style="margin-top:0"><label>Role<input id="wz-grole" placeholder="weighbridge" autocomplete="off"></label></div>
