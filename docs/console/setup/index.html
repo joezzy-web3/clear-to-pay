@@ -310,7 +310,7 @@ import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, i
 initMenu();
 
 const YOCTO = "1", TGAS = (n) => (BigInt(n) * 10n ** 12n).toString();
-const S = { c: (() => { const q = new URLSearchParams(location.search).get("contract"), k = sessionStorage.getItem("ctp-setup-contract"); return q && CONTRACTS.own === q ? "own" : k && CONTRACTS[k] ? k : "demo"; })(), owner: null, me: null, wallet: null, selector: null, modal: null };
+const S = { c: (() => { const u = new URLSearchParams(location.search), q = u.get("contract"), n = u.get("net"), k = sessionStorage.getItem("ctp-setup-contract"); return q && CONTRACTS.own === q ? "own" : n === "demo" || n === "live" ? n : k && CONTRACTS[k] ? k : "demo"; })(), owner: null, me: null, wallet: null, selector: null, modal: null };
 const contract = () => CONTRACTS[S.c];
 
 // ---------------------------------------------------------------- the forms: one contract call each
@@ -680,8 +680,15 @@ function openAdvanced(id, pre) {
   (document.querySelector("#adv-body #f-" + id) || document.getElementById("f-" + id))?.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 document.querySelectorAll(".factgo").forEach((a) => (a.onclick = (e) => { e.preventDefault(); openAdvanced(a.dataset.go); }));
-// From the Overview page: #go=pool, #go=withdraw or #go=limits opens that card (nothing is filled in or signed).
-{ const go = location.hash.match(/^#go=(pool|withdraw|limits)$/); if (go) { history.replaceState(null, "", location.pathname + location.search); setTimeout(() => openAdvanced(go[1]), 400); } }
+// From the Overview or the Inbox: #go=pool, #go=withdraw or #go=limits opens that card; #go=link=PO-7 opens the delivery-link
+// builder filled with that order's lines from the contract (nothing is signed: the buyer still makes and sends the links).
+{ let h = ""; try { h = decodeURIComponent(location.hash); } catch {} const go = h.match(/^#go=(pool|withdraw|limits|link=([A-Za-z0-9._\/-]{1,64}))$/);
+  if (go) { history.replaceState(null, "", location.pathname + location.search);
+    if (!go[2]) setTimeout(() => openAdvanced(go[1]), 400);
+    else setTimeout(async () => { let o = null, roles = []; try { o = await view(contract(), "get_order", { order_id: go[2] }); } catch {}
+      try { const [pol, sg] = await Promise.all([view(contract(), "get_delivery_policy", { order_id: go[2] }), view(contract(), "get_delivery_signers")]);
+        roles = pol && pol.roles && pol.roles.length ? pol.roles : [...new Set((sg || []).map((x) => x.role))]; } catch {}
+      if (o && Array.isArray(o.lines)) openAdvanced("link", { order: go[2], lines: o.lines, roles: roles.length ? roles : ["each registered role"] }); else { openAdvanced("link"); const f = $("k-order"); if (f) f.value = go[2]; } }, 400); } }
 
 async function alertsCard() {
   const c = contract(), rows = [["buyer", "You, the buyer", "everything on " + c]];

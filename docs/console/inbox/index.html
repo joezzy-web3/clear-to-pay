@@ -171,6 +171,11 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
 .aibox{display:grid;gap:6px;padding:12px;background:var(--cell,#F4F6F2);border-left:3px solid var(--signal,#E6BE4F)}.aibox small{color:var(--mute);font-size:13px;line-height:1.4}.aipick{justify-self:start;cursor:pointer}.aibox .checks li{padding:6px 0}
 .sc.ready{border-color:var(--clear);box-shadow:inset 4px 0 0 var(--clear)}
 #sgrid{display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+.steplink{display:inline-block;margin-top:6px;font:600 13px var(--body);color:var(--navy);text-decoration:underline;text-decoration-color:var(--signal);text-decoration-thickness:2px;text-underline-offset:3px}
+.mkbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:#fff;border:1px solid var(--line);padding:12px 16px;margin:0 0 18px}
+.mkbar span{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.mkbar input{font:400 15px var(--mono);padding:9px 12px;border:1px solid var(--line);width:160px}
+.mkbar small{flex-basis:100%;font:400 12.5px var(--body);color:var(--mute)}
 .pkg{background:var(--paper,#EEF1EC);border:1px solid var(--line);padding:18px 20px 20px;display:grid;gap:14px}
 .pkg.go{box-shadow:inset 4px 0 0 var(--clear)}
 .pkg header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
@@ -248,6 +253,7 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
     <div class="row"><a class="btn y" href="../sign/" id="rc-go">Go to the Sign page →</a><button class="btn ghost" type="button" id="rc-show">Show the buyer's Inbox anyway</button></div>
   </section>
   <div class="msg" id="arrive" hidden></div>
+  <div class="mkbar"><span>Delivery links for an order</span><input id="mk-order" placeholder="PO-7" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-label="Order number"><button class="btn ghost" type="button" id="mk-go">Make the links →</button><small>Opens Buyer setup at the link builder, filled with that order's lines.</small></div>
   <section class="sigs" id="reqs" hidden aria-labelledby="h-reqs">
     <div class="ib-h"><div><span class="kick">Asking to join</span><h2 id="h-reqs">Waiting to be registered.</h2></div><button class="btn ghost" type="button" id="req-clear">Forget these</button></div>
     <p class="muted">A delivery signer or a supplier sent you their public key from the Sign page. Nothing here is on chain yet: review each one, then register it in Buyer setup with your wallet. Confirm a supplier's payout account with them by phone first.</p>
@@ -588,6 +594,10 @@ async function pollRelay() {
   if (added) paintSigs();
   if (asked) paintRequests();
 }
+/** Buyer setup on the same contract as this Inbox, opened at one card (#go=…), so nothing needs scrolling. */
+const setupLink = (go) => "../setup/" + (S.c === "own" ? "?contract=" + encodeURIComponent(contract()) : "?net=" + S.c) + "#go=" + encodeURIComponent(go).replace(/%3D/g, "=");
+$("mk-go").onclick = () => { const v = $("mk-order").value.trim(); if (!isRef(v)) { $("mk-order").focus(); return; } location.href = setupLink("link=" + v); };
+$("mk-order").addEventListener("keydown", (e) => { if (e.key === "Enter") $("mk-go").click(); });
 // ---------------------------------------------------------------- details sent from the Sign page: requests to be registered
 const RK = "ctp-inbox-requests";
 const readReqs = () => { try { return JSON.parse(localStorage.getItem(RK) || "[]"); } catch { return []; } };
@@ -662,8 +672,9 @@ async function paintSigs() {
     const dTxt = dOk ? `note ${esc(P.best.note)}: ${esc(have.join(" + "))}` : have.length ? `${have.length} of ${P.need} roles (${esc(have.join(", "))}); still needed: ${esc(P.missing.length ? P.missing.join(" or ") : "another role")}` : "no delivery signature yet: make the delivery links in Buyer setup";
     const iTxt = P.inv ? (P.invOk ? `${esc(P.inv.invoice.invoice_number)} · ${esc(P.inv.invoice.supplier_id)} · ${esc(usd(P.inv.invoice.total))}` : "signed with a key that is not the supplier's registered key") : "not yet: the supplier signs it on their Sign page";
     const aiDone = P.inv && S.ai[P.inv.signature] && S.ai[P.inv.signature].cmp, all = dOk && P.inv && P.invOk;
+    const mk = dOk ? "" : ` <a class="steplink" href="${setupLink("link=" + P.order)}">Make the delivery links →</a>`;
     return `<section class="pkg${all ? " go" : ""}"><header><h3>Order ${esc(P.order)}${P.inv ? `<span>${esc(P.inv.invoice.supplier_id)}</span>` : ""}</h3><b class="pst">${all ? "Ready to submit" : "In progress"}</b></header>
-      <ol class="steps">${step(dOk ? "ok" : "wait", "Delivery confirmed", dTxt)}${step(P.inv && P.invOk ? "ok" : "wait", "Supplier's invoice", iTxt)}${step(aiDone ? "ok" : all ? "now" : "wait", "AI reads the PDF", aiDone ? "read; see the invoice card" : all ? "choose the PDF on the invoice card below (optional, advice only)" : "after the invoice arrives")}${step(all ? "now" : "wait", "Submit to the contract", all ? "on the invoice card below, with your wallet" : "when the delivery and the invoice are both here")}</ol>
+      <ol class="steps">${step(dOk ? "ok" : "wait", "Delivery confirmed", dTxt + mk)}${step(P.inv && P.invOk ? "ok" : "wait", "Supplier's invoice", iTxt)}${step(aiDone ? "ok" : all ? "now" : "wait", "AI reads the PDF", aiDone ? "read; see the invoice card" : all ? "choose the PDF on the invoice card below (optional, advice only)" : "after the invoice arrives")}${step(all ? "now" : "wait", "Submit to the contract", all ? "on the invoice card below, with your wallet" : "when the delivery and the invoice are both here")}</ol>
       <div class="sgrid">${P.cards.join("")}</div></section>`;
   }).join("");
   document.querySelectorAll("[data-agent]").forEach((b) => (b.onclick = () => copy(b.dataset.agent, b)));
