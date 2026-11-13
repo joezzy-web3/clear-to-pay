@@ -25,9 +25,13 @@ export async function notice(body, contract, view, kv, net, now = Date.now()) {
       if (!signers.some((s) => s.key === got.key && s.role === got.role)) return null; // not registered for that role: say nothing
       const policy = (await view("get_delivery_policy", { order_id: got.note.order_id })) || { required: 2, version: got.policy_version };
       if (policy.version !== got.policy_version) return null;
-      const n = (prog.notes[got.note.note_id] ||= { roles: [] });
+      // A note is its exact counted lines (blind receiving): two different counts are two notes and never add up to one.
+      const lk = got.note.lines.map((l) => l.sku + "=" + l.qty).join(","), id = `${got.note.note_id}|${lk}`;
+      const n = (prog.notes[id] ||= { roles: [], lines: got.note.lines });
       if (!n.roles.includes(got.role)) n.roles.push(got.role);
-      head = `Delivery signed: ${got.role} signed note ${got.note.note_id} for order ${got.note.order_id}.`;
+      const other = Object.entries(prog.notes).find(([k, v]) => k !== id && k.startsWith(got.note.note_id + "|") && v.roles.length);
+      head = `Delivery signed: ${got.role} signed note ${got.note.note_id} for order ${got.note.order_id} (${got.note.lines.map((l) => l.qty + " " + l.sku).join(", ")}).`
+        + (other ? `\nCounts differ: ${other[1].roles.join(" + ")} counted ${other[1].lines.map((l) => l.qty + " " + l.sku).join(", ")}. Nothing can be paid on this note until two roles sign the same count.` : "");
       prog.required = policy.required; prog.allRoles = policy.roles && policy.roles.length ? policy.roles : [...new Set(signers.map((s) => s.role))];
     } else {
       const sup = await view("get_supplier", { supplier_id: got.invoice.supplier_id });

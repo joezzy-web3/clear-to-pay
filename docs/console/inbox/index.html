@@ -172,6 +172,7 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
 .sc.ready{border-color:var(--clear);box-shadow:inset 4px 0 0 var(--clear)}
 #sgrid{display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
 .linkish{background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.clash{color:var(--seize,#B3261E)}
 .steplink{display:inline-block;margin-top:6px;font:600 13px var(--body);color:var(--navy);text-decoration:underline;text-decoration-color:var(--signal);text-decoration-thickness:2px;text-underline-offset:3px}
 .mkbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:#fff;border:1px solid var(--line);padding:12px 16px;margin:0 0 18px}
 .mkbar span{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
@@ -651,7 +652,10 @@ async function paintSigs() {
   try { signers = await view(contract(), "get_delivery_signers"); } catch {}
   const notes = {}, cards = [], readyNotes = [], invs = [];
   const pk = {}, pkg = (o) => (pk[o] ||= { order: o, cards: [], best: null, need: 2, missing: [], inv: null, invOk: false, last: 0 });
-  for (const x of all.filter((x) => x.kind === "delivery")) { const id = `${x.note.order_id}|${x.note.note_id}|${x.policy_version}`; (notes[id] ||= { note: x.note, pv: x.policy_version, sigs: [] }).sigs.push(x); }
+  // A note is its exact lines: with blind receiving each signer types their own count, and two counts are two different notes.
+  const lineKey = (n) => n.lines.map((l) => l.sku + "=" + l.qty).join(",");
+  for (const x of all.filter((x) => x.kind === "delivery")) { const id = `${x.note.order_id}|${x.note.note_id}|${x.policy_version}|${lineKey(x.note)}`; (notes[id] ||= { note: x.note, pv: x.policy_version, sigs: [] }).sigs.push(x); }
+  const variants = {}; for (const g of Object.values(notes)) (variants[`${g.note.order_id}|${g.note.note_id}`] ||= []).push(g);
   for (const g of Object.values(notes)) {
     let policy = { required: 2, version: g.pv }; try { policy = await view(contract(), "get_delivery_policy", { order_id: g.note.order_id }); } catch {}
     const rows = g.sigs.map((x) => { const reg = signers.find((s) => s.key === x.key); return { x, ok: reg && reg.role === x.role }; });
@@ -659,8 +663,10 @@ async function paintSigs() {
     const forAgent = { delivery: g.note, delivery_signatures: rows.filter((r) => r.ok).map((r) => ({ key: r.x.key, signature: r.x.signature })) };
     if (ready) readyNotes.push({ note: g.note, roles, signatures: rows.filter((r) => r.ok).map((r) => r.x) });
     const P = pkg(g.note.order_id); P.last = Math.max(P.last, ...g.sigs.map((x) => x.at || 0));
+    const vs = variants[`${g.note.order_id}|${g.note.note_id}`];
+    if (vs.length > 1 && !P.clash) P.clash = { note: g.note.note_id, text: vs.map((v) => `${v.sigs.map((x) => x.role).join(" + ")} counted ${v.note.lines.map((l) => l.qty + " " + l.sku).join(", ")}`).join(" · ") };
     if (!stale && (!P.best || roles.length > P.best.roles.length)) { P.best = { note: g.note.note_id, roles, ready }; P.need = policy.required; P.missing = (policy.roles && policy.roles.length ? policy.roles : [...new Set(signers.map((z) => z.role))]).filter((r) => !roles.includes(r)); }
-    P.cards.push(`<article class="sc ${ready ? "ready" : ""}"><h3>${esc(g.note.note_id)} <span>order ${esc(g.note.order_id)}</span></h3>
+    P.cards.push(`<article class="sc ${ready ? "ready" : ""}"><h3>${esc(g.note.note_id)} <span>order ${esc(g.note.order_id)} · ${esc(g.note.lines.map((l) => l.qty + " " + l.sku).join(", "))}</span></h3>
       <ul class="checks">${rows.map((r) => `<li class="${r.ok ? "ok" : "no"}"><i></i><div>${esc(r.x.role)}<small>${r.ok ? esc(short(r.x.key, 8)) + " · registered" : "this key is not registered with this role"}</small></div></li>`).join("")}</ul>
       <p class="who">${stale ? "Signed under an older delivery policy: ask for new signatures." : ready ? `Ready: ${roles.join(" + ")}.` : `${roles.length} of ${policy.required} roles. Still needed: another role.`}</p>
       ${ready ? `<div class="row"><button class="btn y" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div>` : ""}</article>`);
@@ -682,7 +688,7 @@ async function paintSigs() {
   const step = (st, t, d) => `<li class="${st}"><i></i><div>${t}<small>${d}</small></div></li>`;
   $("sgrid").innerHTML = Object.values(pk).sort((a, b) => b.last - a.last).map((P) => {
     const dOk = !!(P.best && P.best.ready), have = P.best ? P.best.roles : [];
-    const dTxt = dOk ? `note ${esc(P.best.note)}: ${esc(have.join(" + "))}` : have.length ? `${have.length} of ${P.need} roles (${esc(have.join(", "))}); still needed: ${esc(P.missing.length ? P.missing.join(" or ") : "another role")}` : "no delivery signature yet: make the delivery links in Buyer setup";
+    const dTxt = P.clash && !dOk ? `<b class="clash">Counts differ on ${esc(P.clash.note)}:</b> ${esc(P.clash.text)}. Ask them to recount together; nothing can be paid on this note until two roles sign the same count.` : dOk ? `note ${esc(P.best.note)}: ${esc(have.join(" + "))}` : have.length ? `${have.length} of ${P.need} roles (${esc(have.join(", "))}); still needed: ${esc(P.missing.length ? P.missing.join(" or ") : "another role")}` : "no delivery signature yet: make the delivery links in Buyer setup";
     const iTxt = P.inv ? (P.invOk ? `${esc(P.inv.invoice.invoice_number)} · ${esc(P.inv.invoice.supplier_id)} · ${esc(usd(P.inv.invoice.total))}` : "signed with a key that is not the supplier's registered key") : "not yet: the supplier signs it on their Sign page";
     const aiDone = P.inv && S.ai[P.inv.signature] && S.ai[P.inv.signature].cmp, all = dOk && P.inv && P.invOk;
     const mk = dOk ? "" : ` <a class="steplink" href="${setupLink("link=" + P.order)}">Make the delivery links →</a>`;

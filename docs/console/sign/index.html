@@ -19,6 +19,8 @@
 .paper.note::after{content:none}
 .paper.note h3{font:800 clamp(28px,7vw,40px)/1.05 var(--display);margin:0 0 6px;color:var(--navy)}
 .paper.note .meta{color:var(--mute);font-size:13.5px}
+.count-h{font:500 14.5px/1.45 var(--body);background:#FFF6D9;border-left:3px solid var(--signal);padding:10px 12px;margin:10px 0 0}
+.cnt{display:inline-flex;align-items:center;gap:6px;font:500 14px var(--mono)}.cnt input{width:110px;font:600 18px var(--mono);padding:8px 10px;border:2px solid var(--navy);text-align:right}
 .lines{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:8px}
 .lines li{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:12px 0;border-top:1px dashed var(--line)}
 .lines b{font:800 clamp(26px,6vw,34px)/1 var(--display);white-space:nowrap}
@@ -281,11 +283,13 @@ const P = new URLSearchParams(location.hash.slice(1));
 function parseJob() {
   if (P.get("n")) {
     const n = decodeLink(P.get("n"));
-    const okLines = Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isU64(l.qty));
+    // Blind receiving: the buyer left the quantities out, so this signer counts and types them; the count is what gets signed.
+    const blind = n.blind === true && Array.isArray(n.lines) && n.lines.every((l) => l.qty === undefined || l.qty === "");
+    const okLines = Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && (blind || isU64(l.qty)));
     if (!isAccount(n.contract) || !isRef(n.order_id) || !isRef(n.note_id) || !okLines || !isRole(n.role) || !Number.isInteger(n.policy_version) || n.policy_version < 0 || n.policy_version > 4294967295) throw new Error("the link is damaged or cut off (chat apps sometimes cut long links). Ask the buyer to send it again, or to send the QR code instead.");
     const unit = typeof n.unit === "string" && /^[a-z]{1,6}$/i.test(n.unit) ? n.unit : "";
-    return { kind: "delivery", contract: n.contract, role: n.role, policy_version: n.policy_version, unit,
-      note: { order_id: n.order_id, note_id: n.note_id, lines: n.lines.map((l) => ({ sku: l.sku, qty: String(l.qty) })) }, raw: P.get("n") };
+    return { kind: "delivery", contract: n.contract, role: n.role, policy_version: n.policy_version, unit, blind,
+      note: { order_id: n.order_id, note_id: n.note_id, lines: n.lines.map((l) => ({ sku: l.sku, qty: blind ? "" : String(l.qty) })) }, raw: P.get("n") };
   }
   if (P.get("i")) {
     const x = decodeLink(P.get("i")), v = x.invoice || {};
@@ -307,9 +311,13 @@ function paintJob() {
   if (j.kind === "delivery") {
     $("h1").innerHTML = "Sign a <span>delivery.</span>";
     $("note").innerHTML = `<h3>Delivery note ${esc(j.note.note_id)}</h3><div class="meta">Order ${esc(j.note.order_id)} · contract ${esc(j.contract)}</div>
-      <ul class="lines">${j.note.lines.map((l) => `<li><span>${esc(l.sku)}</span><b>${esc(l.qty)}${j.unit ? " " + esc(j.unit) : ""} received</b></li>`).join("")}</ul>
+      ${j.blind ? `<p class="count-h">Count what arrived and type the number for each item. The buyer did not put a number in this link: your count is what you sign.</p>` : ""}
+      <ul class="lines">${j.note.lines.map((l, i) => j.blind
+        ? `<li><span>${esc(l.sku)}</span><label class="cnt"><input data-cnt="${i}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="count" aria-label="How many ${esc(l.sku)} arrived">${j.unit ? " " + esc(j.unit) : ""}</label></li>`
+        : `<li><span>${esc(l.sku)}</span><b>${esc(l.qty)}${j.unit ? " " + esc(j.unit) : ""} received</b></li>`).join("")}</ul>
       <div class="role">You sign as: <b>${esc(j.role)}</b></div>`;
-    $("plain").textContent = "You confirm these goods arrived. Your signature cannot be moved to another note, order, role or contract.";
+    $("plain").textContent = j.blind ? "You confirm the counts you typed. If another signer counts differently, the note cannot complete and nothing is paid on it until you agree. Your signature cannot be moved to another note, order, role or contract." : "You confirm these goods arrived. Your signature cannot be moved to another note, order, role or contract.";
+    if (j.blind) document.querySelectorAll("[data-cnt]").forEach((x) => x.addEventListener("input", () => { x.value = x.value.replace(/\D/g, "").slice(0, 19); gate(); }));
     $("sign").textContent = "Sign delivery";
   } else {
     $("h1").innerHTML = "Sign an <span>invoice.</span>";
@@ -367,7 +375,15 @@ async function check() {
     $("live").className = "live err"; $("liveText").innerHTML = "<b>Could not check</b>";
   }
   setChecks(rows);
-  READY = !!KEY && rows.every((r) => r[0] === "ok");
+  ROWS_OK = rows.every((r) => r[0] === "ok");
+  gate();
+}
+// Every live check passed, and (blind receiving) every line has a count: only then can Sign be pressed.
+let ROWS_OK = false;
+const counted = () => [...document.querySelectorAll("[data-cnt]")];
+function gate() {
+  const countsOk = !(JOB && JOB.blind) || (counted().length > 0 && counted().every((x) => /^[1-9]\d{0,18}$/.test(x.value)));
+  READY = !!KEY && ROWS_OK && countsOk;
   $("sign").disabled = !READY;
 }
 
@@ -398,6 +414,11 @@ function showResult(key, sig, returned) {
 $("sign").addEventListener("click", async () => {
   if (!READY || !KEY) return;
   await check(); if (!READY) return;
+  if (JOB.blind) { // the counts become the note: they are what the signature covers, and what goes back to the buyer
+    const cs = counted(); JOB.note.lines = JOB.note.lines.map((l, i) => ({ sku: l.sku, qty: cs[i].value })); cs.forEach((x) => (x.disabled = true));
+    const n = { contract: JOB.contract, order_id: JOB.note.order_id, note_id: JOB.note.note_id, lines: JOB.note.lines, role: JOB.role, policy_version: JOB.policy_version }; if (JOB.unit) n.unit = JOB.unit;
+    JOB.raw = encodeLink(n);
+  }
   showResult(KEY.public_key, C.signDigest(KEY.secret_key, digestOf(JOB)), false);
   if (JOB.kind === "delivery") logSigned({ contract: JOB.contract, order_id: JOB.note.order_id, note_id: JOB.note.note_id, role: JOB.role, at: Date.now() });
 });

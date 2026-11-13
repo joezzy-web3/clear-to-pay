@@ -34,6 +34,8 @@ input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
 .linegrid{display:grid;gap:8px}
 .lrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.7fr) minmax(0,.9fr) 40px;gap:6px}
 .lrow.dn{grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) 40px}
+#k-lines.blind .lrow.dn{grid-template-columns:minmax(0,1fr) 40px}#k-lines.blind .lrow.dn input:nth-of-type(2){display:none}
+label.chk{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:start;font-weight:600}label.chk input{margin-top:3px;width:18px;height:18px;accent-color:var(--navy)}label.chk span{grid-column:2;font:400 13px/1.45 var(--body);color:var(--mute)}
 .x{border:1px solid var(--line);background:#fff;cursor:pointer;font-size:18px}
 .side2{display:grid;gap:12px;align-content:start}
 .preview{background:var(--deep);color:#C9D6E6;font:400 12.5px/1.6 var(--mono);padding:14px 16px;margin:0;white-space:pre-wrap;overflow-wrap:anywhere;min-height:120px}
@@ -394,7 +396,8 @@ const FORMS = [
     help: "Send it to a delivery signer. They open it on their phone, check the goods against the note, and tap Sign. Nothing secret is in the link.",
     fields: `<label>Order<input id="k-order" placeholder="PO-1185" autocomplete="off"></label>
       <label>Delivery note id<input id="k-note" placeholder="DN-553" autocomplete="off"></label>
-      <div class="linegrid" id="k-lines"><span class="muted" style="font:400 12.5px var(--mono)">Item · quantity received</span></div>
+      <label class="chk"><input type="checkbox" id="k-blind" checked> Signers count it themselves<span>recommended: the link carries no quantities. Each signer types what they counted, and if their counts differ the note cannot complete, so nothing is paid on it.</span></label>
+      <div class="linegrid blind" id="k-lines"><span class="muted" id="k-lhead" style="font:400 12.5px var(--mono)">Item · counted by each signer</span></div>
       <div><button class="btn ghost" type="button" data-add="k-lines" data-dn="1">Add a line</button></div>
       <label>Role that signs<select id="k-role"></select></label>
       <label>Unit shown to the signer<span>optional, e.g. t</span><input id="k-unit" placeholder="t" autocomplete="off"></label>`,
@@ -403,13 +406,16 @@ const FORMS = [
       if (!isRef(order) || !isRef(note)) fail("The order number and the delivery note number use letters, digits and - _ . / only, no spaces. Example: PO-1184 and DN-0412.");
       if (role !== "*" && !isRole(role)) fail("No delivery signer is registered yet. Add one first with “Add a delivery signer”, then pick its role here.");
       if (unit && !/^[a-z]{1,6}$/i.test(unit)) fail("The unit is up to 6 letters, like t, kg or pcs. Leave it empty if you don't need one.");
-      const ls = lines("k-lines").map(([sku, qty], n) => { if (!isRef(sku) || !/^[1-9]\d{0,18}$/.test(qty)) fail(`Line ${n + 1}: give the item code from the order and a whole number delivered, like AH36-12mm and 10.`); return { sku, qty }; });
+      const blind = $("k-blind").checked;
+      const ls = lines("k-lines").map(([sku, qty], n) => {
+        if (blind) { if (!isRef(sku)) fail(`Line ${n + 1}: give the item code from the order, like AH36-12mm.`); return { sku }; }
+        if (!isRef(sku) || !/^[1-9]\d{0,18}$/.test(qty)) fail(`Line ${n + 1}: give the item code from the order and a whole number delivered, like AH36-12mm and 10.`); return { sku, qty }; });
       if (!ls.length) fail("Add at least one line: what was delivered and how many.");
       const o = await view(contract(), "get_order", { order_id: order }); if (!o) fail(`There's no order ${order} on ${contract()}. Check the number, or switch contract at the top (Demo, Live or your own).`);
       const p = await view(contract(), "get_delivery_policy", { order_id: order });
       const roles = role === "*" ? p.roles : [role];
       if (!roles.length) fail("This order has no delivery roles set, so nobody can sign for it. Orders made with the wizard above set them for you: make this order there.");
-      return roles.map((r) => { const n = { contract: contract(), order_id: order, note_id: note, lines: ls, role: r, policy_version: p.version }; if (unit) n.unit = unit;
+      return roles.map((r) => { const n = { contract: contract(), order_id: order, note_id: note, lines: ls, role: r, policy_version: p.version }; if (unit) n.unit = unit; if (blind) n.blind = true;
         return { role: r, note, order, link: new URL("../sign/#n=" + encodeLink(n), location.href).href }; });
     } },
 
@@ -674,12 +680,16 @@ function openAdvanced(id, pre) {
     const box = $("k-lines"); box.querySelectorAll(".lrow").forEach((r) => r.remove());
     for (const l of pre.lines) { addLine("k-lines", true); const r = [...box.querySelectorAll(".lrow")].pop().querySelectorAll("input"); r[0].value = l.sku; r[1].placeholder = "received"; }
     setTimeout(() => { const sel = $("k-role"); if (sel) sel.value = "*"; }, 600);
-    $("out-link").innerHTML = `<p class="warn">Fill in what actually arrived, line by line, then make the links: one for each role (${esc(pre.roles.join(", "))}), all at once.</p>`;
+    $("out-link").innerHTML = $("k-blind") && $("k-blind").checked
+      ? `<p class="warn">Check the items, then make the links: one for each role (${esc(pre.roles.join(", "))}), all at once. Each signer counts what arrived and types it on their phone.</p>`
+      : `<p class="warn">Fill in what actually arrived, line by line, then make the links: one for each role (${esc(pre.roles.join(", "))}), all at once.</p>`;
   }
   // The facts panel has its own #f-pool, so look for the card inside Advanced first.
   (document.querySelector("#adv-body #f-" + id) || document.getElementById("f-" + id))?.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 document.querySelectorAll(".factgo").forEach((a) => (a.onclick = (e) => { e.preventDefault(); openAdvanced(a.dataset.go); }));
+// Blind receiving on the delivery-link card: with it on, no quantity goes in the link; each signer counts and types it.
+{ const b = $("k-blind"); if (b) { const f = () => { $("k-lines").classList.toggle("blind", b.checked); $("k-lhead").textContent = b.checked ? "Item · counted by each signer" : "Item · quantity received"; }; b.addEventListener("change", f); f(); } }
 // From the Overview or the Inbox: #go=pool, #go=withdraw or #go=limits opens that card; #go=link=PO-7 opens the delivery-link
 // builder filled with that order's lines from the contract (nothing is signed: the buyer still makes and sends the links).
 { let h = ""; try { h = decodeURIComponent(location.hash); } catch {} const go = h.match(/^#go=(pool|withdraw|limits|link=([A-Za-z0-9._\/-]{1,64}))$/);

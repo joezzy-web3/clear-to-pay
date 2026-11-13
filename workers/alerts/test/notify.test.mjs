@@ -48,4 +48,13 @@ assert.equal(await notice(req({ kind: "signer", key: stranger.public_key, role: 
 assert.ok(await notice(req({ kind: "signer", key: stranger.public_key, role: "r9" }), J, view, KV, "demo", 3600000), "the next hour, again");
 for (const bad of [req({ kind: "signer", key: "ed25519:short" }), req({ kind: "admin", key: stranger.public_key }), req({ kind: "supplier", key: sup.public_key, supplier_id: "UPPER", address: "x.testnet" }), "a=%%%", "hello"])
   assert.equal(await notice(bad, J, view, KV, "demo", 7200000), null, "not announced: " + bad.slice(0, 20));
-console.log("ok  relay notices: only verified, registered signatures; what is still needed; requests rate-limited");
+// Blind receiving: two roles that counted differently never add up to a complete note.
+{
+  const n9 = { order_id: "PO-9", note_id: "DN-9", lines: [{ sku: "AH36", qty: "30" }] }, n9b = { ...n9, lines: [{ sku: "AH36", qty: "29" }] };
+  const sg = (who, role, nt) => `n=${encodeLink({ contract: J, ...nt, role, policy_version: 1 })}&s=${encodeURIComponent(C.signDigest(who.secret_key, C.deliveryDigest(J, nt, role, 1)))}&k=${encodeURIComponent(who.public_key)}`;
+  let m1 = await notice(sg(store, "storekeeper", n9), J, view, KV, "demo");
+  assert.match(m1, /\(30 AH36\)/);
+  let m2 = await notice(sg(bridge, "weighbridge", n9b), J, view, KV, "demo");
+  assert.match(m2, /Counts differ: storekeeper counted 30 AH36/); assert.doesNotMatch(m2, /Everything is in/); assert.match(m2, /one more delivery role/);
+}
+console.log("ok  relay notices: only verified, registered signatures; what is still needed; requests rate-limited; differing counts never complete a note");
