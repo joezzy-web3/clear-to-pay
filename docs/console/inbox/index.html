@@ -171,6 +171,7 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
 .aibox{display:grid;gap:6px;padding:12px;background:var(--cell,#F4F6F2);border-left:3px solid var(--signal,#E6BE4F)}.aibox small{color:var(--mute);font-size:13px;line-height:1.4}.aipick{justify-self:start;cursor:pointer}.aibox .checks li{padding:6px 0}
 .sc.ready{border-color:var(--clear);box-shadow:inset 4px 0 0 var(--clear)}
 #sgrid{display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+.linkish{background:none;border:0;padding:0;cursor:pointer;text-align:left}
 .steplink{display:inline-block;margin-top:6px;font:600 13px var(--body);color:var(--navy);text-decoration:underline;text-decoration-color:var(--signal);text-decoration-thickness:2px;text-underline-offset:3px}
 .mkbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:#fff;border:1px solid var(--line);padding:12px 16px;margin:0 0 18px}
 .mkbar span{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
@@ -253,7 +254,7 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
     <div class="row"><a class="btn y" href="../sign/" id="rc-go">Go to the Sign page →</a><button class="btn ghost" type="button" id="rc-show">Show the buyer's Inbox anyway</button></div>
   </section>
   <div class="msg" id="arrive" hidden></div>
-  <div class="mkbar"><span>Delivery links for an order</span><input id="mk-order" placeholder="PO-7" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-label="Order number"><button class="btn ghost" type="button" id="mk-go">Make the links →</button><small>Opens Buyer setup at the link builder, filled with that order's lines.</small></div>
+  <div class="mkbar"><span>Links for an order</span><input id="mk-order" placeholder="PO-7" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-label="Order number"><button class="btn ghost" type="button" id="mk-go">Delivery links →</button><button class="btn ghost" type="button" id="mk-inv">Invoice link for the supplier</button><small>Delivery links open Buyer setup at the link builder, filled with that order's lines. The invoice link is the supplier's page with the order loaded: they pick what they delivered, sign, and it reaches you by itself.</small><div id="mk-out" style="flex-basis:100%"></div></div>
   <section class="sigs" id="reqs" hidden aria-labelledby="h-reqs">
     <div class="ib-h"><div><span class="kick">Asking to join</span><h2 id="h-reqs">Waiting to be registered.</h2></div><button class="btn ghost" type="button" id="req-clear">Forget these</button></div>
     <p class="muted">A delivery signer or a supplier sent you their public key from the Sign page. Nothing here is on chain yet: review each one, then register it in Buyer setup with your wallet. Confirm a supplier's payout account with them by phone first.</p>
@@ -291,6 +292,7 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
 
 <script type="module">
 import * as C from "../crypto.js";
+import { shareBox, MSG } from "../share.js";
 import { banner, guide } from "../roles.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { compareReading, submitArgs } from "../invoice-flow.js";
@@ -596,6 +598,17 @@ async function pollRelay() {
 }
 /** Buyer setup on the same contract as this Inbox, opened at one card (#go=…), so nothing needs scrolling. */
 const setupLink = (go) => "../setup/" + (S.c === "own" ? "?contract=" + encodeURIComponent(contract()) : "?net=" + S.c) + "#go=" + encodeURIComponent(go).replace(/%3D/g, "=");
+/** The supplier's page with this order loaded, ready to invoice (the same link Buyer setup sends after an order). */
+function supplierLink(order) {
+  const q = new URLSearchParams({ r: "supplier", c: S.c, o: order }), u = new URL("../sign/#" + q.toString(), location.href);
+  if (S.c === "own") u.search = "?contract=" + encodeURIComponent(contract());
+  return u.href;
+}
+async function showSupplierLink(box, order) {
+  let sup = null; try { const o = await view(contract(), "get_order", { order_id: order }); sup = o && o.supplier_id; if (!o) { box.innerHTML = `<p class="err">No order ${esc(order)} on ${esc(contract())}. Check the number.</p>`; return; } } catch {}
+  shareBox(box, supplierLink(order), { msg: MSG.order(order, sup), subject: `Purchase order ${order}`, copyLabel: "Copy the supplier's link" });
+}
+$("mk-inv").onclick = () => { const v = $("mk-order").value.trim(); if (!isRef(v)) { $("mk-order").focus(); return; } showSupplierLink($("mk-out"), v); };
 $("mk-go").onclick = () => { const v = $("mk-order").value.trim(); if (!isRef(v)) { $("mk-order").focus(); return; } location.href = setupLink("link=" + v); };
 $("mk-order").addEventListener("keydown", (e) => { if (e.key === "Enter") $("mk-go").click(); });
 // ---------------------------------------------------------------- details sent from the Sign page: requests to be registered
@@ -673,11 +686,13 @@ async function paintSigs() {
     const iTxt = P.inv ? (P.invOk ? `${esc(P.inv.invoice.invoice_number)} · ${esc(P.inv.invoice.supplier_id)} · ${esc(usd(P.inv.invoice.total))}` : "signed with a key that is not the supplier's registered key") : "not yet: the supplier signs it on their Sign page";
     const aiDone = P.inv && S.ai[P.inv.signature] && S.ai[P.inv.signature].cmp, all = dOk && P.inv && P.invOk;
     const mk = dOk ? "" : ` <a class="steplink" href="${setupLink("link=" + P.order)}">Make the delivery links →</a>`;
+    const sl = P.inv ? "" : ` <button type="button" class="steplink linkish" data-sl="${esc(P.order)}">Send the supplier their invoice link →</button>`;
     return `<section class="pkg${all ? " go" : ""}"><header><h3>Order ${esc(P.order)}${P.inv ? `<span>${esc(P.inv.invoice.supplier_id)}</span>` : ""}</h3><b class="pst">${all ? "Ready to submit" : "In progress"}</b></header>
-      <ol class="steps">${step(dOk ? "ok" : "wait", "Delivery confirmed", dTxt + mk)}${step(P.inv && P.invOk ? "ok" : "wait", "Supplier's invoice", iTxt)}${step(aiDone ? "ok" : all ? "now" : "wait", "AI reads the PDF", aiDone ? "read; see the invoice card" : all ? "choose the PDF on the invoice card below (optional, advice only)" : "after the invoice arrives")}${step(all ? "now" : "wait", "Submit to the contract", all ? "on the invoice card below, with your wallet" : "when the delivery and the invoice are both here")}</ol>
-      <div class="sgrid">${P.cards.join("")}</div></section>`;
+      <ol class="steps">${step(dOk ? "ok" : "wait", "Delivery confirmed", dTxt + mk)}${step(P.inv && P.invOk ? "ok" : "wait", "Supplier's invoice", iTxt + sl)}${step(aiDone ? "ok" : all ? "now" : "wait", "AI reads the PDF", aiDone ? "read; see the invoice card" : all ? "choose the PDF on the invoice card below (optional, advice only)" : "after the invoice arrives")}${step(all ? "now" : "wait", "Submit to the contract", all ? "on the invoice card below, with your wallet" : "when the delivery and the invoice are both here")}</ol>
+      <div class="slbox" data-slout="${esc(P.order)}"></div><div class="sgrid">${P.cards.join("")}</div></section>`;
   }).join("");
   document.querySelectorAll("[data-agent]").forEach((b) => (b.onclick = () => copy(b.dataset.agent, b)));
+  document.querySelectorAll("[data-sl]").forEach((b) => (b.onclick = () => { const box = [...document.querySelectorAll("[data-slout]")].find((x) => x.dataset.slout === b.dataset.sl); if (box) showSupplierLink(box, b.dataset.sl); }));
   document.querySelectorAll("[data-ai]").forEach((f) => (f.onchange = () => { const file = f.files[0]; f.value = ""; if (file) aiCheck(+f.dataset.ai, file); })); // value cleared: choosing the same PDF again retries
   document.querySelectorAll("[data-submit]").forEach((b) => (b.onclick = () => submitOne(+b.dataset.submit)));
 }
