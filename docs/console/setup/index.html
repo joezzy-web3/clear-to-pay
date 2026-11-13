@@ -265,6 +265,10 @@ label.confirm.big{padding-left:48px!important}
     <p id="rc-p"></p>
     <div class="row"><a class="btn y" href="../sign/" id="rc-go">Go to the Sign page →</a><button class="btn ghost" type="button" id="rc-show">Show the buyer's forms anyway</button></div>
   </section>
+  <section class="ready" id="ready" aria-labelledby="h-ready">
+    <div class="ready-h"><div><span class="kick">Ready to run</span><h2 id="h-ready">What this contract still needs.</h2></div><div class="ready-n" id="ready-n" aria-live="polite">–</div></div>
+    <ol class="rlist" id="rlist"></ol>
+  </section>
   <section class="card wiz" id="wiz" aria-labelledby="wz-h">
     <div class="wz-top"><div><span class="kick">New order</span><h2 id="wz-h">One order, one signature.</h2>
       <p class="muted">Supplier, items, who confirms delivery, limits. Nothing opens your wallet until the last step, and then it opens once.</p></div>
@@ -275,10 +279,6 @@ label.confirm.big{padding-left:48px!important}
     <div id="wz-body"></div>
     <div id="wz-msg" aria-live="polite"></div>
     <div class="row wz-nav" id="wz-nav"><button class="btn ghost" type="button" id="wz-prev">Back</button><button class="btn y" type="button" id="wz-next">Next</button></div>
-  </section>
-  <section class="ready" id="ready" aria-labelledby="h-ready">
-    <div class="ready-h"><div><span class="kick">Ready to run</span><h2 id="h-ready">What this contract still needs.</h2></div><div class="ready-n" id="ready-n" aria-live="polite">–</div></div>
-    <ol class="rlist" id="rlist"></ol>
   </section>
   <section class="card alerts" id="alerts" aria-labelledby="h-alerts">
     <div><h3 id="h-alerts"><small>Alerts</small>Everyone hears it on Telegram</h3>
@@ -634,12 +634,21 @@ async function checklist() {
     if (!sups.length) rows.push(["todo", "supplier", "Register a supplier", "its signing key and the payout address you checked by phone"]);
     else {
       const payable = sups.filter((x) => x.payable_route), first = sups[0], from = Number(BigInt(first.route_payable_from) / 1_000_000n);
-      rows.push(payable.length ? ["ok", "supplier", "Supplier registered", sups.map((x) => x.supplier_id).join(", ") + " · payable"]
+      const when = (x) => new Date(Number(BigInt(x.route_payable_from) / 1_000_000n)).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+      const list = sups.map((x) => x.supplier_id + (x.payable_route ? " · payable" : " · payable " + when(x))).join("; ") + (ids.length > sups.length ? `; and ${ids.length - sups.length} more` : "");
+      // the whole contract's suppliers, not the order being drafted: a new supplier joins this list when its order is approved
+      rows.push(payable.length ? ["ok", "supplier", ids.length > 1 ? "Suppliers on this contract" : "Supplier on this contract", list + ". A new supplier in your order joins this list when you approve it."]
         : ["wait", "supplier", "Supplier in its 72-hour wait", `${first.supplier_id} becomes payable ${new Date(from).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}`]);
     }
     let orders = null;
     try { const r = await fetch(ORDERS_API(c)); if (r.ok) { const j = await r.json(); orders = (j.txns || []).filter((t) => t.outcomes?.status !== false).length; } } catch {}
-    rows.push(orders === null ? ["todo", "order", "Purchase order", "could not count orders (NearBlocks unreachable); create one below"]
+    if (orders === null) { // NearBlocks unreachable: the orders signed from this browser, read from the contract itself
+      let mine = []; try { mine = JSON.parse(localStorage.getItem("ctp-order-history:" + c) || "[]").map((h) => h.plan && h.plan.po).filter(Boolean); } catch {}
+      const found = (await Promise.all(mine.slice(0, 10).map((po) => view(c, "get_order", { order_id: po }).then((o) => (o ? po : null)).catch(() => null)))).filter(Boolean);
+      if (found.length) orders = { mine: found };
+    }
+    if (orders && orders.mine) rows.push(["ok", "order", "Purchase order created", `${orders.mine.slice(0, 3).join(", ")}${orders.mine.length > 3 ? ` and ${orders.mine.length - 3} more` : ""} on chain, from this browser`]);
+    else rows.push(orders === null ? ["todo", "order", "Purchase order", "could not count orders right now; create one below"]
       : orders ? ["ok", "order", "Purchase order created", `${orders} order call${orders > 1 ? "s" : ""} on chain`] : ["todo", "order", "Create a purchase order", "invoices are checked line by line against it"]);
     rows.push(BigInt(limits.per_invoice) > 0n ? ["ok", "limits", "Spending limits set", `${fromUnits(limits.per_invoice)} USDC per invoice · ${fromUnits(limits.per_supplier_per_period)} per ${limits.period_hours} h`]
       : ["todo", "limits", "Set spending limits", "until you do, nothing can clear"]);
