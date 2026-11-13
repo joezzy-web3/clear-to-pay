@@ -170,6 +170,20 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
 .sc{background:#fff;border:1px solid var(--line);padding:16px 18px;display:grid;gap:8px;align-content:start;position:relative}
 .aibox{display:grid;gap:6px;padding:12px;background:var(--cell,#F4F6F2);border-left:3px solid var(--signal,#E6BE4F)}.aibox small{color:var(--mute);font-size:13px;line-height:1.4}.aipick{justify-self:start;cursor:pointer}.aibox .checks li{padding:6px 0}
 .sc.ready{border-color:var(--clear);box-shadow:inset 4px 0 0 var(--clear)}
+#sgrid{display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+.pkg{background:var(--paper,#EEF1EC);border:1px solid var(--line);padding:18px 20px 20px;display:grid;gap:14px}
+.pkg.go{box-shadow:inset 4px 0 0 var(--clear)}
+.pkg header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.pkg h3{font:800 28px/1.05 var(--display);margin:0}.pkg h3 span{font:400 13px var(--mono);color:var(--mute);margin-left:12px}
+.pkg .pst{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}.pkg.go .pst{color:var(--clear)}
+.pkg .steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;counter-reset:st}
+.pkg .steps li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:start;background:#fff;border:1px solid var(--line);padding:10px 12px;font:600 14px var(--body)}
+.pkg .steps li i{width:20px;height:20px;border-radius:50%;border:2px solid #C9D0C4;margin-top:1px}
+.pkg .steps li.ok i{background:var(--clear);border-color:var(--clear);box-shadow:inset 0 0 0 4px #fff}
+.pkg .steps li.now{border-color:var(--signal);box-shadow:inset 0 3px 0 var(--signal)}.pkg .steps li.now i{border-color:var(--signal)}
+.pkg .steps small{display:block;font:400 12.5px/1.4 var(--mono);color:var(--mute);margin-top:3px}
+.pkg .sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+@media (max-width:900px){.pkg .steps{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}@media (max-width:520px){.pkg .steps{grid-template-columns:minmax(0,1fr)}}
 .sc h3{font:800 24px/1.1 var(--display);margin:0}.sc h3 span{display:block;font:400 12.5px var(--mono);color:var(--mute);margin-top:4px}
 .msg{padding:12px 14px;border-left:4px solid var(--held);background:#FFF6D6;line-height:1.5}.msg.bad{border-color:var(--seize);background:#FBECEA}.msg.ok{border-color:var(--clear);background:#E5F2EA}
 .kick.red{background:var(--seize)}
@@ -240,8 +254,8 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
     <div class="sgrid" id="rgrid"></div>
   </section>
   <section class="sigs" id="sigs" hidden aria-labelledby="h-sigs">
-    <div class="ib-h"><div><span class="kick">Sent back</span><h2 id="h-sigs">Signatures from phones.</h2></div><button class="btn ghost" type="button" id="sig-clear">Forget these</button></div>
-    <p class="muted">Each one was checked in this browser against the note or invoice and the signer's key on chain. When the supplier's invoice and a delivery note with every role are both here, let the AI read the PDF and submit it with your wallet, or copy them for an agent.</p>
+    <div class="ib-h"><div><span class="kick">Sent back</span><h2 id="h-sigs">Orders and their signatures.</h2></div><button class="btn ghost" type="button" id="sig-clear">Forget these</button></div>
+    <p class="muted">Grouped by order. Each signature was checked in this browser against the note or invoice and the signer's key on chain. When an order has a delivery note with every role and the supplier's invoice, let the AI read the PDF and submit it with your wallet, or copy them for an agent.</p>
     <div class="sgrid" id="sgrid"></div>
   </section>
 
@@ -588,7 +602,12 @@ async function paintRequests() {
   let signers = []; try { signers = (await view(c, "get_delivery_signers")) || []; } catch {}
   const sups = {}; for (const x of all.filter((x) => x.who === "supplier")) { try { sups[x.supplier_id] = await view(c, "get_supplier", { supplier_id: x.supplier_id }); } catch { sups[x.supplier_id] = null; } }
   const q = S.c === "own" ? "?contract=" + encodeURIComponent(c) : "";
-  $("rgrid").innerHTML = all.map((x) => {
+  // Registered on chain: done, so it leaves this list (the contract's record is what counts).
+  const isReg = (x) => x.who === "signer" ? signers.some((s) => s.key === x.key) : !!(sups[x.supplier_id] && sups[x.supplier_id].signing_key === x.key);
+  const done = all.filter(isReg); if (done.length) { writeReqs(readReqs().filter((x) => !(x.contract === c && done.includes(x)) && !done.some((d) => d.key === x.key && d.contract === x.contract && d.supplier_id === x.supplier_id))); }
+  const open = all.filter((x) => !isReg(x));
+  $("reqs").hidden = !open.length; if (!open.length) return;
+  $("rgrid").innerHTML = open.map((x) => {
     const reg = x.who === "signer" ? signers.find((s) => s.key === x.key) : sups[x.supplier_id] && sups[x.supplier_id].signing_key === x.key ? sups[x.supplier_id] : null;
     const title = x.who === "signer" ? `Delivery signer${x.role ? " · " + esc(x.role) : ""}` : `Supplier · ${esc(x.supplier_id)}`;
     const lines = x.who === "signer"
@@ -608,6 +627,7 @@ async function paintSigs() {
   let signers = [], sups = {};
   try { signers = await view(contract(), "get_delivery_signers"); } catch {}
   const notes = {}, cards = [], readyNotes = [], invs = [];
+  const pk = {}, pkg = (o) => (pk[o] ||= { order: o, cards: [], best: null, need: 2, missing: [], inv: null, invOk: false, last: 0 });
   for (const x of all.filter((x) => x.kind === "delivery")) { const id = `${x.note.order_id}|${x.note.note_id}|${x.policy_version}`; (notes[id] ||= { note: x.note, pv: x.policy_version, sigs: [] }).sigs.push(x); }
   for (const g of Object.values(notes)) {
     let policy = { required: 2, version: g.pv }; try { policy = await view(contract(), "get_delivery_policy", { order_id: g.note.order_id }); } catch {}
@@ -615,7 +635,9 @@ async function paintSigs() {
     const roles = [...new Set(rows.filter((r) => r.ok).map((r) => r.x.role))], stale = policy.version !== g.pv, ready = !stale && roles.length >= policy.required;
     const forAgent = { delivery: g.note, delivery_signatures: rows.filter((r) => r.ok).map((r) => ({ key: r.x.key, signature: r.x.signature })) };
     if (ready) readyNotes.push({ note: g.note, roles, signatures: rows.filter((r) => r.ok).map((r) => r.x) });
-    cards.push(`<article class="sc ${ready ? "ready" : ""}"><h3>${esc(g.note.note_id)} <span>order ${esc(g.note.order_id)}</span></h3>
+    const P = pkg(g.note.order_id); P.last = Math.max(P.last, ...g.sigs.map((x) => x.at || 0));
+    if (!stale && (!P.best || roles.length > P.best.roles.length)) { P.best = { note: g.note.note_id, roles, ready }; P.need = policy.required; P.missing = (policy.roles && policy.roles.length ? policy.roles : [...new Set(signers.map((z) => z.role))]).filter((r) => !roles.includes(r)); }
+    P.cards.push(`<article class="sc ${ready ? "ready" : ""}"><h3>${esc(g.note.note_id)} <span>order ${esc(g.note.order_id)}</span></h3>
       <ul class="checks">${rows.map((r) => `<li class="${r.ok ? "ok" : "no"}"><i></i><div>${esc(r.x.role)}<small>${r.ok ? esc(short(r.x.key, 8)) + " · registered" : "this key is not registered with this role"}</small></div></li>`).join("")}</ul>
       <p class="who">${stale ? "Signed under an older delivery policy: ask for new signatures." : ready ? `Ready: ${roles.join(" + ")}.` : `${roles.length} of ${policy.required} roles. Still needed: another role.`}</p>
       ${ready ? `<div class="row"><button class="btn y" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div>` : ""}</article>`);
@@ -624,7 +646,8 @@ async function paintSigs() {
     let ok = false; try { const s = await view(contract(), "get_supplier", { supplier_id: x.invoice.supplier_id }); ok = s && s.signing_key === x.key; } catch {}
     const k = invs.push(x) - 1, note = readyNotes.find((n) => n.note.order_id === x.invoice.order_id);
     const forAgent = { invoice: x.invoice, supplier_signature: x.signature, document_hash: x.document_hash };
-    cards.push(`<article class="sc ${ok ? "ready" : ""}"><h3>${esc(x.invoice.invoice_number)} <span>${esc(x.invoice.supplier_id)} · ${esc(usd(x.invoice.total))} → ${esc(x.invoice.payee.address)}</span></h3>
+    const P = pkg(x.invoice.order_id); P.last = Math.max(P.last, x.at || 0); if (!P.inv || ok) { P.inv = x; P.invOk = ok; }
+    P.cards.push(`<article class="sc ${ok ? "ready" : ""}"><h3>${esc(x.invoice.invoice_number)} <span>${esc(x.invoice.supplier_id)} · ${esc(usd(x.invoice.total))} → ${esc(x.invoice.payee.address)}</span></h3>
       <ul class="checks"><li class="${ok ? "ok" : "no"}"><i></i><div>Supplier's signature<small>${ok ? "the supplier's registered key" : "not the supplier's registered key"}</small></div></li>
         <li class="${note ? "ok" : "wait"}"><i></i><div>Delivery for ${esc(x.invoice.order_id)}<small>${note ? `note ${esc(note.note.note_id)}, signed by ${esc(note.roles.join(" + "))}` : "no note with every role yet"}</small></div></li></ul>
       ${ok ? `<div class="aibox"><b>Let the AI read the PDF</b><small>Choose the PDF the supplier sent. This browser checks it is the file they signed and cuts hidden text; the reader in OutLayer's TEE reads the rest. It decides nothing.</small>
@@ -632,7 +655,17 @@ async function paintSigs() {
       <div class="row">${note ? `<button class="btn y" type="button" data-submit="${k}">Submit to the contract</button>` : ""}<button class="btn ghost" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div><div id="sx-${k}"></div>` : ""}</article>`);
   }
   S.invs = invs; S.readyNotes = readyNotes;
-  $("sgrid").innerHTML = cards.join("");
+  // One package per order: what has arrived, what is still needed, then read and submit.
+  const step = (st, t, d) => `<li class="${st}"><i></i><div>${t}<small>${d}</small></div></li>`;
+  $("sgrid").innerHTML = Object.values(pk).sort((a, b) => b.last - a.last).map((P) => {
+    const dOk = !!(P.best && P.best.ready), have = P.best ? P.best.roles : [];
+    const dTxt = dOk ? `note ${esc(P.best.note)}: ${esc(have.join(" + "))}` : have.length ? `${have.length} of ${P.need} roles (${esc(have.join(", "))}); still needed: ${esc(P.missing.length ? P.missing.join(" or ") : "another role")}` : "no delivery signature yet: make the delivery links in Buyer setup";
+    const iTxt = P.inv ? (P.invOk ? `${esc(P.inv.invoice.invoice_number)} · ${esc(P.inv.invoice.supplier_id)} · ${esc(usd(P.inv.invoice.total))}` : "signed with a key that is not the supplier's registered key") : "not yet: the supplier signs it on their Sign page";
+    const aiDone = P.inv && S.ai[P.inv.signature] && S.ai[P.inv.signature].cmp, all = dOk && P.inv && P.invOk;
+    return `<section class="pkg${all ? " go" : ""}"><header><h3>Order ${esc(P.order)}${P.inv ? `<span>${esc(P.inv.invoice.supplier_id)}</span>` : ""}</h3><b class="pst">${all ? "Ready to submit" : "In progress"}</b></header>
+      <ol class="steps">${step(dOk ? "ok" : "wait", "Delivery confirmed", dTxt)}${step(P.inv && P.invOk ? "ok" : "wait", "Supplier's invoice", iTxt)}${step(aiDone ? "ok" : all ? "now" : "wait", "AI reads the PDF", aiDone ? "read; see the invoice card" : all ? "choose the PDF on the invoice card below (optional, advice only)" : "after the invoice arrives")}${step(all ? "now" : "wait", "Submit to the contract", all ? "on the invoice card below, with your wallet" : "when the delivery and the invoice are both here")}</ol>
+      <div class="sgrid">${P.cards.join("")}</div></section>`;
+  }).join("");
   document.querySelectorAll("[data-agent]").forEach((b) => (b.onclick = () => copy(b.dataset.agent, b)));
   document.querySelectorAll("[data-ai]").forEach((f) => (f.onchange = () => { const file = f.files[0]; f.value = ""; if (file) aiCheck(+f.dataset.ai, file); })); // value cleared: choosing the same PDF again retries
   document.querySelectorAll("[data-submit]").forEach((b) => (b.onclick = () => submitOne(+b.dataset.submit)));
