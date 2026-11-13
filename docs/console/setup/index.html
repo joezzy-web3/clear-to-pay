@@ -392,6 +392,17 @@ const FORMS = [
     async readBack() { return this.now(); },
     async now() { const s = await view(contract(), "get_delivery_signers"); fillRoles(s); return "Registered: " + (s.map((x) => `${x.role} ${short(x.key, 6)}`).join(" · ") || "none"); } },
 
+  { id: "unsigner", kicker: "Delivery", title: "Remove a delivery signer",
+    help: "When someone leaves, changes phone or loses it. Their signatures stop counting at once, including ones already made for deliveries not yet submitted. If they were the only signer of a role an order needs, add a new signer for that role.",
+    fields: `<label>Signer to remove<span>registered on this contract</span><select id="u-key"><option value="">Reading the signers…</option></select></label>`,
+    build() {
+      const key = $("u-key").value;
+      if (!isPubKey(key)) fail("Pick the signer to remove. If the list is empty, no delivery signer is registered on this contract.");
+      return { method: "remove_storekeeper", args: { key } };
+    },
+    async readBack() { return this.now(); },
+    async now() { const s = await view(contract(), "get_delivery_signers"); fillRoles(s); return "Registered: " + (s.map((x) => `${x.role} ${short(x.key, 6)}`).join(" · ") || "none"); } },
+
   { id: "link", kicker: "Delivery", title: "Make a signing link", nosign: true,
     help: "Send it to a delivery signer. They open it on their phone, check the goods against the note, and tap Sign. Nothing secret is in the link.",
     fields: `<label>Order<input id="k-order" placeholder="PO-1185" autocomplete="off"></label>
@@ -523,7 +534,9 @@ function wireAgent() {
   };
 }
 
-function fillRoles(signers) { const sel = $("k-role"); if (sel) sel.innerHTML = `<option value="*">Every role this order needs</option>` + [...new Set(signers.map((s) => s.role))].map((r) => `<option>${esc(r)}</option>`).join(""); }
+function fillRoles(signers) {
+  const u = $("u-key"); if (u) { const was = u.value; u.innerHTML = signers.length ? `<option value="">Pick a signer</option>` + signers.map((x) => `<option value="${esc(x.key)}">${esc(x.role)} · ${esc(short(x.key, 8))}</option>`).join("") : `<option value="">No delivery signer registered</option>`; if (signers.some((x) => x.key === was)) u.value = was; }
+  const sel = $("k-role"); if (sel) sel.innerHTML = `<option value="*">Every role this order needs</option>` + [...new Set(signers.map((s) => s.role))].map((r) => `<option>${esc(r)}</option>`).join(""); }
 function addLine(id, dn) {
   const box = $(id), row = document.createElement("div");
   row.className = "lrow" + (dn ? " dn" : "");
