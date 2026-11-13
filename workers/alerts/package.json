@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/core.test.mjs && node test/worker.test.mjs && node test/relay.test.mjs",
+    "test": "node test/core.test.mjs && node test/worker.test.mjs && node test/relay.test.mjs && node test/notify.test.mjs",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

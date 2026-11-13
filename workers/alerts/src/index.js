@@ -5,6 +5,7 @@
 // Secrets: TELEGRAM_BOT_TOKEN only (wrangler secret put). The webhook's secret is derived
 // from it, so there is nothing else to keep in sync. No NEAR keys: public views only.
 import { relay } from "./relay.js";
+import { notice } from "./notify.js";
 import { snapshot, changes, format, parseStart, recipients } from "./core.js";
 
 const RPCS = ["https://test.rpc.fastnear.com", "https://rpc.testnet.near.org"];
@@ -61,6 +62,27 @@ async function tick(env, key, contract) {
   return alerts.length;
 }
 
+// ---------------------------------------------------------------- relay notices
+/** A plain account query (view_account, view_access_key_list); both servers must agree, as the Console requires. */
+async function rawQuery(request_type, account_id) {
+  const one = async (rpc) => {
+    const r = await fetch(rpc, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "ctp", method: "query", params: { request_type, finality: "final", account_id } }), signal: AbortSignal.timeout(10000) });
+    const j = await r.json(); if (j.error) throw new Error("rpc"); return j.result;
+  };
+  const [a, b] = await Promise.all(RPCS.map(one));
+  if (JSON.stringify(request_type === "view_account" ? a.code_hash : a.keys.length) !== JSON.stringify(request_type === "view_account" ? b.code_hash : b.keys.length)) throw new Error("servers disagree");
+  return a;
+}
+/** Tell the buyer's chats (only ours have subscribers) what a new relay item means. */
+async function onRelayed(env, net, contract, body) {
+  if (!env.TELEGRAM_BOT_TOKEN) return;
+  const subs = JSON.parse((await env.STATE.get(`subs:${net}`)) || "{}");
+  const chats = recipients({ to: ["buyer"] }, subs); if (!chats.length) return;
+  const view = viewer(contract);
+  const text = await notice(body, contract, view, env.STATE, net);
+  if (text) for (const chat of chats) await say(env, chat, text);
+}
+
 // ---------------------------------------------------------------- Telegram
 const ROLE_NAME = (r) => r === "buyer" ? "the buyer" : r === "signers" ? "the delivery signers" : "supplier " + r.slice(9);
 async function onUpdate(env, u) {
@@ -101,9 +123,9 @@ export default {
     const [key, contract] = list[Math.floor(Date.now() / 60000) % list.length]; // one contract a minute keeps us inside the subrequest budget
     await tick(env, key, contract);
   },
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
-    if (url.pathname === "/relay") return relay(req, env, url); // signatures carried from phones to the buyer's Inbox
+    if (url.pathname === "/relay") return relay(req, env, url, ctx, { query: rawQuery, onNew: (net, contract, body) => onRelayed(env, net, contract, body) }); // signatures and details carried from phones to the buyer's Inbox
     if (req.method === "POST" && url.pathname === "/telegram") {
       if (req.headers.get("X-Telegram-Bot-Api-Secret-Token") !== (await webhookSecret(env))) return new Response("forbidden", { status: 403 });
       try { await onUpdate(env, await req.json()); } catch {}

@@ -251,3 +251,7 @@ body.not-buyer #main.inbox > :not(#rolecard){display:none!important}
 .ownform small{flex:1 1 100%;opacity:.8}.ownform small a{color:inherit;text-decoration:underline;font-weight:600}.ownform .err{flex:1 1 100%;margin:0}
 /* Phones: a long account name drops below its label instead of breaking mid-word beside it */
 @media (max-width:560px){.facts div{flex-wrap:wrap;row-gap:2px}.facts b{margin-left:auto;font-size:12.5px;overflow-wrap:anywhere}}
+
+/* New items waiting in the Inbox (chain.js inboxBadge) */
+.nbadge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:#D93F3F;color:#fff;font:600 11px/1 var(--mono);vertical-align:1px;letter-spacing:0;box-shadow:0 0 0 2px rgba(14,34,66,.35)}
+.switch button .nbadge{position:relative;top:-1px;margin-left:8px}

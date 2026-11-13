@@ -9,19 +9,9 @@ export const $ = (id) => document.getElementById(id);
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const short = (s, n = 8) => (s && s.length > 2 * n + 1 ? s.slice(0, n) + "…" + s.slice(-n) : s || "");
 
-// ---- shape checks: the same rules the contract applies (src/lib.rs, src/inspection.rs)
-export const isRef = (s) => typeof s === "string" && /^[A-Za-z0-9._\/-]{1,64}$/.test(s);
-export const isSupplierId = (s) => typeof s === "string" && /^[a-z0-9._-]{1,64}$/.test(s);
-export const isRole = (s) => typeof s === "string" && /^[a-z0-9-]{1,32}$/.test(s);
-export const isAccount = (s) => typeof s === "string" && s.length >= 2 && s.length <= 64 && /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(s);
-export const isUint = (s) => typeof s === "string" && /^\d{1,39}$/.test(s);
-// Exact on-chain widths (CTP7-01): a JSON string of a plain whole number (no sign, no exponent, no leading zero), in range.
-const U64_MAX = (1n << 64n) - 1n, U128_MAX = (1n << 128n) - 1n;
-const plain = (s) => typeof s === "string" && /^(0|[1-9]\d{0,38})$/.test(s);
-export const isU64 = (s) => plain(s) && BigInt(s) <= U64_MAX;
-export const isU128 = (s) => plain(s) && BigInt(s) <= U128_MAX;
-export const isPubKey = (s) => typeof s === "string" && /^ed25519:[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(s);
-export const isPrintable = (s, max) => typeof s === "string" && s.length >= 1 && s.length <= max && /^[\x21-\x7e]+$/.test(s);
+// ---- shape checks and links: one copy, shared with the alerts worker (links.js)
+export { isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPubKey, isPrintable, encodeLink, decodeLink, parseBack, parseRequest } from "./links.js";
+import { isAccount } from "./links.js";
 
 /** "7.80" (USDC) → "7800000" (6 decimals), exactly, without floats. Null if not a plain amount. */
 export function toUnits(text, decimals = 6) {
@@ -32,13 +22,6 @@ export function toUnits(text, decimals = 6) {
 export function fromUnits(units, decimals = 6) {
   const v = BigInt(units || 0), d = 10n ** BigInt(decimals), f = (v % d).toString().padStart(decimals, "0").replace(/0+$/, "");
   return (v / d).toString() + "." + (f.length < 2 ? f.padEnd(2, "0") : f);
-}
-
-// ---- base64url JSON for links
-export const encodeLink = (o) => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-export function decodeLink(s) {
-  const b = atob(String(s).replace(/-/g, "+").replace(/_/g, "/"));
-  return JSON.parse(new TextDecoder().decode(Uint8Array.from(b, (c) => c.charCodeAt(0))));
 }
 
 // ---- NEAR RPC, with a fallback server
@@ -74,6 +57,7 @@ export async function view(contract, method, args = {}, finality = "final") {
 
 /** The phone menu (same behaviour as every other page). */
 export function initMenu() {
+  inboxBadge();
   const b = $("burger"), d = $("drawer"), s = $("scrim");
   if (!b || !d) return;
   const set = (open) => {
@@ -131,17 +115,19 @@ export function walletFix(w) {
 /** The signature relay (workers/alerts, route /relay): signed send-back links travel from phones to the
  *  buyer's Inbox without anyone carrying them. Public data only; the Inbox verifies every item on chain. */
 export const RELAY = "https://ctp-alerts.cleartopay.workers.dev"; // your alerts worker, e.g. https://ctp-alerts.<you>.workers.dev (until set, signatures travel by link only)
-export const relayNet = (contract) => Object.entries(CONTRACTS).find(([, c]) => c === contract)?.[0] || null;
+// Our two contracts have short names on the relay; a company's own contract goes by its account, and the relay
+// accepts it only after NEAR confirms it runs the pinned guard code with no access keys (workers/alerts/src/relay.js).
+export const relayNet = (contract) => (contract === CONTRACTS.live ? "live" : contract === CONTRACTS.demo ? "demo" : contract && contract === CONTRACTS.own ? contract : null);
 export async function relaySend(contract, hash) {
   const net = relayNet(contract); if (!RELAY.startsWith("https://") || !net) return false;
-  try { const r = await fetch(`${RELAY}/relay?net=${net}`, { method: "POST", body: hash }); return r.ok; } catch { return false; }
+  try { const r = await fetch(`${RELAY}/relay?net=${encodeURIComponent(net)}`, { method: "POST", body: hash }); return r.ok; } catch { return false; }
 }
 export async function relayIds(net) {
   if (!RELAY.startsWith("https://")) return [];
-  const r = await fetch(`${RELAY}/relay?net=${net}`, { cache: "no-store" }); return r.ok ? (await r.json()).ids || [] : [];
+  const r = await fetch(`${RELAY}/relay?net=${encodeURIComponent(net)}`, { cache: "no-store" }); return r.ok ? (await r.json()).ids || [] : [];
 }
 export async function relayGet(net, id) {
-  const r = await fetch(`${RELAY}/relay?net=${net}&id=${id}`, { cache: "no-store" }); return r.ok ? r.text() : null;
+  const r = await fetch(`${RELAY}/relay?net=${encodeURIComponent(net)}&id=${encodeURIComponent(id)}`, { cache: "no-store" }); return r.ok ? r.text() : null;
 }
 
 // ---------------------------------------------------------------- a company's own Clear to Pay contract (made on the New contract page)
@@ -200,7 +186,7 @@ export function ownSwitch(group, makeButton, words = {}) {
   // A saved address can be changed (this form) or forgotten in this browser. Forgetting touches nothing on NEAR.
   const hint = document.createElement("p");
   hint.className = "ownhint"; hint.hidden = !CONTRACTS.own;
-  hint.innerHTML = `<button type="button" class="link">Change or forget your own contract</button>`;
+  hint.innerHTML = `<button type="button" class="link">${words.hint || "Change or forget your own contract"}</button>`;
   form.insertAdjacentElement("beforebegin", hint);
   const forget = document.createElement("button");
   forget.type = "button"; forget.className = "x"; forget.textContent = "Forget it in this browser"; forget.hidden = !CONTRACTS.own;
@@ -261,4 +247,41 @@ if (typeof document !== "undefined" && typeof MutationObserver !== "undefined") 
   });
   const go = () => { calm(document); new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => n.nodeType === 1 && (n.matches?.("input") ? calm(n.parentNode) : calm(n))))).observe(document.body, { childList: true, subtree: true }); };
   document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", go) : go();
+}
+
+// ---------------------------------------------------------------- the Inbox badge: what arrived for the buyer and is not yet looked at
+// Counts relay items (signatures, and details asking to be registered) this browser's Inbox has not pulled in yet, for our two
+// contracts and the buyer's own. Shown to buyers only; suppliers and delivery signers have nothing waiting in an Inbox.
+export const RELAY_SEEN = "ctp-inbox-relay-seen";
+let badgeTimer = null;
+export async function inboxBadge() {
+  let role = null; try { role = localStorage.getItem("ctp-role"); } catch {}
+  const links = [...document.querySelectorAll('a[href$="console/inbox/"], a[href$="../inbox/"], a[href="inbox/"]')];
+  if (role === "signer" || role === "supplier" || !links.length || !RELAY.startsWith("https://")) return;
+  if (!badgeTimer) {
+    badgeTimer = setInterval(() => { if (!document.hidden) inboxBadge(); }, 30000);
+    addEventListener("ctp-relay-seen", () => inboxBadge());
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) inboxBadge(); });
+  }
+  let seen; try { seen = new Set(JSON.parse(localStorage.getItem(RELAY_SEEN) || "[]")); } catch { seen = new Set(); }
+  const per = {};
+  await Promise.all(["demo", "live", CONTRACTS.own].filter(Boolean).map(async (net) => {
+    try { per[net] = (await relayIds(net)).filter((id) => !seen.has(net + ":" + id)).length; } catch { per[net] = 0; }
+  }));
+  const n = Object.values(per).reduce((a, b) => a + b, 0);
+  for (const a of links) {
+    let el = a.querySelector(".nbadge");
+    if (!n) { if (el) el.remove(); continue; }
+    if (!el) { el = document.createElement("span"); el.className = "nbadge"; a.appendChild(el); }
+    el.textContent = n > 9 ? "9+" : String(n); el.setAttribute("aria-label", `${n} new in the Inbox`);
+  }
+  // On the Inbox itself, each contract button shows its own count.
+  for (const b of document.querySelectorAll(".switch button[data-c]")) {
+    if (!/\/inbox\/$/.test(location.pathname)) break;
+    const net = b.dataset.c === "own" ? CONTRACTS.own : b.dataset.c, k = per[net] || 0;
+    let el = b.querySelector(".nbadge");
+    if (!k) { if (el) el.remove(); continue; }
+    if (!el) { el = document.createElement("span"); el.className = "nbadge"; b.appendChild(el); }
+    el.textContent = k > 9 ? "9+" : String(k);
+  }
 }

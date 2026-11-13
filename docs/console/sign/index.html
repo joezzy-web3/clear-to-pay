@@ -414,7 +414,9 @@ function sendToBuyer() {
   const link = new URL("../setup/#a=" + encodeLink(a), location.href).href;
   $("send-out").innerHTML = `<div class="out" style="margin-top:8px"><pre>${esc(JSON.stringify(a, null, 1))}</pre><div class="qr">${C.qrSvg(link)}</div></div>
     <div class="row"><button class="btn" type="button" id="send-share">Share</button><button class="btn ghost" type="button" id="send-copy">Copy the link</button></div>
-    <p class="note">Only your public key${a.role ? " and the role " + esc(a.role) : ""} travel in this link. The buyer adds you with their wallet.</p>`;
+    <p class="note" id="send-st">Sending to the buyer's Inbox…</p>
+    <p class="note">Only your public key${a.role ? " and the role " + esc(a.role) : ""} travel. The buyer adds you with their wallet.</p>`;
+  relaySend(a.contract, "a=" + encodeLink(a)).then((ok) => { const st = $("send-st"); if (st) st.innerHTML = ok ? "<b>Sent to the buyer's Inbox.</b> They register your key with their wallet; nothing else to do. The link and QR code are the same details, if they ask." : "Could not reach the buyer's Inbox automatically: share the link or let them scan the QR code."; });
   $("send-copy").onclick = (e) => copy(link, e.target);
   $("send-share").onclick = async () => { if (navigator.share) { try { await navigator.share({ title: "Clear to Pay: my signing key", url: link }); } catch {} } else copy(link, $("send-share")); };
 }
@@ -437,7 +439,7 @@ const nsDate = (ns) => new Date(Number(BigInt(ns) / 1_000_000n)).toLocaleString(
 function pickRole(r) { const b = document.querySelector(`.roles button[data-role="${r}"]`); if (b && b.getAttribute("aria-pressed") !== "true") b.click(); }
 addEventListener("ctp-role", (e) => { ROLE = e.detail; if (HOME) { paintRole(); paintHome(); paintKey(); } });
 ownSwitch(document.querySelector(".switch2"), () => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.textContent = "Buyer's"; x.title = CONTRACTS.own || "the contract of the company that pays"; return x; },
-  { label: "The buyer's contract address", note: "Suppliers and delivery signers do not need a contract of their own: the buyer, the company that pays, has one. Ask them for its address, or open their invitation link, which fills this in. It stays in this browser." });
+  { label: "The buyer's contract address", hint: "Change or forget the buyer's contract", note: "Suppliers and delivery signers do not need a contract of their own: the buyer, the company that pays, has one. Ask them for its address, or open their invitation link, which fills this in. It stays in this browser." });
 document.querySelectorAll(".switch2 button").forEach((b) => b.addEventListener("click", () => { NET = b.dataset.c; try { localStorage.setItem("ctp-sign-contract", NET); } catch {} paintHome(); }));
 async function paintHome() {
   if (!HOME) return;
@@ -814,7 +816,14 @@ function sendJoin() {
   if (sup) { a.supplier_id = JOIN.supplier_id; a.address = $("join-addr").value.trim(); const pr = proofFor(a.address); if (pr) a.proof = { account: pr.account, publicKey: pr.publicKey, signature: pr.signature, nonce: pr.nonce, at: pr.at, ...(pr.callbackUrl ? { callbackUrl: pr.callbackUrl } : {}) }; } else a.role = JOIN.role;
   const link = new URL("../setup/#a=" + encodeLink(a), location.href).href;
   $("res-h").textContent = "Send this back to the buyer";
-  $("res-p").textContent = sup ? "Share the link, or let the buyer scan the QR code. When they call to confirm your payout account, it should match exactly." : "Share the link, or let the buyer scan the QR code. After they register your key, the delivery links they send you will sign with it.";
+  const manual = sup ? "Share the link, or let the buyer scan the QR code. When they call to confirm your payout account, it should match exactly." : "Share the link, or let the buyer scan the QR code. After they register your key, the delivery links they send you will sign with it.";
+  $("res-h").textContent = "Sending your details to the buyer…"; $("res-p").textContent = "One moment.";
+  relaySend(JOIN.contract, "a=" + encodeLink(a)).then((ok) => {
+    $("res-h").textContent = ok ? "Sent to the buyer's Inbox" : "Send this back to the buyer";
+    $("res-p").innerHTML = ok
+      ? `<b>Your details are in the buyer's Inbox.</b> ${sup ? "They review them, call you to confirm your payout account, and register you with their wallet." : "They register your key with their wallet; then the delivery links they send you will sign with it."} Nothing else to do. The link and QR code below are the same details, if they ask.`
+      : "Could not reach the buyer's Inbox automatically. " + esc(manual);
+  });
   $("res-json").textContent = JSON.stringify(a, null, 1);
   $("qr").innerHTML = C.qrSvg(link);
   $("copy").textContent = "Copy details"; $("copy").onclick = (e) => copy(JSON.stringify(a), e.target);

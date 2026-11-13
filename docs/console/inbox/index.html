@@ -234,6 +234,11 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
     <div class="row"><a class="btn y" href="../sign/" id="rc-go">Go to the Sign page →</a><button class="btn ghost" type="button" id="rc-show">Show the buyer's Inbox anyway</button></div>
   </section>
   <div class="msg" id="arrive" hidden></div>
+  <section class="sigs" id="reqs" hidden aria-labelledby="h-reqs">
+    <div class="ib-h"><div><span class="kick">Asking to join</span><h2 id="h-reqs">Waiting to be registered.</h2></div><button class="btn ghost" type="button" id="req-clear">Forget these</button></div>
+    <p class="muted">A delivery signer or a supplier sent you their public key from the Sign page. Nothing here is on chain yet: review each one, then register it in Buyer setup with your wallet. Confirm a supplier's payout account with them by phone first.</p>
+    <div class="sgrid" id="rgrid"></div>
+  </section>
   <section class="sigs" id="sigs" hidden aria-labelledby="h-sigs">
     <div class="ib-h"><div><span class="kick">Sent back</span><h2 id="h-sigs">Signatures from phones.</h2></div><button class="btn ghost" type="button" id="sig-clear">Forget these</button></div>
     <p class="muted">Each one was checked in this browser against the note or invoice and the signer's key on chain. When the supplier's invoice and a delivery note with every role are both here, let the AI read the PDF and submit it with your wallet, or copy them for an agent.</p>
@@ -269,7 +274,7 @@ import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { compareReading, submitArgs } from "../invoice-flow.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix, relayIds, relayGet, ownSwitch } from "../chain.js";
+import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix, relayIds, relayGet, ownSwitch, parseBack as parseBackWith, parseRequest, relayNet, RELAY_SEEN } from "../chain.js";
 initMenu();
 
 const S = { c: (() => { try { const q = new URLSearchParams(location.search).get("contract"), k = localStorage.getItem("ctp-inbox-contract"); return q && CONTRACTS.own === q ? "own" : k && CONTRACTS[k] ? k : "demo"; } catch { return "demo"; } })(),
@@ -532,24 +537,7 @@ async function after(id, hash, failure) {
 const SK = "ctp-inbox-sigs";
 const readSigs = () => { try { return JSON.parse(localStorage.getItem(SK) || "[]"); } catch { return []; } };
 const writeSigs = (x) => { try { localStorage.setItem(SK, JSON.stringify(x.slice(-50))); } catch {} };
-function parseBack(p) {
-  const s = p.get("s"), k = p.get("k"); if (!s || !k || !/^ed25519:[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(k)) return null;
-  if (p.get("n")) {
-    const n = decodeLink(p.get("n"));
-    const ok = isAccount(n.contract) && isRef(n.order_id) && isRef(n.note_id) && isRole(n.role) && Number.isInteger(n.policy_version) && Array.isArray(n.lines) && n.lines.length >= 1 && n.lines.length <= 50 && n.lines.every((l) => isRef(l.sku) && isU64(l.qty));
-    if (!ok) return null;
-    const note = { order_id: n.order_id, note_id: n.note_id, lines: n.lines.map((l) => ({ sku: l.sku, qty: String(l.qty) })) };
-    return C.verifyDigest(k, C.deliveryDigest(n.contract, note, n.role, n.policy_version), s) ? { kind: "delivery", contract: n.contract, note, role: n.role, policy_version: n.policy_version, key: k, signature: s } : { bad: true };
-  }
-  if (p.get("i")) {
-    const x = decodeLink(p.get("i")), v = x.invoice || {}; let doc; try { doc = C.base64.decode(x.document_hash); } catch { return null; }
-    const okLines = Array.isArray(v.lines) && v.lines.length >= 1 && v.lines.length <= 50 && v.lines.every((l) => isRef(l.sku) && isU64(l.qty) && isU128(l.unit_price));
-    if (!isAccount(x.contract) || !isSupplierId(v.supplier_id) || !isRef(v.invoice_number) || !isRef(v.order_id) || !isPrintable(v.token, 128) || !okLines || !isU128(v.total) || !v.payee || !isPrintable(v.payee.address, 128) || doc.length !== 32) return null;
-    const invoice = { supplier_id: v.supplier_id, invoice_number: v.invoice_number, order_id: v.order_id, token: v.token, lines: v.lines.map((l) => ({ sku: l.sku, qty: String(l.qty), unit_price: String(l.unit_price) })), total: String(v.total), payee: { chain: String(v.payee.chain), token: String(v.payee.token), address: String(v.payee.address) } };
-    return C.verifyDigest(k, C.invoiceDigest(x.contract, invoice, doc), s) ? { kind: "invoice", contract: x.contract, invoice, document_hash: x.document_hash, key: k, signature: s } : { bad: true };
-  }
-  return null;
-}
+const parseBack = (p) => parseBackWith(p, C); // links.js: the same check the alerts worker runs
 function keep(got, how) {
   const all = readSigs().filter((x) => !(x.key === got.key && x.signature === got.signature)), fresh = all.length === readSigs().length;
   all.push({ ...got, at: Date.now() }); writeSigs(all);
@@ -566,20 +554,52 @@ function arrived() {
   const k = Object.entries(CONTRACTS).find(([, c]) => c === got.contract)?.[0]; if (k && k !== S.c) setContract(k, false);
 }
 // ---------------------------------------------------------------- the relay: signatures arrive by themselves
-const SEEN = "ctp-inbox-relay-seen";
+const SEEN = RELAY_SEEN;
 async function pollRelay() {
   if (document.hidden) return;
-  const net = S.c; let seen; try { seen = new Set(JSON.parse(localStorage.getItem(SEEN) || "[]")); } catch { seen = new Set(); }
+  const net = relayNet(contract()); if (!net) return;
+  let seen; try { seen = new Set(JSON.parse(localStorage.getItem(SEEN) || "[]")); } catch { seen = new Set(); }
   let ids = []; try { ids = await relayIds(net); } catch { return; }
-  let added = false;
+  let added = false, asked = false;
   for (const id of ids.filter((i) => !seen.has(net + ":" + i)).slice(0, 25)) {
-    let got = null; try { const t = await relayGet(net, id); got = t ? parseBack(new URLSearchParams(t)) : null; } catch {}
+    let t = null; try { t = await relayGet(net, id); } catch {}
+    const p = t ? new URLSearchParams(t) : null;
+    const got = p ? parseBack(p) : null, req = p && !got ? parseRequest(p) : null;
     seen.add(net + ":" + id); // checked once: a bad or foreign item is dropped, never shown as received
     if (got && !got.bad && got.contract === contract() && keep(got, " (sent from their phone)")) added = true;
+    if (req && req.contract === contract() && keepRequest(req)) asked = true;
   }
   try { localStorage.setItem(SEEN, JSON.stringify([...seen].slice(-500))); } catch {}
+  dispatchEvent(new Event("ctp-relay-seen")); // the badge on the Inbox tab counts down
   if (added) paintSigs();
+  if (asked) paintRequests();
 }
+// ---------------------------------------------------------------- details sent from the Sign page: requests to be registered
+const RK = "ctp-inbox-requests";
+const readReqs = () => { try { return JSON.parse(localStorage.getItem(RK) || "[]"); } catch { return []; } };
+const writeReqs = (x) => { try { localStorage.setItem(RK, JSON.stringify(x.slice(-30))); } catch {} };
+function keepRequest(r) {
+  const all = readReqs(); if (all.some((x) => x.contract === r.contract && x.key === r.key && x.supplier_id === r.supplier_id && x.address === r.address)) return false;
+  all.push({ ...r, at: Date.now() }); writeReqs(all); return true;
+}
+async function paintRequests() {
+  const c = contract(), all = readReqs().filter((x) => x.contract === c);
+  $("reqs").hidden = !all.length; if (!all.length) return;
+  let signers = []; try { signers = (await view(c, "get_delivery_signers")) || []; } catch {}
+  const sups = {}; for (const x of all.filter((x) => x.who === "supplier")) { try { sups[x.supplier_id] = await view(c, "get_supplier", { supplier_id: x.supplier_id }); } catch { sups[x.supplier_id] = null; } }
+  const q = S.c === "own" ? "?contract=" + encodeURIComponent(c) : "";
+  $("rgrid").innerHTML = all.map((x) => {
+    const reg = x.who === "signer" ? signers.find((s) => s.key === x.key) : sups[x.supplier_id] && sups[x.supplier_id].signing_key === x.key ? sups[x.supplier_id] : null;
+    const title = x.who === "signer" ? `Delivery signer${x.role ? " · " + esc(x.role) : ""}` : `Supplier · ${esc(x.supplier_id)}`;
+    const lines = x.who === "signer"
+      ? `<li class="${reg ? "ok" : ""}"><i></i><div>Key<small>ed25519:${esc(short(x.key.slice(8), 6))}${reg ? " · registered as " + esc(reg.role) : " · not registered yet"}</small></div></li>`
+      : `<li class="${reg ? "ok" : ""}"><i></i><div>Key<small>ed25519:${esc(short(x.key.slice(8), 6))}${reg ? " · registered" : " · not registered yet"}</small></div></li>
+         <li class="${x.proved ? "ok" : ""}"><i></i><div>Payout account ${esc(x.address)}<small>${x.proved ? "they proved they control it (re-checked in Buyer setup)" : "no proof attached: confirm it with them by phone"}</small></div></li>`;
+    return `<article class="sc${reg ? " ready" : ""}"><h3>${title}<span>sent ${esc(new Date(x.at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</span></h3><ul class="checks">${lines}</ul>
+      ${reg ? `<p class="who">Registered on chain. Nothing left to do.</p>` : `<a class="btn" href="../setup/${q}#a=${encodeURIComponent(x.a)}">Review and register in Buyer setup</a>`}</article>`;
+  }).join("");
+}
+$("req-clear").onclick = () => { writeReqs(readReqs().filter((x) => x.contract !== contract())); paintRequests(); };
 setInterval(pollRelay, 15000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) pollRelay(); });
 async function paintSigs() {
@@ -675,7 +695,7 @@ $("sig-clear").onclick = () => { if (confirm("Forget the signatures kept in this
 function setContract(k, reload = true) {
   S.c = k; try { localStorage.setItem("ctp-inbox-contract", k); } catch {}
   document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === k)));
-  if (reload) { load(); paintSigs(); }
+  if (reload) { load(); paintSigs(); paintRequests(); }
 }
 ownSwitch(document.querySelector(".switch"), (addr) => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.setAttribute("aria-pressed", "false"); x.innerHTML = `Your own contract<small>${addr ? esc(addr) : "your company's guard"}</small>`; if (addr) x.title = addr; return x; });
 document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => setContract(b.dataset.c)));
@@ -759,7 +779,7 @@ setContract(S.c, false);
 pollRelay();
 arrived();
 const walletReady = initWallet();
-await load(); paintSigs();
+await load(); paintSigs(); paintRequests();
 await walletReady;
 await returning();
 </script>

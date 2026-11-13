@@ -97,7 +97,7 @@ cargo test                        # 127 contract tests, incl. 4 property tests (
 (cd factory && cargo test)        # 12 factory tests: the exact guard code, the keyless batch, refunds paid or owed, reserved names
 (see sandbox/README.md)          # 11 end-to-end tests on a local NEAR node: real wasm, real token, real callbacks, the wizard's one-transaction batch, and the factory
 (cd tools/console-crypto && npm ci && npm test) # 7 groups (golden digests, ctp-sign parity, tx bytes, enclave signature, key files, integer widths, NEP-413) + the New order wizard + the invoice flow (built from the order, the AI reading compared with what the supplier signed, the exact submit call) + the OutLayer proof files + Receive on another chain
-(cd workers/alerts && npm ci && npm test)       # alert rules (9 groups), the worker end to end, the signature relay
+(cd workers/alerts && npm ci && npm test)       # alert rules (9 groups), the worker end to end, the relay, its Telegram notices
 scripts/attack-demo.sh            # a poisoned invoice, a fooled agent, and every "no", logged
 scripts/baseline.sh               # the same attacks against two allowlist guards and against Clear to Pay
 scripts/mutation-check.sh         # breaks the contract on purpose; the property test must catch it
@@ -242,7 +242,7 @@ The rule is the same everywhere: whoever benefits from saying "delivered" is nev
 
 **Run live, end to end, in the browser (8 November 2026):** order PO-261107-001 signed once in Buyer setup; delivery note DN-261107-001-1 signed by the storekeeper and the weighbridge on their own pages; INV-2301 signed by the supplier from the order; submitted from the Inbox with the buyer's wallet. Verdict **CLEARED**, receipt #4, payment **SETTLED**: 0.20 USDC to `qingmar.cleartopay.testnet` ([ledger](https://clear-to-pay.vercel.app/ledger/)).
 
-**The signature relay.** Signatures travel from phones to the buyer's Inbox through `/relay` on the alerts worker (`workers/alerts/src/relay.js`): the signer's page posts the send-back link after Sign, the Inbox reads new ones every 15 seconds. It carries only what the contract will check anyway (a note or invoice and its signature); the Inbox verifies every item against the chain before keeping it, so a forged or junk item is dropped, and the relay decides nothing. The link and QR code stay as the fallback. Buyer setup also keeps **Your recent orders**, so any order signed from that browser can be reopened (send it to the supplier, make its delivery links) or a new one started at any time.
+**The signature relay.** Signatures travel from phones to the buyer's Inbox through `/relay` on the alerts worker (`workers/alerts/src/relay.js`): the signer's page posts the send-back link after Sign, the Inbox reads new ones every 15 seconds. It carries only what the contract will check anyway (a note or invoice and its signature); the Inbox verifies every item against the chain before keeping it, so a forged or junk item is dropped, and the relay decides nothing. The link and QR code stay as the fallback. A delivery signer's or supplier's **details** travel the same way: tapping *Send my details to the buyer* puts a request in the buyer's Inbox (a badge on the Inbox tab counts what is new), and the buyer registers it from there with their wallet. A buyer subscribed on Telegram hears who signed and what is still needed ("storekeeper signed DN-7 · still needed: weighbridge and the supplier's signed invoice"), but only after the worker has verified the signature and found the key registered. Buyer setup also keeps **Your recent orders**, so any order signed from that browser can be reopened (send it to the supplier, make its delivery links) or a new one started at any time.
 
 **Flagged addresses (7 Nov):** every invoice SEIZED for `payee_mismatch` records the address it asked to be paid to. The Console reads those receipts from the live and the demo contract and warns, with the receipts, when such an address is typed as a new supplier's payout account or proposed as an address change (the Inbox asks twice before approving it); the ledger lists them. A warning, never a block: anyone can name any address in a fake invoice, so an honest supplier's address could be named on purpose. `docs/console/flags.js`.
 
@@ -306,7 +306,7 @@ near account delete-keys pay.acme.testnet public-keys ed25519:<that key> network
 ```
 </details>
 
-Telegram alerts and the signature relay watch the contracts listed in the alerts worker (ours); a company that wants them adds its contract to `CONTRACTS` in `workers/alerts/wrangler.toml` and deploys its own worker. Without them, signatures travel by link and QR code.
+The signature relay also serves a company's own contract once NEAR confirms it is a real Clear to Pay contract (the pinned code and no access keys). Telegram alerts watch the contracts listed in the alerts worker (ours); a company that wants them for its own contract adds it to `CONTRACTS` in `workers/alerts/wrangler.toml` and deploys its own worker.
 
 ## NEAR stack used
 
