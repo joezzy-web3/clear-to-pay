@@ -58,3 +58,6 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,su
 
 /* Six console tabs: on narrow desktops drop the Home link and the tab icons so the bar fits on one line */
 @media (max-width:1120px) and (min-width:901px){.homelink{display:none!important}.clinks .ico{display:none!important}.clinks a{padding-left:9px!important;padding-right:9px!important}.brand .logo{white-space:nowrap}}
+
+/* The highlighted tab already says which page this is: no "/ PAGE" label beside the logo on desktops (it stays on phones, where the tabs are in the menu) */
+@media (min-width:901px){.crumb{display:none!important}}
