@@ -6,6 +6,13 @@
 
 ![CI](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/ci.yml/badge.svg) ![Sandbox](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/sandbox.yml/badge.svg) ![Network](https://img.shields.io/badge/NEAR-testnet-10264A) ![Licence](https://img.shields.io/badge/licence-MIT-127A4A)
 
+> **Judges: 3 minutes, no wallet, no install.** Open **[Judge mode](https://clear-to-pay.vercel.app/console/)**.
+> 1. Pick **The poisoned invoice** (a white-text line tells the AI to pay a new account) and press **Verify it in this browser**: seven checks on the AI's signed reading, run on your machine.
+> 2. Press **Let a fooled agent submit it**. A real testnet transaction; the contract returns **SEIZED** and pays nothing.
+> 3. Pick **The honest invoice** and press **Submit the honest invoice**: **CLEARED**, 0.78 USDC paid to the supplier's registered address. Both receipts appear on the [live ledger, Judge mode tab](https://clear-to-pay.vercel.app/ledger/#judge).
+>
+> **Why it holds without trusting the AI:** the contract pays only an invoice the supplier signed with its registered key, for an order on chain, after a delivery note signed by two different roles, to an address registered at least 72 hours earlier. No email, document or model can change where the money goes. The guard contract has no keys, and eleven reviews are behind it.
+
 ## In plain words
 
 Companies lose money when a fake invoice, or an email saying "we changed our bank details", gets paid. More and more of those bills will be paid by AI agents, which can be fooled the same way. Clear to Pay pays a supplier only when the invoice matches the order, signers in two different roles (by default) have confirmed the delivery, and the money goes to the account the supplier registered days earlier. Anything else is held or stopped, and every decision is on a public ledger.
