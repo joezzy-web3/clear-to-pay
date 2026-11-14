@@ -26,6 +26,30 @@ export const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...CORS } });
 const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 
+// The ids of a net live in one index key, so an Inbox poll is one KV read. Listing keys instead would spend
+// the free tier's 1,000 list operations a day within hours, with a few Inboxes open (one poll every 15 seconds).
+const IDX = (net) => `relayidx:${net}`;
+const fresh = (a, now) => (Array.isArray(a) ? a : []).filter((e) => e && /^[0-9a-f]{32}$/.test(e.id) && e.exp > now);
+async function readIndex(env, net, prefix) {
+  const raw = await env.STATE.get(IDX(net)), now = Date.now();
+  if (raw !== null) { try { return fresh(JSON.parse(raw), now).map((e) => e.id); } catch { return []; } }
+  // first read after this change: build the index once from the stored items, then never list again
+  let ids = [];
+  try { ids = (await env.STATE.list({ prefix, limit: LIST })).keys.map((k) => k.name.slice(prefix.length)); } catch { return []; } // list refused: try again next poll
+  await env.STATE.put(IDX(net), JSON.stringify(ids.map((id) => ({ id, exp: now + TTL * 1000 }))), { expirationTtl: TTL });
+  return ids;
+}
+async function addToIndex(env, net, id) {
+  // two posts at the same moment can overwrite each other's index write: read back, and write once more if ours is missing
+  for (let i = 0; i < 2; i++) {
+    let a = []; try { a = JSON.parse((await env.STATE.get(IDX(net))) || "[]"); } catch {}
+    const now = Date.now(), list = fresh(a, now).filter((e) => e.id !== id);
+    list.unshift({ id, exp: now + TTL * 1000 });
+    await env.STATE.put(IDX(net), JSON.stringify(list.slice(0, LIST)), { expirationTtl: TTL });
+    try { if (fresh(JSON.parse((await env.STATE.get(IDX(net))) || "[]"), Date.now()).some((e) => e.id === id)) return; } catch {}
+  }
+}
+
 /** POST /relay?net=live  body: the send-back link's hash (n=…&s=…&k=…)  → { id }
  *  GET  /relay?net=live            → { ids: [...] }   (newest first is not promised; the Inbox remembers what it has)
  *  GET  /relay?net=live&id=<id>    → the stored link, as text */
@@ -42,6 +66,7 @@ export async function relay(req, env, url, ctx, hooks = {}) {
     const id = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body))).slice(0, 32);
     if (!(await env.STATE.get(prefix + id))) {
       await env.STATE.put(prefix + id, body, { expirationTtl: TTL });
+      await addToIndex(env, net, id);
       if (hooks.onNew) { const job = hooks.onNew(net, contract, body).catch(() => {}); if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job; }
     }
     return json({ id });
@@ -53,8 +78,7 @@ export async function relay(req, env, url, ctx, hooks = {}) {
       const v = await env.STATE.get(prefix + id);
       return v ? new Response(v, { headers: { "Content-Type": "text/plain", "Cache-Control": "no-store", ...CORS } }) : json({ error: "gone" }, 404);
     }
-    const l = await env.STATE.list({ prefix, limit: LIST });
-    return json({ ids: l.keys.map((k) => k.name.slice(prefix.length)) });
+    return json({ ids: await readIndex(env, net, prefix) });
   }
   return json({ error: "method" }, 405);
 }

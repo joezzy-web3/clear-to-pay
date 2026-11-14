@@ -1,16 +1,16 @@
 // The signature relay: only send-back links, per contract, deduplicated, and readable from any origin.
 import assert from "node:assert/strict";
 import worker from "../src/index.js";
-const kv = new Map();
+const kv = new Map(); let lists = 0;
 const env = { CONTRACTS: "live=guard.cleartopay.testnet,demo=judge.cleartopay.testnet", STATE: {
   get: async (k) => kv.get(k) ?? null, put: async (k, v) => void kv.set(k, v),
-  list: async ({ prefix }) => ({ keys: [...kv.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })) }) } };
+  list: async ({ prefix }) => (lists++, { keys: [...kv.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })) }) } };
 const call = (method, q, body) => worker.fetch(new Request("https://w.example/relay" + q, { method, body }), env);
 const link = "n=eyJjb250cmFjdCI6Imd1YXJkLmNsZWFydG9wYXkudGVzdG5ldCJ9&s=" + encodeURIComponent("a".repeat(86) + "==") + "&k=" + encodeURIComponent("ed25519:9ZCa14SNQWtRoJA7CpsTmVVStenXCwt4BbQigDr5w9rf");
 
 let r = await call("POST", "?net=live", link); assert.equal(r.status, 200); const { id } = await r.json(); assert.match(id, /^[0-9a-f]{32}$/);
 assert.equal(r.headers.get("Access-Control-Allow-Origin"), "*");
-await call("POST", "?net=live", link); assert.equal(kv.size, 1, "the same link twice is kept once");
+await call("POST", "?net=live", link); assert.equal([...kv.keys()].filter((k) => k.startsWith("relay:")).length, 1, "the same link twice is kept once");
 assert.deepEqual((await (await call("GET", "?net=live")).json()).ids, [id]);
 assert.equal(await (await call("GET", "?net=live&id=" + id)).text(), link);
 assert.deepEqual((await (await call("GET", "?net=demo")).json()).ids, [], "contracts are kept apart");
@@ -19,6 +19,13 @@ for (const bad of ["hello", link.replace("&k=", "&x="), "n=abc&s=x&k=ed25519%3As
   assert.equal((await call("POST", "?net=live", bad)).status, 400, "refused: " + bad.slice(0, 30));
 assert.equal((await call("GET", "?net=live&id=../../subs")).status, 400);
 assert.equal((await call("OPTIONS", "?net=live")).status, 204);
+{ // polling reads one index key; KV list (1,000 a day on the free tier) is never used once the index exists
+  const before = lists; for (let i = 0; i < 50; i++) await call("GET", "?net=live"); assert.equal(lists, before, "no list per poll");
+  kv.set("relay:demo:" + "c".repeat(32), link); kv.delete("relayidx:demo"); // items stored before the index: read once by list, then indexed
+  assert.deepEqual((await (await call("GET", "?net=demo")).json()).ids, ["c".repeat(32)]); const once = lists;
+  await call("GET", "?net=demo"); assert.equal(lists, once); kv.delete("relay:demo:" + "c".repeat(32)); kv.set("relayidx:demo", "[]");
+  kv.set("relayidx:live", JSON.stringify([{ id: id, exp: Date.now() + 1e6 }, { id: "d".repeat(32), exp: Date.now() - 1 }]));
+  assert.deepEqual((await (await call("GET", "?net=live")).json()).ids, [id], "expired ids drop out"); }
 console.log("ok  relay: send-back links only, per contract, kept once, CORS for the Console");
 
 // Details asking to be registered travel the same way; a company's own contract may use the relay once NEAR confirms it.
