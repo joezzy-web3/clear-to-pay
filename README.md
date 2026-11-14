@@ -2,6 +2,8 @@
 
 **A payment guardrail for AI agents.** The AI reads invoices. Code decides. No invoice gets paid until it clears.
 
+*An AI agent can be fooled into believing an invoice. Clear to Pay makes sure that belief is not enough to move the company's money.*
+
 **[Live site](https://clear-to-pay.vercel.app/)** · **[Judge mode: try to fool it](https://clear-to-pay.vercel.app/console/)** · **[Inspect an invoice](https://clear-to-pay.vercel.app/inspect/)** · **[Ledger, live from testnet](https://clear-to-pay.vercel.app/ledger/)** · [Threat model](THREAT_MODEL.md) · [Proof log](docs/testnet-proof.md) · [For AI reviewers](llms.txt) · [@cleartopay](https://x.com/cleartopay)
 
 ![CI](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/ci.yml/badge.svg) ![Sandbox](https://github.com/joezzy-web3/clear-to-pay/actions/workflows/sandbox.yml/badge.svg) ![Network](https://img.shields.io/badge/NEAR-testnet-10264A) ![Licence](https://img.shields.io/badge/licence-MIT-127A4A)
