@@ -38,6 +38,9 @@ input:focus,select:focus{outline:2px solid var(--signal);outline-offset:0}
 .lhead.c4{grid-template-columns:minmax(0,1.4fr) minmax(0,.7fr) minmax(0,.9fr) 40px}.lhead.c3{grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) 40px}
 #k-lines.blind .lhead.c3{grid-template-columns:minmax(0,1fr) 40px}#k-lines.blind .lhead.c3 span:nth-child(2){display:none}
 #k-lines.blind .lhead.c3 span:first-child::after{content:" · each signer types their count"}
+.lhead.w2.n3,.lrow2.n3{grid-template-columns:minmax(0,1.5fr) minmax(0,.7fr) minmax(0,.7fr) 40px}
+.pickrow .pk{display:flex;gap:10px;align-items:center;flex:1;min-width:0;cursor:pointer;margin:0}.pickrow .nickin{width:190px;max-width:42%;font-size:14px;padding:8px 10px}.nick{font:500 12.5px var(--body);font-style:normal;color:var(--navy);background:#E9EEF5;padding:1px 7px;margin-left:6px;vertical-align:1px}
+@media (max-width:600px){.pickrow{flex-wrap:wrap}.pickrow.new{flex-wrap:nowrap}.pickrow .nickin{width:100%;max-width:none}.lhead.w2.n3{display:none}.lrow2.n3{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px}.lrow2.n3 input:first-child{grid-column:1/-1}}
 .lhead.w3{grid-template-columns:minmax(0,1.4fr) minmax(0,.6fr) minmax(0,.8fr) 40px}.lhead.w2{grid-template-columns:minmax(0,1.8fr) minmax(0,.8fr) 40px}
 @media (max-width:900px){.lhead.c4{grid-template-columns:minmax(0,1fr) minmax(0,.6fr) minmax(0,.8fr) 36px}}
 @media (max-width:520px){.lhead.w3{grid-template-columns:minmax(0,1fr) minmax(0,.6fr) minmax(0,.8fr) 34px}}
@@ -317,7 +320,7 @@ import * as C from "../crypto.js";
 import { banner, guide } from "../roles.js";
 import { shareBox, MSG } from "../share.js";
 import * as W from "./order.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy, walletFix, ownSwitch } from "../chain.js";
+import { $, esc, short, signerNames, view, rpc, TX, CONTRACTS, USDC, alertLink, decodeLink, isRef, isSupplierId, isRole, isAccount, isPubKey, isPrintable, toUnits, fromUnits, encodeLink, initMenu, copy, walletFix, ownSwitch } from "../chain.js";
 initMenu();
 
 const YOCTO = "1", TGAS = (n) => (BigInt(n) * 10n ** 12n).toString();
@@ -399,7 +402,7 @@ const FORMS = [
       return { method: "add_delivery_signer", args: { key, role } };
     },
     async readBack() { return this.now(); },
-    async now() { const s = await view(contract(), "get_delivery_signers"); fillRoles(s); return "Registered: " + (s.map((x) => `${x.role} ${short(x.key, 6)}`).join(" · ") || "none"); } },
+    async now() { const s = await view(contract(), "get_delivery_signers"); fillRoles(s); return "Registered: " + (s.map((x) => `${x.role}${signerNames(contract())[x.key] ? " (" + signerNames(contract())[x.key] + ")" : ""} ${short(x.key, 6)}`).join(" · ") || "none"); } },
 
   { id: "unsigner", kicker: "Delivery", title: "Remove a delivery signer",
     help: "When someone leaves, changes phone or loses it. Their signatures stop counting at once, including ones already made for deliveries not yet submitted. If they were the only signer of a role an order needs, add a new signer for that role.",
@@ -544,7 +547,7 @@ function wireAgent() {
 }
 
 function fillRoles(signers) {
-  const u = $("u-key"); if (u) { const was = u.value; u.innerHTML = signers.length ? `<option value="">Pick a signer</option>` + signers.map((x) => `<option value="${esc(x.key)}">${esc(x.role)} · ${esc(short(x.key, 8))}</option>`).join("") : `<option value="">No delivery signer registered</option>`; if (signers.some((x) => x.key === was)) u.value = was; }
+  const u = $("u-key"); if (u) { const was = u.value; u.innerHTML = signers.length ? `<option value="">Pick a signer</option>` + signers.map((x) => `<option value="${esc(x.key)}">${esc(x.role)}${signerNames(contract())[x.key] ? " · " + esc(signerNames(contract())[x.key]) : ""} · ${esc(short(x.key, 8))}</option>`).join("") : `<option value="">No delivery signer registered</option>`; if (signers.some((x) => x.key === was)) u.value = was; }
   const sel = $("k-role"); if (sel) sel.innerHTML = `<option value="*">Every role this order needs</option>` + [...new Set(signers.map((s) => s.role))].map((r) => `<option>${esc(r)}</option>`).join(""); }
 function addLine(id, dn) {
   const box = $(id), row = document.createElement("div");

@@ -8,6 +8,11 @@ export const SITE = "https://clear-to-pay.vercel.app/console/";
 export const $ = (id) => document.getElementById(id);
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const short = (s, n = 8) => (s && s.length > 2 * n + 1 ? s.slice(0, n) + "…" + s.slice(-n) : s || "");
+// The buyer's own names for delivery signers ("Musa, night shift"): kept in this browser only, never on chain and never sent.
+// The role stays the contract's word; two people in one role are still one role for the two-roles rule.
+const NICKS = (c) => "ctp-signer-names:" + c;
+export function signerNames(c) { try { return JSON.parse(localStorage.getItem(NICKS(c)) || "{}"); } catch { return {}; } }
+export function setSignerName(c, key, name) { try { const m = signerNames(c), v = String(name || "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 40); if (v) m[key] = v; else delete m[key]; localStorage.setItem(NICKS(c), JSON.stringify(m)); } catch {} }
 
 // ---- shape checks and links: one copy, shared with the alerts worker (links.js)
 export { isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPubKey, isPrintable, encodeLink, decodeLink, parseBack, parseRequest } from "./links.js";

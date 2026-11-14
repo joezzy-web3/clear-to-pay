@@ -6,7 +6,7 @@ import * as C from "../crypto.js";
 import { shareBox, MSG } from "../share.js";
 import { rpc } from "../chain.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
-import { $, esc, short, view, TX, USDC, isRef, isSupplierId, isRole, isAccount, isPubKey, toUnits, fromUnits, encodeLink, decodeLink, copy, alertLink, netOf } from "../chain.js";
+import { $, esc, short, signerNames, setSignerName, view, TX, USDC, isRef, isSupplierId, isRole, isAccount, isPubKey, toUnits, fromUnits, encodeLink, decodeLink, copy, alertLink, netOf } from "../chain.js";
 
 // Gas per action, in Tgas. The sandbox test a_whole_order_is_set_up_in_one_signed_transaction_or_not_at_all
 // sends this exact batch (a 50-line order) and prints what NEAR burned; keep the two in step.
@@ -245,10 +245,11 @@ function paintLines(b) {
 }
 function paintSigners(b) {
   const g = D.sig;
-  const list = X.signers.map((s) => `<label class="pickrow"><input type="checkbox" data-pick="${esc(s.key)}" ${g.pick.includes(s.key) ? "checked" : ""}><span><b>${esc(s.role)}</b><small>${esc(short(s.key, 10))} · registered</small></span></label>`).join("");
-  const adds = g.add.map((s, i) => `<div class="lrow2"><input aria-label="New signer ${i + 1} key" data-a="${i}" data-f="key" value="${esc(s.key)}" placeholder="ed25519:…"><input aria-label="New signer ${i + 1} role" data-a="${i}" data-f="role" value="${esc(s.role)}" placeholder="weighbridge"><button type="button" class="x" data-arm="${i}" aria-label="Remove new signer ${i + 1}">×</button></div>`).join("");
+  const NM = signerNames(K.contract()), nm = (k) => NM[k.trim()] || "";
+  const list = X.signers.map((s) => `<div class="pickrow"><label class="pk"><input type="checkbox" data-pick="${esc(s.key)}" ${g.pick.includes(s.key) ? "checked" : ""}><span><b>${esc(s.role)}${nm(s.key) ? ` <i class="nick">${esc(nm(s.key))}</i>` : ""}</b><small>${esc(short(s.key, 10))} · registered</small></span></label><input class="nickin" data-nick="${esc(s.key)}" value="${esc(nm(s.key))}" placeholder="Name (only you see it)" aria-label="Your name for this ${esc(s.role)}" maxlength="40" autocomplete="off"></div>`).join("");
+  const adds = g.add.map((s, i) => `<div class="lrow2 n3"><input aria-label="New signer ${i + 1} key" data-a="${i}" data-f="key" value="${esc(s.key)}" placeholder="ed25519:…"><input aria-label="New signer ${i + 1} role" data-a="${i}" data-f="role" value="${esc(s.role)}" placeholder="weighbridge"><input aria-label="New signer ${i + 1} name" data-nick="${esc(s.key.trim())}" data-an="${i}" value="${esc(nm(s.key))}" placeholder="Musa" maxlength="40" autocomplete="off"><button type="button" class="x" data-arm="${i}" aria-label="Remove new signer ${i + 1}">×</button></div>`).join("");
   // a new signer joins the list as soon as its key and role are complete, tagged NEW until the order's transaction registers it
-  const newRows = () => g.add.filter((s) => isPubKey(s.key.trim()) && isRole(s.role.trim())).map((s) => `<div class="pickrow new"><input type="checkbox" checked disabled aria-label="New signer, included"><span><b>${esc(s.role.trim())} <em class="tag">new</em></b><small>${esc(short(s.key.trim(), 10))} · registered when you approve this order</small></span></div>`).join("");
+  const newRows = () => g.add.filter((s) => isPubKey(s.key.trim()) && isRole(s.role.trim())).map((s) => `<div class="pickrow new"><input type="checkbox" checked disabled aria-label="New signer, included"><span><b>${esc(s.role.trim())}${nm(s.key) ? ` <i class="nick">${esc(nm(s.key))}</i>` : ""} <em class="tag">new</em></b><small>${esc(short(s.key.trim(), 10))} · registered when you approve this order</small></span></div>`).join("");
   const rolesNote = () => { const roles = [...new Set([...X.signers.filter((s) => g.pick.includes(s.key)), ...g.add.filter((s) => isRole(s.role.trim()))].map((s) => s.role.trim()))];
     return roles.length >= 2 ? `Delivery needs 2 signatures, from 2 of these roles: <b>${esc(roles.join(", "))}</b>.` : `Roles so far: ${esc(roles.join(", ") || "none")}. Two different roles are needed.`; };
   const nr = newRows();
@@ -256,7 +257,7 @@ function paintSigners(b) {
       ${X.signers.length || g.add.length ? `<div class="picks"><span class="muted" style="font:400 12.5px var(--mono)">${X.signers.length ? "Signers: tick who confirms this order's deliveries" : "Signers for this order"}</span>${list}<div class="picks" id="wz-picknew">${nr}</div></div>` : `<p class="muted">No delivery signers registered yet. Add two below, in two different roles.</p>`}
       <label>Paste a signer's reply<span>the link a storekeeper or weighbridge sent back</span><textarea id="wz-greply" rows="2" placeholder="https://…/console/setup/#a=…"></textarea></label>
       <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-guse">Use this reply</button><button class="btn ghost" type="button" id="wz-gadd">Add a key by hand</button></div>
-      ${adds ? `<div class="linegrid"><span class="muted" style="font:400 12.5px var(--body)">New signers, registered by this order's transaction</span><div class="lhead w2"><span>Public key</span><span>Role</span><span></span></div>${adds}</div>` : ""}
+      ${adds ? `<div class="linegrid"><span class="muted" style="font:400 12.5px var(--body)">New signers, registered by this order's transaction</span><div class="lhead w2 n3"><span>Public key</span><span>Role</span><span>Name, for you</span><span></span></div>${adds}</div>` : ""}
       <p class="note" id="wz-roles">${rolesNote()}</p></div>
     <div class="invbox"><b>Invite a signer</b><p class="muted">Their phone makes the key. Register a key only if you sent that person the invitation.</p>
       <div class="fields" style="margin-top:0"><label>Role<input id="wz-grole" placeholder="weighbridge" autocomplete="off"></label></div>
@@ -266,6 +267,8 @@ function paintSigners(b) {
     const box = $("wz-picknew"); if (box) box.innerHTML = newRows(); // typed by hand: the row appears once key and role are complete
     $("wz-roles").innerHTML = rolesNote(); }));
   b.querySelectorAll("[data-arm]").forEach((x) => (x.onclick = () => { g.add.splice(+x.dataset.arm, 1); save(); paint(); }));
+  // names are this browser's labels: saved as typed, keyed by the public key, never part of the transaction
+  b.querySelectorAll("[data-nick]").forEach((inp) => (inp.oninput = () => { const k = inp.dataset.an != null ? g.add[+inp.dataset.an].key.trim() : inp.dataset.nick; if (isPubKey(k)) setSignerName(K.contract(), k, inp.value); const box = $("wz-picknew"); if (box && inp.dataset.an != null) box.innerHTML = newRows(); }));
   $("wz-gadd").onclick = () => { g.add.push({ key: "", role: "" }); save(); paint(); };
   $("wz-guse").onclick = () => { try { const o = readReply($("wz-greply").value); if (o.kind === "supplier") throw new Error("That is the supplier's reply; it belongs at step 1."); if (X.signers.some((s) => s.key === o.key)) { g.pick = [...new Set([...g.pick, o.key])]; } else if (!g.add.some((s) => s.key === o.key)) g.add.push({ key: o.key, role: isRole(o.role) ? o.role : "" }); save(); paint(); msg("Signer added. Register a key only if you sent that person the invitation."); } catch (e) { msg(e.message, true); } };
   $("wz-ginv").onclick = () => { const r = $("wz-grole").value.trim(); if (!isRole(r)) { msg("Role: 1 to 32 of a-z, 0-9, '-'.", true); return; } showLink($("wz-ginvout"), inviteLink({ kind: "signer", role: r }), "Copy the invitation", MSG.inviteSigner(r), "Confirm deliveries with Clear to Pay"); };
@@ -282,7 +285,7 @@ function reviewHTML(p) {
   const sup = p.sup;
   return section(1, "Supplier", `<dl class="kv2"><dt>Supplier</dt><dd>${esc(sup.id)}${sup.isNew ? ' <em class="tag">new</em>' : ""}</dd><dt>Paid only to</dt><dd><b>${esc(sup.addr)}</b></dd><dt>Payable from</dt><dd>${esc(sup.isNew ? whenText(Date.now() + H72) + " (72 hours after signing)" : whenText(sup.from))}</dd>${sup.isNew ? `<dt>Signing key</dt><dd><code>${esc(short(sup.key, 12))}</code></dd><dt>Address check</dt><dd>You called them and they read it back<br>${proofLine(sup.proofResult || { state: "none" })}</dd>` : ""}</dl>`)
     + section(2, `Order ${p.po}`, `<table class="lt"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Units</th><th>Line total</th></tr></thead><tbody>${p.lines.map((l) => `<tr><td>${esc(l.sku)}</td><td>${esc(l.qty)}</td><td>${esc(fromUnits(l.unit_price))} USDC</td><td><code>${esc(l.unit_price)}</code></td><td>${esc(fromUnits((BigInt(l.qty) * BigInt(l.unit_price)).toString()))} USDC</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="4">Total</td><td><b>${esc(usdUnits(p.total))}</b></td></tr></tfoot></table>`)
-    + section(3, "Delivery", `<dl class="kv2"><dt>Rule</dt><dd>2 signatures, from 2 different roles of: <b>${esc(p.roles.join(", "))}</b></dd>${[...p.picked.map((s) => [s, "registered"]), ...p.added.map((s) => [s, "new"])].map(([s, t]) => `<dt>${esc(s.role)}</dt><dd><code>${esc(short(s.key, 10))}</code> <em class="tag ${t === "registered" ? "reg" : ""}">${t}</em></dd>`).join("")}</dl>`)
+    + section(3, "Delivery", `<dl class="kv2"><dt>Rule</dt><dd>2 signatures, from 2 different roles of: <b>${esc(p.roles.join(", "))}</b></dd>${[...p.picked.map((s) => [s, "registered"]), ...p.added.map((s) => [s, "new"])].map(([s, t]) => `<dt>${esc(s.role)}</dt><dd>${signerNames(K.contract())[s.key] ? `<b>${esc(signerNames(K.contract())[s.key])}</b> ` : ""}<code>${esc(short(s.key, 10))}</code> <em class="tag ${t === "registered" ? "reg" : ""}">${t}</em></dd>`).join("")}</dl>`)
     + section(4, "Limits", `<dl class="kv2"><dt>Per invoice</dt><dd>${esc(usdUnits(p.limits.inv))}</dd><dt>Per supplier</dt><dd>${esc(usdUnits(p.limits.per))} every ${esc(p.limits.hours)} h</dd><dt>Submissions a day</dt><dd>${esc(String(p.limits.max))}</dd><dt></dt><dd class="muted">${p.limits.changed ? "These replace the limits on chain." : "Unchanged: not part of the transaction."}</dd></dl>`);
 }
 async function paintReview(b) {

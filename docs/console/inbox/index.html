@@ -297,7 +297,7 @@ import { shareBox, MSG } from "../share.js";
 import { banner, guide } from "../roles.js";
 import { flagsFor, flagHtml, injectCss } from "../flags.js";
 import { compareReading, submitArgs } from "../invoice-flow.js";
-import { $, esc, short, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix, relayIds, relayGet, ownSwitch, parseBack as parseBackWith, parseRequest, relayNet, RELAY_SEEN } from "../chain.js";
+import { $, esc, short, signerNames, view, rpc, TX, CONTRACTS, USDC, isRef, isSupplierId, isRole, isAccount, isUint, isU64, isU128, isPrintable, decodeLink, fromUnits, initMenu, copy, walletFix, relayIds, relayGet, ownSwitch, parseBack as parseBackWith, parseRequest, relayNet, RELAY_SEEN } from "../chain.js";
 initMenu();
 
 const S = { c: (() => { try { const q = new URLSearchParams(location.search).get("contract"), k = localStorage.getItem("ctp-inbox-contract"); return q && CONTRACTS.own === q ? "own" : k && CONTRACTS[k] ? k : "demo"; } catch { return "demo"; } })(),
@@ -667,7 +667,7 @@ async function paintSigs() {
     if (vs.length > 1 && !P.clash) P.clash = { note: g.note.note_id, text: vs.map((v) => `${v.sigs.map((x) => x.role).join(" + ")} counted ${v.note.lines.map((l) => l.qty + " " + l.sku).join(", ")}`).join(" · ") };
     if (!stale && (!P.best || roles.length > P.best.roles.length)) { P.best = { note: g.note.note_id, roles, ready }; P.need = policy.required; P.missing = (policy.roles && policy.roles.length ? policy.roles : [...new Set(signers.map((z) => z.role))]).filter((r) => !roles.includes(r)); }
     P.cards.push(`<article class="sc ${ready ? "ready" : ""}"><h3>${esc(g.note.note_id)} <span>order ${esc(g.note.order_id)} · ${esc(g.note.lines.map((l) => l.qty + " " + l.sku).join(", "))}</span></h3>
-      <ul class="checks">${rows.map((r) => `<li class="${r.ok ? "ok" : "no"}"><i></i><div>${esc(r.x.role)}<small>${r.ok ? esc(short(r.x.key, 8)) + " · registered" : "this key is not registered with this role"}</small></div></li>`).join("")}</ul>
+      <ul class="checks">${rows.map((r) => `<li class="${r.ok ? "ok" : "no"}"><i></i><div>${esc(r.x.role)}${signerNames(contract())[r.x.key] ? " · " + esc(signerNames(contract())[r.x.key]) : ""}<small>${r.ok ? esc(short(r.x.key, 8)) + " · registered" : "this key is not registered with this role"}</small></div></li>`).join("")}</ul>
       <p class="who">${stale ? "Signed under an older delivery policy: ask for new signatures." : ready ? `Ready: ${roles.join(" + ")}.` : `${roles.length} of ${policy.required} roles. Still needed: another role.`}</p>
       ${ready ? `<div class="row"><button class="btn y" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div>` : ""}</article>`);
   }
