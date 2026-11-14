@@ -187,6 +187,10 @@ The agent never holds the buyer's keys. It signs with a NEAR **function-call acc
 - **NEAR's own caveats** ([access keys](https://docs.near.org/protocol/accounts-contracts/access-keys)): the gas allowance is used up by calls, and then the key stops working until the buyer adds a new one; an account that held *only* function-call keys could not transfer NEAR or add keys. That is why the buyer account keeps one full-access key, held by the owner and never by the agent: it is the real authority here and must be protected (on mainnet: a hardware wallet or a multisig).
 - **Upgrades** need the full-access key of the contract account itself (`guard.cleartopay.testnet`), a different account. The contract has no upgrade, migrate or key-management method of its own.
 
+## Build on it (SDK)
+
+[`sdk/`](sdk/README.md) is a dependency-free JavaScript SDK (Node 18+ and browsers): check that a contract is a real Clear to Pay guard, read orders, suppliers, receipts and payments, sign invoices and delivery notes exactly as the contract checks them, and submit with an agent key it first confirms is fenced to `submit_invoice` and `execute_payment`. `cd sdk && npm test` runs offline.
+
 ## Use it from any AI agent (MCP)
 
 `reader/tools/mcp_server.py` gives any MCP client (Claude, Cursor and others) Clear to Pay as tools, with the standard library only: `inspect_invoice`, `get_receipt`, `list_receipts`, `supplier_status`, `pool`, `next_step`, `verify_reading`, and two that send, `submit_invoice` and `retry_payment`.

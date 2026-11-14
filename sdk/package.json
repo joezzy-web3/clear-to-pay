@@ -1,0 +1,12 @@
+{
+  "name": "clear-to-pay-sdk",
+  "version": "0.1.0",
+  "description": "Read, sign and submit to a Clear to Pay contract on NEAR. No dependencies; Node 18+ and browsers.",
+  "type": "module",
+  "main": "index.js",
+  "exports": { ".": "./index.js" },
+  "files": ["index.js", "crypto.js", "README.md"],
+  "scripts": { "test": "node test/sdk.test.mjs" },
+  "license": "MIT",
+  "repository": "github:joezzy-web3/clear-to-pay"
+}
