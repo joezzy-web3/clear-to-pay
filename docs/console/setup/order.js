@@ -310,7 +310,8 @@ function paintDone(b) {
   const d = D.done, p = d.plan;
   const roleLinks = p.roles.map((r) => `<button class="btn ghost" type="button" data-rl="${esc(r)}">Send the ${esc(r)} their page</button>`).join("");
   b.innerHTML = `<div class="okline big"><b>${esc(p.po)} is authorised on chain.</b> ${esc(usdUnits(p.total))} to ${esc(p.sup.id)}, paid only to ${esc(p.sup.addr)}.</div>
-    <div class="row"><a class="btn" href="${TX(d.hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a><button class="btn y" type="button" id="wz-po-dl2">Download PO</button></div>
+    ${d.hash ? "" : `<p class="note">This order was already on the contract when this page checked, exactly as in your draft: it was signed earlier, so there was nothing new to sign.</p>`}
+    <div class="row"><a class="btn" href="${d.hash ? TX(d.hash) : "https://testnet.nearblocks.io/address/" + encodeURIComponent(d.contract)}" target="_blank" rel="noopener">${d.hash ? "The transaction on NearBlocks" : "The contract on NearBlocks"}</a><button class="btn y" type="button" id="wz-po-dl2">Download PO</button></div>
     <div class="now" id="wz-back">Reading it back from the contract…</div>
     <h4 class="h4">Next</h4>
     <div class="row" style="margin-top:0"><button class="btn ghost" type="button" id="wz-rsup">Send ${esc(p.po)} to the supplier</button>${roleLinks}</div>
@@ -342,12 +343,31 @@ async function readBack(p) {
 }
 
 // ---------------------------------------------------------------- sign once
+/** Is this order number already on the contract? "same": with this draft's supplier and lines (it was signed before);
+ *  "other": someone else's contents; null: not there; undefined: could not read. */
+async function onChain(p) {
+  try {
+    const o = await view(K.contract(), "get_order", { order_id: p.po });
+    if (!o) return null;
+    return o.supplier_id === p.sup.id && o.lines.length === p.lines.length && o.lines.every((l, i) => l.sku === p.lines[i].sku && String(l.qty) === p.lines[i].qty && String(l.unit_price) === p.lines[i].unit_price) ? "same" : "other";
+  } catch { return undefined; }
+}
+/** The order is on chain as drafted: show it as authorised (no transaction of this visit to point at). */
+function adopt(p) {
+  D.signing = null; D.done = { hash: null, at: Date.now(), contract: K.contract(), buyer: K.S.me || K.S.owner, plan: p }; D.step = 5; save(); remember(D.done);
+  paint(); K.refresh();
+}
+const TAKEN = (p) => `<p class="err"><b>${esc(p.po)} is already an order on this contract</b>, with different contents. Nothing was signed. Go back to Order lines and choose another order number.</p>`;
 async function signOnce(p) {
   const S = K.S;
   if (!S.wallet || S.me !== S.owner) return;
   // CTP8-02/03: read the contract again and rebuild the plan; if anything differs, show Review again instead of signing.
   try { await snapshot(); const q = plan(D, X, K.contract()); if (JSON.stringify(q.actions) !== JSON.stringify(p.actions)) throw new Error("changed"); }
   catch (e) { paint(); $("wz-msg").innerHTML = `<p class="err">${e.message === "changed" ? "The contract changed since you opened Review (limits, signers or the supplier). Check Review again, then sign." : esc(e.message || "Could not read the contract; nothing was signed.")}</p>`; return; }
+  // an order number is used once: a draft signed earlier (the wallet timed out, or Sign once was pressed again) is already there
+  const there = await onChain(p);
+  if (there === "same") { adopt(p); return; }
+  if (there === "other") { paint(); $("wz-msg").innerHTML = TAKEN(p); return; }
   if (!confirm(`You are about to authorise ${p.po} for ${usdUnits(p.total)} to ${p.sup.id}, paid only to ${p.sup.addr}.\n\nOne transaction, ${p.actions.length} actions, on ${K.contract()}. All of it lands, or none of it does.`)) return;
   const out = $("wz-msg");
   try {
@@ -357,7 +377,11 @@ async function signOnce(p) {
     const res = await S.wallet.signAndSendTransaction({ receiverId: K.contract(), actions: walletActions(p) });
     sessionStorage.removeItem("ctp-setup-pending");
     if (res) await finished(res.transaction?.hash || res.transaction_outcome?.id, res.status?.Failure || null, !res.status);
-  } catch (e) { sessionStorage.removeItem("ctp-setup-pending"); out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`; }
+  } catch (e) {
+    sessionStorage.removeItem("ctp-setup-pending");
+    if ((await onChain(p)) === "same") { adopt(p); return; } // the wallet reported an error, but the order landed
+    out.innerHTML = `<p class="err">${esc(e.message || String(e))}</p>`;
+  }
 }
 async function finished(hash, failure, unknown = false) {
   if (unknown && D.signing) {
@@ -368,6 +392,11 @@ async function finished(hash, failure, unknown = false) {
     return;
   }
   const s = D.signing; D.signing = null;
+  if (failure && s) { // refused as "order already exists": the same order signed before, or a number someone else used
+    const there = await onChain(s.plan);
+    if (there === "same") { adopt(s.plan); return; }
+    if (there === "other" && /already exists/.test(JSON.stringify(failure))) { save(); paint(); $("wz-msg").innerHTML = TAKEN(s.plan); return; }
+  }
   if (failure || !s) { save(); paint(); $("wz-msg").innerHTML = `<p class="err">Nothing was changed: the contract refused the transaction${failure ? ": " + esc(JSON.stringify(failure).slice(0, 260)) : ""}.</p>${hash ? `<a class="btn ghost" href="${TX(hash)}" target="_blank" rel="noopener">The transaction on NearBlocks</a>` : ""}`; return; }
   D.done = { hash, at: Date.now(), contract: K.contract(), buyer: K.S.me || K.S.owner, plan: s.plan }; D.step = 5; save(); remember(D.done);
   await snapshot().catch(() => {});
@@ -393,7 +422,7 @@ function printPO(p, done) {
       <tfoot><tr><td colspan="3">Total</td><td>${esc(fromUnits(p.total))}</td></tr></tfoot></table>
     <div class="po-cols"><div><h5>Delivery</h5><p>Paid only for goods signed as delivered by 2 different roles of: ${esc(p.roles.join(", "))}.</p></div>
       <div><h5>Limits</h5><p>${esc(usdUnits(p.limits.inv))} per invoice; ${esc(usdUnits(p.limits.per))} per supplier every ${esc(p.limits.hours)} h.</p></div></div>
-    <footer class="po-f">${done ? `Authorised on NEAR testnet ${esc(new Date(done.at).toISOString().replace("T", " ").slice(0, 16))} UTC · transaction <b>${esc(done.hash)}</b> · check it at testnet.nearblocks.io` : "Draft. Not authorised: nothing has been signed. An authorised order carries its NEAR transaction hash here."}<br>Invoices against this order are paid by the contract only to the registered address, at these prices, once. Testnet: not a real order.</footer>`;
+    <footer class="po-f">${done ? `Authorised on NEAR testnet ${esc(new Date(done.at).toISOString().replace("T", " ").slice(0, 16))} UTC · ${done.hash ? `transaction <b>${esc(done.hash)}</b>` : `read back from <b>${esc(done.contract)}</b>`} · check it at testnet.nearblocks.io` : "Draft. Not authorised: nothing has been signed. An authorised order carries its NEAR transaction hash here."}<br>Invoices against this order are paid by the contract only to the registered address, at these prices, once. Testnet: not a real order.</footer>`;
   document.title = `${p.po} ${done ? "authorised" : "draft"}`;
   setTimeout(() => { window.print(); document.title = "Clear to Pay Buyer Setup"; }, 50);
 }
