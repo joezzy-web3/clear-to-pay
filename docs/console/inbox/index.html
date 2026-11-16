@@ -206,6 +206,14 @@ p.who{margin:0;font:600 13px var(--mono);letter-spacing:.1em;text-transform:uppe
 .clinks a.for{color:var(--paper)}
 .clinks a.dim{opacity:.55}
 .cbar .roles{margin-left:0}
+.closedh{margin:22px 0 8px;font:500 12.5px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.pkg.closed{display:block;opacity:.92}
+.pkg.closed .sc .row,.pkg.closed .aibox{display:none}
+.pkg.closed>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;padding:4px 0}
+.pkg.closed>summary::-webkit-details-marker{display:none}
+.pkg.closed>summary b{font:800 20px/1.1 var(--display)}
+.pkg.closed>summary span{font:400 13px var(--mono);color:var(--mute)}
+.pkg.closed>summary em{font-style:normal;font:500 12.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--clear);margin-left:auto}
 </style>
 <link rel="stylesheet" href="../polish.css">
 </head>
@@ -650,6 +658,8 @@ async function paintSigs() {
   let signers = [], sups = {};
   try { signers = await view(contract(), "get_delivery_signers"); } catch {}
   const notes = {}, cards = [], readyNotes = [], invs = [];
+  // An order whose invoice already cleared on chain is closed: the contract would only seize a second submit as a duplicate.
+  const clearedFor = (inv) => inv && (S.receipts || []).find((r) => r.verdict === "Cleared" && r.supplier_id === inv.invoice.supplier_id && r.invoice_number === inv.invoice.invoice_number);
   const pk = {}, pkg = (o) => (pk[o] ||= { order: o, cards: [], best: null, need: 2, missing: [], inv: null, invOk: false, last: 0 });
   // A note is its exact lines: with blind receiving each signer types their own count, and two counts are two different notes.
   const lineKey = (n) => n.lines.map((l) => l.sku + "=" + l.qty).join(",");
@@ -680,12 +690,18 @@ async function paintSigs() {
         <li class="${note ? "ok" : "wait"}"><i></i><div>Delivery for ${esc(x.invoice.order_id)}<small>${note ? `note ${esc(note.note.note_id)}, signed by ${esc(note.roles.join(" + "))}` : "no note with every role yet"}</small></div></li></ul>
       ${ok ? `<div class="aibox"><b>Let the AI read the PDF</b><small>Choose the PDF the supplier sent. This browser checks it is the file they signed and cuts hidden text; the reader in OutLayer's TEE reads the rest. It decides nothing.</small>
         <label class="btn ghost aipick">Choose the PDF<input type="file" accept="application/pdf,.pdf" hidden data-ai="${k}"></label><div id="ai-${k}">${aiHtml(S.ai[x.signature])}</div></div>
-      <div class="row">${note ? `<button class="btn y" type="button" data-submit="${k}">Submit to the contract</button>` : ""}<button class="btn ghost" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div><div id="sx-${k}"></div>` : ""}</article>`);
+      <div class="row">${note && !clearedFor(x) ? `<button class="btn y" type="button" data-submit="${k}">Submit to the contract</button>` : ""}<button class="btn ghost" type="button" data-agent='${esc(JSON.stringify(forAgent))}'>Copy for the agent</button></div><div id="sx-${k}"></div>` : ""}</article>`);
   }
   S.invs = invs; S.readyNotes = readyNotes;
+  for (const P of Object.values(pk)) P.done = clearedFor(P.inv);
   // One package per order: what has arrived, what is still needed, then read and submit.
   const step = (st, t, d) => `<li class="${st}"><i></i><div>${t}<small>${d}</small></div></li>`;
-  $("sgrid").innerHTML = Object.values(pk).sort((a, b) => b.last - a.last).map((P) => {
+  const closedHtml = (P) => { const r = P.done, st = r.payment?.status;
+    return `<details class="pkg closed"><summary><b>Order ${esc(P.order)}</b><span>${esc(P.inv.invoice.invoice_number)} · ${esc(P.inv.invoice.supplier_id)} · ${esc(usd(P.inv.invoice.total))}</span><em>${st === "Settled" ? "Paid" : "Cleared" + (st ? " · " + esc(st.toLowerCase()) : "")} · receipt #${r.id}</em></summary>
+      <p class="muted">This invoice already cleared on chain (receipt #${r.id}), so the order is closed. Submitting it again would only be seized as a duplicate. The signatures below are kept in this browser; you can clear them.</p>
+      <div class="row"><button class="btn ghost" type="button" data-forget="${esc(P.order)}">Clear this order's signatures from this browser</button></div><div class="sgrid">${P.cards.join("")}</div></details>`; };
+  const pkgs = Object.values(pk).sort((a, b) => b.last - a.last), open = pkgs.filter((P) => !P.done), shut = pkgs.filter((P) => P.done);
+  $("sgrid").innerHTML = open.map((P) => {
     const dOk = !!(P.best && P.best.ready), have = P.best ? P.best.roles : [];
     const dTxt = P.clash && !dOk ? `<b class="clash">Counts differ on ${esc(P.clash.note)}:</b> ${esc(P.clash.text)}. Ask them to recount together; nothing can be paid on this note until two roles sign the same count.` : dOk ? `note ${esc(P.best.note)}: ${esc(have.join(" + "))}` : have.length ? `${have.length} of ${P.need} roles (${esc(have.join(", "))}); still needed: ${esc(P.missing.length ? P.missing.join(" or ") : "another role")}` : "no delivery signature yet: make the delivery links in Buyer setup";
     const iTxt = P.inv ? (P.invOk ? `${esc(P.inv.invoice.invoice_number)} · ${esc(P.inv.invoice.supplier_id)} · ${esc(usd(P.inv.invoice.total))}` : "signed with a key that is not the supplier's registered key") : "not yet: the supplier signs it on their Sign page";
@@ -695,7 +711,12 @@ async function paintSigs() {
     return `<section class="pkg${all ? " go" : ""}"><header><h3>Order ${esc(P.order)}${P.inv ? `<span>${esc(P.inv.invoice.supplier_id)}</span>` : ""}</h3><b class="pst">${all ? "Ready to submit" : "In progress"}</b></header>
       <ol class="steps">${step(dOk ? "ok" : "wait", "Delivery confirmed", dTxt + mk)}${step(P.inv && P.invOk ? "ok" : "wait", "Supplier's invoice", iTxt + sl)}${step(aiDone ? "ok" : all ? "now" : "wait", "AI reads the PDF", aiDone ? "read; see the invoice card" : all ? "choose the PDF on the invoice card below (optional, advice only)" : "after the invoice arrives")}${step(all ? "now" : "wait", "Submit to the contract", all ? "on the invoice card below, with your wallet" : "when the delivery and the invoice are both here")}</ol>
       <div class="slbox" data-slout="${esc(P.order)}"></div><div class="sgrid">${P.cards.join("")}</div></section>`;
-  }).join("");
+  }).join("") + (open.length ? "" : `<p class="muted">Nothing waiting to submit.</p>`)
+    + (shut.length ? `<h3 class="closedh">Closed: already paid on chain (${shut.length})</h3>` + shut.map(closedHtml).join("") : "");
+  document.querySelectorAll("[data-forget]").forEach((b) => (b.onclick = () => {
+    const o = b.dataset.forget, orderOf = (x) => (x.kind === "delivery" ? x.note.order_id : x.invoice.order_id);
+    writeSigs(readSigs().filter((x) => !(x.contract === contract() && orderOf(x) === o))); paintSigs();
+  }));
   document.querySelectorAll("[data-agent]").forEach((b) => (b.onclick = () => copy(b.dataset.agent, b)));
   document.querySelectorAll("[data-sl]").forEach((b) => (b.onclick = () => { const box = [...document.querySelectorAll("[data-slout]")].find((x) => x.dataset.slout === b.dataset.sl); if (box) showSupplierLink(box, b.dataset.sl); }));
   document.querySelectorAll("[data-ai]").forEach((f) => (f.onchange = () => { const file = f.files[0]; f.value = ""; if (file) aiCheck(+f.dataset.ai, file); })); // value cleared: choosing the same PDF again retries
@@ -759,7 +780,7 @@ $("sig-clear").onclick = () => { if (confirm("Forget the signatures kept in this
 function setContract(k, reload = true) {
   S.c = k; try { localStorage.setItem("ctp-inbox-contract", k); } catch {}
   document.querySelectorAll(".switch button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.c === k)));
-  if (reload) { load(); paintSigs(); paintRequests(); }
+  if (reload) { load().then(paintSigs); paintRequests(); }
 }
 ownSwitch(document.querySelector(".switch"), (addr) => { const x = document.createElement("button"); x.type = "button"; x.dataset.c = "own"; x.setAttribute("aria-pressed", "false"); x.innerHTML = `Your own contract<small>${addr ? esc(addr) : "your company's guard"}</small>`; if (addr) x.title = addr; return x; });
 document.querySelectorAll(".switch button").forEach((b) => b.addEventListener("click", () => setContract(b.dataset.c)));
