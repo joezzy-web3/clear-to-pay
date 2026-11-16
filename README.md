@@ -48,6 +48,48 @@ Most agent guards check *who* gets paid and *how much*. Clear to Pay also checks
 
 Built for the NEAR Hackathon (1–14 November 2026). This README lists only what is built and proven, and marks clearly where the design reaches further.
 
+## How the code meets the judging criteria
+
+Everything in this section is in the code; each line names the file to open.
+
+### NEAR technology, and where it sits in a payment
+
+| NEAR technology | Its part in a payment | Code |
+|---|---|---|
+| Smart contract (near-sdk) | Makes every payment decision: the supplier's signature, the order, the delivery roles, the registered payee, the limits | `src/inspection.rs`, `src/payments.rs` |
+| Function-call access keys | The agent submits with a key NEAR itself limits to `submit_invoice` and `execute_payment` on one contract. Every owner method demands 1 yoctoNEAR, which such a key cannot attach | `assert_owner_with_yocto` in `src/lib.rs`; the fence is checked before sending in `sdk/index.js` (`keyFence`) and `reader/tools/mcp_server.py` |
+| NEP-141 | The pool is funded by `ft_transfer_call` and pays by `ft_transfer`, with checked callbacks | `src/payments.rs` |
+| NEAR AI Cloud, in a TEE | Reads the invoice PDF; the enclave signs the reading and the signature is verified before the buyer submits. The contract takes nothing from it: [the AI is never in charge](#why-the-ai-is-never-in-charge) | `reader/ctp_reader/`, `docs/console/outlayer-verify.js` |
+| OutLayer | The reader runs as WASM inside OutLayer's TEE and is called live from the Console (Inbox, and "Your own invoice" in Judge mode) | `outlayer/src/lib.rs`, `docs/console/outlayer.js` |
+| NEP-413 | A supplier proves control of its payout account with its own wallet when it registers | `tools/console-crypto/`, `docs/console/sign/` |
+| NEAR Intents (1Click API) | After the contract has paid, the supplier moves the money to another chain with one approval. On testnet this runs on Tidepool, because NEAR Intents itself runs on mainnet only | `docs/console/receive-as.js` |
+| Account model | A factory creates each company's contract in one batch with no `AddKey`, so it is locked from birth | `factory/src/lib.rs` |
+
+### Why a contract, and not a policy wallet
+
+A policy wallet, such as NEAR's Agent API, answers: may this agent spend, how much, on which assets, to which destinations. Clear to Pay answers a different question: **is this invoice owed?** That needs checks a spending policy does not express:
+
+- **The supplier signed this invoice** with the key registered for it, over the exact document, for this contract (`InvoiceMessage` and `submit_invoice` in `src/inspection.rs`).
+- **It matches an order on chain**: items, prices, and what is still left to invoice.
+- **Two different roles signed the delivery note**, under the order's current delivery policy.
+- **The payee is the supplier's registered address**, and a new or changed address cannot be paid for 72 hours (`COOL_OFF_NS` in `src/lib.rs`).
+- **Every decision is a receipt** with a verdict and its reasons, kept append-only.
+
+The contract's own limits (per invoice, per supplier per period, submissions per day) are a backstop behind those checks, not the product. The two designs fit together: [where it goes next](#where-it-goes-next) sends a cleared payout into NEAR Intents, to an account under owner-signed rules.
+
+### Judge mode: what is live, and what is recorded
+
+- **Every submit is a real transaction**, signed in the browser and sent to `judge.cleartopay.testnet`. The verdict shown is read from the contract's receipt; the page computes none.
+- **`docs/console/cases.json` holds signed inputs, not answers**: invoices and delivery notes signed ahead of time by the demo supplier and two delivery signers (`scripts/judge-cases.sh`). The contract verifies those ed25519 signatures on every submit. There are many copies because the contract clears each invoice once.
+- **`docs/proof/reading-INV-2208.json` is the enclave's signed reading of the sample invoice**, recorded once. The page checks its signature again in your browser each time.
+- **The live reading is beside it**: "Your own invoice" in Judge mode and the Inbox send a PDF's visible text to the reader in OutLayer and verify what comes back.
+
+### The secret key in `docs/console/agent.json`
+
+It is published on purpose, and it is the product's claim in one file. It is the Judge mode agent's key (public key `ed25519:FkAMyguSm7jG4Twu1E7vbbhDJVR4kroFYNsxkRQsKsiB` on `judge-buyer.cleartopay.testnet`), and NEAR limits it to `submit_invoice` and `execute_payment` on `judge.cleartopay.testnet`, with a gas allowance and no deposits. Check it: `near account list-keys judge-buyer.cleartopay.testnet network-config testnet now`.
+
+Anyone holding it can submit invoices, each judged by the contract, and nothing else: it cannot withdraw, change a rule, add a signer or move USDC. That is the worst case for any agent key in Clear to Pay, which is why this one can be public. It is allow-listed by its exact value in `.gitleaks.toml`; the secret scan in CI (`.github/workflows/ci.yml`, job `secrets`) keeps every other key out of the repository.
+
 ---
 
 ## Try it
